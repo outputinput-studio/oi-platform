@@ -74,6 +74,7 @@ test("a second page at its own address; a wrong address has a way out", async ({
   await page.getByTestId("section-0").getByLabel("Text").fill("Founded in a shed.\n\nStill in the shed.");
   await expect(page.getByTestId("section-0").getByTestId("save-status")).toHaveText("Saved");
   await page.getByRole("button", { name: "Publish" }).click();
+  await expect(page.getByTestId("page-status")).toHaveText("Live");
 
   await page.goto(demo + "/about-us");
   await expect(page.getByText("Still in the shed.")).toBeVisible();
