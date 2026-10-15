@@ -13,6 +13,31 @@ import { auth } from "./server";
 
 export type SiteAccess = { user: User; site: Site; role: MembershipRole };
 
+/** Thrown by module functions when the actor may not do this. Pages turn it into a message. */
+export class AccessError extends Error {
+  constructor(message = "You can't do that here.") {
+    super(message);
+    this.name = "AccessError";
+  }
+}
+
+/**
+ * The check every module function starts with: is this person a member
+ * of this site, and (when `atLeast` is "owner") do they own it? Pure
+ * database, no cookies, so modules stay testable and the rule lives in
+ * exactly one place.
+ */
+export async function assertAccess(
+  actorId: string,
+  siteId: string,
+  atLeast: MembershipRole = "staff",
+): Promise<MembershipRole> {
+  const role = await membershipFor(actorId, siteId);
+  if (!role) throw new AccessError("You're not a member of this site.");
+  if (atLeast === "owner" && role !== "owner") throw new AccessError("Only an owner can do that.");
+  return role;
+}
+
 /** Cookie naming the site the person is currently working in. */
 export const ACTIVE_SITE_COOKIE = "oi_site";
 

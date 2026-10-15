@@ -54,9 +54,10 @@ test("email → code → pick a site → signed in → sign out", async ({ page 
   await page.getByRole("button", { name: "Demo site" }).click();
 
   await expect(page).toHaveURL(admin + "/");
-  await expect(page.getByRole("heading", { name: "Demo site" })).toBeVisible();
+  await expect(page.getByTestId("site-name")).toHaveText("Demo site");
   await expect(page.getByTestId("role")).toHaveText("owner");
 
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Settings" }).click();
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
 
