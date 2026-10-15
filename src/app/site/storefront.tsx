@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { siteFromHost, siteTheme } from "@/modules/sites/server";
 import { themeVars } from "@/modules/sites/theme";
 import { HOME_SLUG, publishedPage, publishedPages } from "@/modules/pages/server";
+import { hasPublishedArticles } from "@/modules/articles/server";
 import { RenderSections } from "@/modules/pages/render";
 import { Placeholder } from "@/lib/placeholder";
 import type { Site } from "@/db/schema";
@@ -20,7 +21,7 @@ export async function Storefront({ slug }: { slug: string }) {
   const site = await siteFromHost(host);
   if (!site) return <Placeholder surface="site" />; // no such site: keep the stage-1 placeholder
 
-  const [page, menu] = await Promise.all([publishedPage({ siteId: site.id, slug }), publishedPages({ siteId: site.id })]);
+  const [page, menu] = await Promise.all([publishedPage({ siteId: site.id, slug }), storefrontMenu(site.id)]);
   if (!page) {
     if (slug === HOME_SLUG) return <ComingSoon site={site} />;
     notFound();
@@ -32,6 +33,12 @@ export async function Storefront({ slug }: { slug: string }) {
       <RenderSections sections={page.sections} />
     </Frame>
   );
+}
+
+/** The menu: every live page, then Journal when there's an article to read. */
+export async function storefrontMenu(siteId: string): Promise<{ slug: string; title: string }[]> {
+  const [pages, journal] = await Promise.all([publishedPages({ siteId }), hasPublishedArticles({ siteId })]);
+  return [...pages.map((p) => ({ slug: p.slug, title: p.title })), ...(journal ? [{ slug: "journal", title: "Journal" }] : [])];
 }
 
 /**
