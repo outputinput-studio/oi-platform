@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { MEMBERSHIP_ROLES } from "@/db/schema";
@@ -22,10 +23,13 @@ export async function addMemberAction(_prev: TeamFormState, form: FormData): Pro
   const { user, site } = await requireSiteAccess();
   try {
     const email = z.string().trim().toLowerCase().email("That doesn't look like an email address.").parse(form.get("email"));
-    const r = await addMember({ actorId: user.id, siteId: site.id, email });
+    const host = (await headers()).get("x-oi-host") ?? "";
+    const signInUrl = `https://${host}/sign-in`;
+    const r = await addMember({ actorId: user.id, siteId: site.id, email, invitation: { siteName: site.name, byName: user.name, signInUrl } });
     revalidatePath("/team");
     if (!r.added) return { ok: `${r.email} is already on the team.` };
-    return { ok: r.accountCreated ? `${r.email} added. They can sign in with that address now.` : `${r.email} added.` };
+    if (r.emailed) return { ok: `${r.email} added. We've emailed them how to sign in.` };
+    return { ok: `${r.email} added. The email didn't go out, so let them know to sign in at ${host}.` };
   } catch (err) {
     return { error: message(err) };
   }
