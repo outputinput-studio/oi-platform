@@ -112,7 +112,9 @@ export function Nav({
                 </span>
                 <span className={folded ? "sr-only" : "min-w-0 flex-1 truncate"}>{it.label}</span>
                 {it.href === "/inbox" && !folded && inboxCount > 0 && (
-                  <span aria-hidden className="rounded-full bg-accent px-1.5 py-px text-[10.5px] font-semibold text-text">{inboxCount}</span>
+                  <span aria-hidden className={`flex h-[18px] items-center justify-center rounded-full bg-accent text-[10.5px] font-semibold leading-none text-text ${inboxCount < 10 ? "w-[18px]" : "min-w-[18px] px-[5px]"}`}>
+                    {inboxCount > 99 ? "99+" : inboxCount}
+                  </span>
                 )}
               </Link>
             </li>
@@ -266,7 +268,11 @@ function ContentIcon({ size }: IconProps) {
 function Badge({ n }: { n: number }) {
   if (n <= 0) return null;
   return (
-    <span data-testid="inbox-badge" aria-hidden className="absolute -right-1.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-text">
+    <span
+      data-testid="inbox-badge"
+      aria-hidden
+      className={`absolute -right-2 -top-1.5 flex h-[18px] items-center justify-center rounded-full bg-accent text-[10px] font-semibold leading-none text-text ${n < 10 ? "w-[18px]" : "min-w-[18px] px-[5px]"}`}
+    >
       {n > 99 ? "99+" : n}
     </span>
   );

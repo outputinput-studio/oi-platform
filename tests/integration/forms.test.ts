@@ -18,6 +18,7 @@ import {
   setSubmissionStatus,
   submitForm,
   updateForm,
+  uploadSubmissionFile,
 } from "@/modules/forms/server";
 
 const owner = new Pool({ connectionString: process.env.MIGRATE_DATABASE_URL, max: 1 });
@@ -155,5 +156,33 @@ describe("submissions", () => {
     await deleteForm({ actorId: ann, siteId: siteA, formId });
     expect((await listSubmissions({ actorId: ann, siteId: siteA, status: "done" })).length).toBe(1);
     expect(await publicForm({ siteId: siteA, formId })).toBeNull();
+  });
+});
+
+describe("file uploads", () => {
+  const base = { siteName: "Forms A", inboxUrl: "https://admin.example.test/inbox" };
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+  test("only for a form's own file field, only the right kinds and sizes", async () => {
+    const f = await createForm({ actorId: ann, siteId: siteA, name: "Photos" });
+    const photos = { ...newField("file"), label: "Photos", required: true };
+    await updateForm({ actorId: ann, siteId: siteA, formId: f.id, settings: { name: "Photos", fields: [f.fields[1], photos], buttonText: "Send", afterMessage: "Ta.", notifyEmails: "" } });
+    await expect(uploadSubmissionFile({ siteId: siteA, formId: f.id, fieldId: "nope", filename: "a.png", contentType: "image/png", bytes: png })).rejects.toThrow(/doesn't take files/);
+    await expect(uploadSubmissionFile({ siteId: siteB, formId: f.id, fieldId: photos.id, filename: "a.png", contentType: "image/png", bytes: png })).rejects.toThrow(/doesn't take files/);
+    await expect(uploadSubmissionFile({ siteId: siteA, formId: f.id, fieldId: photos.id, filename: "a.exe", contentType: "application/x-msdownload", bytes: png })).rejects.toThrow(/JPG, PNG/);
+    await expect(uploadSubmissionFile({ siteId: siteA, formId: f.id, fieldId: photos.id, filename: "big.png", contentType: "image/png", bytes: new Uint8Array(4 * 1024 * 1024 + 1) })).rejects.toThrow(/too big/);
+    const up = await uploadSubmissionFile({ siteId: siteA, formId: f.id, fieldId: photos.id, filename: "ref.png", contentType: "image/png", bytes: png });
+    expect(up.key).toMatch(new RegExp(`^${siteA}/forms/[0-9a-f-]{36}\\.png$`));
+    expect(up.name).toBe("ref.png");
+
+    // The answer is the list of what landed; a key from elsewhere is refused, as is an empty required one.
+    const email = f.fields[1].id;
+    await expect(submitForm({ ...base, siteId: siteA, formId: f.id, answers: { [email]: "d@x.invalid", [photos.id]: "" } })).rejects.toThrow(/needed/);
+    await expect(submitForm({ ...base, siteId: siteA, formId: f.id, answers: { [email]: "d@x.invalid", [photos.id]: "not json" } })).rejects.toThrow(/didn't come through/);
+    const foreign = JSON.stringify([{ ...up, key: up.key.replace(siteA, siteB) }]);
+    await expect(submitForm({ ...base, siteId: siteA, formId: f.id, answers: { [email]: "d@x.invalid", [photos.id]: foreign } })).rejects.toThrow(/aren't from this site/);
+    const r = await submitForm({ ...base, siteId: siteA, formId: f.id, answers: { [email]: "d@x.invalid", [photos.id]: JSON.stringify([up]) } });
+    expect(r.ok).toBe(true);
+    const [sub] = await listSubmissions({ actorId: ann, siteId: siteA, formId: f.id });
+    expect(JSON.parse(sub.answers[photos.id])[0].key).toBe(up.key);
   });
 });

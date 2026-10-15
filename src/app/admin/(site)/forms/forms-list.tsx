@@ -46,7 +46,7 @@ export function FormsList({ forms }: { forms: FormCard[] }) {
                 {({ handle }) => (
                   <li data-testid={`form-${f.id}`}>
                     <Card className="flex items-center hover:bg-hover">
-                      <button type="button" {...handle} className="flex h-full w-10 flex-none cursor-grab touch-none items-center justify-center self-stretch rounded-l-card text-faint hover:text-text active:cursor-grabbing">
+                      <button type="button" {...handle} className="flex w-10 flex-none cursor-grab touch-none items-center justify-center self-stretch rounded-l-card text-faint hover:text-text active:cursor-grabbing">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
                           <path d="M5 9h14M5 15h14" />
                         </svg>
