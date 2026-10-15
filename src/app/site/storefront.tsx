@@ -34,23 +34,40 @@ export async function Storefront({ slug }: { slug: string }) {
   );
 }
 
-/** The frame every storefront page sits in: theme, header with the menu, footer. */
-function Frame({ site, menu, current, children }: { site: Site; menu: { slug: string; title: string }[]; current: string; children: React.ReactNode }) {
+/**
+ * The frame every storefront page sits in: theme, header with the menu,
+ * footer. The editor's preview renders the same frame (`preview`): links
+ * become plain text there, so nothing inside the preview pane navigates.
+ */
+export function Frame({
+  site,
+  menu,
+  current,
+  preview = false,
+  children,
+}: {
+  site: Site;
+  menu: { slug: string; title: string }[];
+  current: string;
+  preview?: boolean;
+  children: React.ReactNode;
+}) {
   const theme = siteTheme(site);
   const links = menu.filter((p) => p.slug !== HOME_SLUG);
+  const A = preview ? PreviewLink : Link;
   return (
     <div data-surface="site" data-theme={theme.mode} style={themeVars(theme) as React.CSSProperties} className="flex min-h-screen flex-col bg-[var(--bg)] text-[var(--text)]">
       <header className="border-b border-[var(--border)]">
         <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between gap-6 px-5 md:px-8">
-          <Link href="/" className="text-[17px] font-semibold tracking-[-0.2px]">
+          <A href="/" className="text-[17px] font-semibold tracking-[-0.2px]">
             {site.name}
-          </Link>
+          </A>
           {links.length > 0 && (
             <nav aria-label="Pages" className="flex gap-5 overflow-x-auto text-[14px]">
               {links.map((p) => (
-                <Link key={p.slug} href={`/${p.slug}`} className={p.slug === current ? "text-[var(--text)]" : "text-[var(--text-muted)] hover:text-[var(--text)]"}>
+                <A key={p.slug} href={`/${p.slug}`} className={p.slug === current ? "text-[var(--text)]" : "text-[var(--text-muted)] hover:text-[var(--text)]"}>
                   {p.title}
-                </Link>
+                </A>
               ))}
             </nav>
           )}
@@ -65,6 +82,11 @@ function Frame({ site, menu, current, children }: { site: Site; menu: { slug: st
       </footer>
     </div>
   );
+}
+
+/** Stands in for Link inside the preview pane: the words, going nowhere. */
+function PreviewLink({ children, className }: { href: string; className?: string; children: React.ReactNode }) {
+  return <span className={className}>{children}</span>;
 }
 
 /** A real site with nothing published yet. A page, not an error. */

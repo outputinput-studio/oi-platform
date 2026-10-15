@@ -3,6 +3,7 @@ import { mediaAvailable, mediaUrl } from "@/modules/media/server";
 import { getPage, HOME_SLUG } from "@/modules/pages/server";
 import { addSectionAction, deletePageAction, moveSectionAction, removeSectionAction, setPageStatusAction } from "@/modules/pages/actions";
 import { imageRef, type SectionType } from "@/modules/pages/registry";
+import { headers } from "next/headers";
 import { Editor, type EditorSection } from "./editor";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,9 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const { user, site } = await requireSiteAccess();
   const page = await getPage({ actorId: user.id, siteId: site.id, pageId: id });
+  // The public address: the admin host with "admin" swapped for the site's slug.
+  const adminHost = (await headers()).get("x-oi-host") ?? "";
+  const siteUrl = `${adminHost.replace(/^admin\./, `${site.slug}.`)}${page.slug === HOME_SLUG ? "" : `/${page.slug}`}`;
 
   const sections: EditorSection[] = page.sections.map((s) => {
     const r = imageRef.safeParse((s.data as Record<string, unknown>).image);
@@ -25,6 +29,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
       isHome={page.slug === HOME_SLUG}
       live={page.status === "published"}
       mediaAvailable={mediaAvailable()}
+      siteUrl={siteUrl}
       actions={{
         setStatus: setPageStatusAction,
         addSection: addSectionAction,
