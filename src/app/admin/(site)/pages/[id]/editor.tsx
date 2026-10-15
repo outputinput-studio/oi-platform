@@ -1,0 +1,288 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { savePageTitleAction } from "@/modules/pages/actions";
+import { sectionSummary, sectionTypes, type SectionType } from "@/modules/pages/registry";
+import { Button, Input, Label, PageHeader } from "../../../ui";
+import { AddSection } from "./add-section";
+import { PageSettingsForm } from "./page-settings-form";
+import { SectionEditor, type Status } from "./section-editor";
+
+/**
+ * The page editor, as in design/admin.html. Everything on it autosaves
+ * except the address: the header shows one Saved / Saving… / Retry for
+ * the whole page, worked out from every field that saves on its own.
+ *
+ * Sections are cards that fold up to their type and first line. The first
+ * starts open, the rest folded; a section you've just added opens itself.
+ */
+export type EditorSection = { id: string; type: SectionType; data: unknown; imageUrl?: string };
+
+export function Editor({
+  page,
+  sections,
+  isHome,
+  live,
+  mediaAvailable,
+  actions,
+}: {
+  page: { id: string; title: string; slug: string };
+  sections: EditorSection[];
+  isHome: boolean;
+  live: boolean;
+  mediaAvailable: boolean;
+  actions: {
+    setStatus: (form: FormData) => Promise<void>;
+    addSection: (form: FormData) => Promise<void>;
+    moveSection: (form: FormData) => Promise<void>;
+    removeSection: (form: FormData) => Promise<void>;
+    deletePage: (form: FormData) => Promise<void>;
+  };
+}) {
+  // ── one save status for the page ──────────────────────────────
+  const [statuses, setStatuses] = useState<Record<string, Status>>({});
+  const report = useCallback((id: string, s: Status) => setStatuses((m) => ({ ...m, [id]: s })), []);
+  const all = Object.values(statuses);
+  const overall: Status = all.some((s) => s.kind === "saving")
+    ? { kind: "saving" }
+    : (all.find((s) => s.kind === "error") ?? (all.some((s) => s.kind === "saved") ? { kind: "saved" } : { kind: "idle" }));
+
+  // ── which sections are open ───────────────────────────────────
+  const [open, setOpen] = useState<Set<string>>(() => new Set(sections[0] ? [sections[0].id] : []));
+  const known = useRef(new Set(sections.map((s) => s.id)));
+  useEffect(() => {
+    const fresh = sections.filter((s) => !known.current.has(s.id));
+    if (fresh.length) {
+      setOpen((o) => new Set([...o, ...fresh.map((s) => s.id)]));
+      for (const s of fresh) known.current.add(s.id);
+    }
+  }, [sections]);
+  const toggle = (id: string) =>
+    setOpen((o) => {
+      const n = new Set(o);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+
+  return (
+    <>
+      <PageHeader
+        title="Edit page"
+        back="/pages"
+        actions={
+          <>
+            <SaveStatus status={overall} />
+            <form action={actions.setStatus} className="flex items-center gap-2">
+              <input type="hidden" name="pageId" value={page.id} />
+              <input type="hidden" name="status" value={live ? "draft" : "published"} />
+              <span data-testid="page-status" className="sr-only">
+                {live ? "Live" : "Draft"}
+              </span>
+              <Button type="submit" size="sm" variant={live ? "secondary" : "primary"}>
+                {live ? "Unpublish" : "Publish"}
+              </Button>
+            </form>
+          </>
+        }
+      />
+
+      <div className="pt-5 md:pt-6">
+        <TitleField pageId={page.id} initial={page.title} onStatus={report} />
+        <p className="mt-2 font-mono text-[12.5px] text-muted">{isHome ? "the front page" : `/${page.slug}`}</p>
+
+        <Label className="mt-7" right={sections.length > 1 ? "Reorder from ⋮" : undefined}>
+          Sections
+        </Label>
+        <section className="space-y-2.5" aria-label="Sections">
+          {sections.length === 0 && (
+            <p className="rounded-card border border-dashed border-line px-5 py-7 text-center text-[13.5px] text-muted">
+              This page is empty. Add a section to begin.
+            </p>
+          )}
+          {sections.map((s, i) => (
+            <SectionCard
+              key={s.id}
+              index={i}
+              count={sections.length}
+              section={s}
+              pageId={page.id}
+              open={open.has(s.id)}
+              onToggle={() => toggle(s.id)}
+              onStatus={report}
+              mediaAvailable={mediaAvailable}
+              actions={actions}
+            />
+          ))}
+          <AddSection pageId={page.id} action={actions.addSection} />
+        </section>
+
+        <Label className="mt-9">Page settings</Label>
+        <div className="space-y-5 rounded-card border border-line bg-surface p-4">
+          <PageSettingsForm pageId={page.id} slug={page.slug} isHome={isHome} />
+          {!isHome && (
+            <form action={actions.deletePage} className="border-t border-line-soft pt-4">
+              <input type="hidden" name="pageId" value={page.id} />
+              <Button type="submit" variant="danger" size="sm">
+                Delete this page
+              </Button>
+              <p className="mt-2 text-[12.5px] text-muted">It comes off the site straight away. We keep a copy, so ask us if you need it back.</p>
+            </form>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function SaveStatus({ status }: { status: Status }) {
+  if (status.kind === "idle") return null;
+  return (
+    <span data-testid="page-save-status" className={`text-[13px] ${status.kind === "error" ? "text-alert" : status.kind === "saved" ? "text-success" : "text-muted"}`}>
+      {status.kind === "saving" && "Saving…"}
+      {status.kind === "saved" && "✓ Saved"}
+      {status.kind === "error" && "Not saved"}
+    </span>
+  );
+}
+
+/** The page title, autosaved a moment after typing stops. */
+function TitleField({ pageId, initial, onStatus }: { pageId: string; initial: string; onStatus: (id: string, s: Status) => void }) {
+  const [value, setValue] = useState(initial);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const save = async (v: string) => {
+    onStatus("title", { kind: "saving" });
+    try {
+      const r = await savePageTitleAction(pageId, v);
+      onStatus("title", r.error ? { kind: "error", message: r.error } : { kind: "saved" });
+    } catch {
+      onStatus("title", { kind: "error", message: "couldn't reach the server" });
+    }
+  };
+  return (
+    <div>
+      <label htmlFor="page-title" className="label mb-2 block">
+        Page title
+      </label>
+      <Input
+        id="page-title"
+        value={value}
+        maxLength={120}
+        onChange={(e) => {
+          setValue(e.target.value);
+          if (timer.current) clearTimeout(timer.current);
+          timer.current = setTimeout(() => void save(e.target.value), 700);
+        }}
+      />
+    </div>
+  );
+}
+
+function SectionCard({
+  index,
+  count,
+  section,
+  pageId,
+  open,
+  onToggle,
+  onStatus,
+  mediaAvailable,
+  actions,
+}: {
+  index: number;
+  count: number;
+  section: EditorSection;
+  pageId: string;
+  open: boolean;
+  onToggle: () => void;
+  onStatus: (id: string, s: Status) => void;
+  mediaAvailable: boolean;
+  actions: { moveSection: (f: FormData) => Promise<void>; removeSection: (f: FormData) => Promise<void> };
+}) {
+  const [menu, setMenu] = useState(false);
+  const label = sectionTypes[section.type]?.label ?? section.type;
+  const summary = sectionSummary(section.type, section.data);
+
+  return (
+    <article data-testid={`section-${index}`} className="rounded-card border border-line bg-surface">
+      <div className="flex items-center gap-1 pr-2">
+        <button type="button" onClick={onToggle} aria-expanded={open} className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left">
+          <DragGlyph />
+          <span className="min-w-0 flex-1">
+            <span className="label block !text-[10.5px]">{label}</span>
+            {!open && summary && <span className="mt-0.5 block truncate text-[15px]">{summary}</span>}
+          </span>
+        </button>
+        <div className="relative">
+          <button type="button" aria-label="Section menu" aria-haspopup="menu" onClick={() => setMenu((m) => !m)} className="flex h-9 w-9 items-center justify-center rounded-button text-muted hover:bg-hover hover:text-text">
+            <DotsGlyph />
+          </button>
+          {menu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setMenu(false)} />
+              <div role="menu" className="absolute right-0 top-10 z-20 w-44 overflow-hidden rounded-card border border-line bg-panel py-1 shadow-[0_8px_24px_var(--shadow)]">
+                <form action={actions.moveSection} onSubmit={() => setMenu(false)}>
+                  <input type="hidden" name="pageId" value={pageId} />
+                  <input type="hidden" name="sectionId" value={section.id} />
+                  <input type="hidden" name="direction" value="up" />
+                  <MenuItem disabled={index === 0}>Move up</MenuItem>
+                </form>
+                <form action={actions.moveSection} onSubmit={() => setMenu(false)}>
+                  <input type="hidden" name="pageId" value={pageId} />
+                  <input type="hidden" name="sectionId" value={section.id} />
+                  <input type="hidden" name="direction" value="down" />
+                  <MenuItem disabled={index === count - 1}>Move down</MenuItem>
+                </form>
+                <form action={actions.removeSection} onSubmit={() => setMenu(false)} className="border-t border-line-soft">
+                  <input type="hidden" name="pageId" value={pageId} />
+                  <input type="hidden" name="sectionId" value={section.id} />
+                  <MenuItem tone="alert">Remove section</MenuItem>
+                </form>
+              </div>
+            </>
+          )}
+        </div>
+        <button type="button" onClick={onToggle} aria-label={open ? "Fold up" : "Open"} className="flex h-9 w-9 items-center justify-center rounded-button text-muted hover:bg-hover hover:text-text">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={open ? "rotate-180" : ""} aria-hidden>
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+      </div>
+      {open && (
+        <div className="border-t border-line-soft px-4 pb-4 pt-4">
+          <SectionEditor sectionId={section.id} type={section.type} initial={section.data} imageUrl={section.imageUrl} mediaAvailable={mediaAvailable} onStatus={onStatus} />
+        </div>
+      )}
+    </article>
+  );
+}
+
+function MenuItem({ children, disabled, tone }: { children: React.ReactNode; disabled?: boolean; tone?: "alert" }) {
+  return (
+    <button
+      type="submit"
+      role="menuitem"
+      disabled={disabled}
+      className={`block w-full px-4 py-2.5 text-left text-[14px] hover:bg-hover disabled:opacity-40 ${tone === "alert" ? "text-alert" : "text-text"}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function DragGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="flex-none text-faint" aria-hidden>
+      <path d="M5 9h14M5 15h14" />
+    </svg>
+  );
+}
+function DotsGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <circle cx="12" cy="5" r="1.8" />
+      <circle cx="12" cy="12" r="1.8" />
+      <circle cx="12" cy="19" r="1.8" />
+    </svg>
+  );
+}

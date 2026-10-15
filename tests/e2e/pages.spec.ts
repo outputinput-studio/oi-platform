@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { goTo } from "./nav";
+import { goTo, openSection } from "./nav";
 
 /**
  * Pages, end to end on a phone: create, add sections, type (autosave),
@@ -26,7 +26,8 @@ test("build the front page and publish it", async ({ page }) => {
   await signInAsOwner(page);
   await goTo(page, "Content");
 
-  // The first page is suggested as the front page.
+  // "Add page" opens a sheet; the first page is suggested as the front page.
+  await page.getByRole("button", { name: "Add page" }).click();
   await expect(page.getByLabel("Address")).toHaveValue("home");
   await page.getByRole("button", { name: "Create page" }).click();
   await expect(page).toHaveURL(/\/pages\/[0-9a-f-]+$/);
@@ -45,8 +46,10 @@ test("build the front page and publish it", async ({ page }) => {
   const statement = page.getByTestId("section-1");
   await statement.getByLabel("The line").fill("We make small sites feel big.");
   await expect(statement.getByTestId("save-status")).toHaveText("Saved");
-  await statement.getByRole("button", { name: "Move up" }).click();
-  await expect(page.getByTestId("section-0").getByRole("heading")).toHaveText("Statement");
+  await statement.getByRole("button", { name: "Section menu" }).click();
+  await page.getByRole("menuitem", { name: "Move up" }).click();
+  await expect(page.getByTestId("section-0")).toContainText("Statement");
+  await expect(page.getByTestId("page-save-status")).toHaveText("✓ Saved");
 
   // Not live yet: the storefront shows "coming soon", not the draft.
   const res = await page.request.get(base + "/", { headers: { host: "demo.localhost" } });
@@ -67,6 +70,7 @@ test("build the front page and publish it", async ({ page }) => {
 test("a second page at its own address; a wrong address has a way out", async ({ page }) => {
   await signInAsOwner(page);
   await page.goto(admin + "/pages");
+  await page.getByRole("button", { name: "Add page" }).click();
   await page.getByLabel("Title").fill("About us");
   await expect(page.getByLabel("Address")).toHaveValue("about-us");
   await page.getByRole("button", { name: "Create page" }).click();
@@ -95,6 +99,7 @@ test("a wrong save shows Retry, not silence", async ({ page }) => {
   // Cut the connection for the save call only.
   await page.route("**/pages/**", (route) => (route.request().method() === "POST" ? route.abort() : route.continue()));
   const hero = page.getByTestId("section-1");
+  await openSection(hero);
   await hero.getByLabel("Headline").fill("Welcome, again");
   await expect(hero.getByTestId("save-status")).toContainText("Retry");
   await page.unroute("**/pages/**");

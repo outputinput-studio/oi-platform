@@ -12,7 +12,7 @@ export function NewPageForm({ suggestHome }: { suggestHome: boolean }) {
   const [slugTouched, setSlugTouched] = useState(suggestHome);
 
   return (
-    <form action={act} className="space-y-3">
+    <form action={act} className="space-y-4">
       <Field label="Title" htmlFor="new-title">
         <Input
           id="new-title"
@@ -26,24 +26,21 @@ export function NewPageForm({ suggestHome }: { suggestHome: boolean }) {
           }}
         />
       </Field>
-      <Field label="Address" htmlFor="new-slug">
+      <Field label="Address" htmlFor="new-slug" hint="The end of the link, like about-us. Use home for the front page.">
         <Input
           id="new-slug"
           name="slug"
           value={slug}
           maxLength={80}
+          className="font-mono"
           onChange={(e) => {
             setSlugTouched(true);
             setSlug(e.target.value);
           }}
         />
       </Field>
-      <p className="text-sm text-[var(--muted)]">
-        The address is the end of the link, like <span className="text-[var(--fg)]">about-us</span>. Use{" "}
-        <span className="text-[var(--fg)]">home</span> for the front page.
-      </p>
       <Notice {...state} />
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" disabled={pending} className="w-full">
         {pending ? "Creating…" : "Create page"}
       </Button>
     </form>
