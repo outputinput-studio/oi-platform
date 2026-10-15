@@ -28,6 +28,8 @@ export type ImageRef = z.infer<typeof imageRef>;
 
 const heading = z.string().trim().max(120).default("");
 const body = z.string().max(20_000).default("");
+/** Small text above the heading ("MADE TO MEASURE"). Empty hides it. */
+const label = z.string().trim().max(60).default("");
 
 /** How the add-section sheet groups the types. */
 export const SECTION_GROUPS = { words: "Words", images: "Images" } as const;
@@ -38,7 +40,7 @@ export const sectionTypes = {
     label: "Text",
     description: "A heading and words",
     group: "words" as SectionGroup,
-    schema: z.object({ heading, body }),
+    schema: z.object({ label, heading, body }),
   },
   statement: {
     label: "Statement",
@@ -59,7 +61,7 @@ export const sectionTypes = {
     label: "Hero",
     description: "A headline, a line underneath, one big image",
     group: "images" as SectionGroup,
-    schema: z.object({ heading, text: z.string().trim().max(500).default(""), image: imageRef.optional() }),
+    schema: z.object({ label, heading, text: z.string().trim().max(500).default(""), image: imageRef.optional() }),
   },
   pictureAndWords: {
     label: "Image and words",

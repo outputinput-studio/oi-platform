@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db, withSite } from "@/db/client";
 import { sites, type Site } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
+import { parseTheme, readTheme, type Theme } from "./theme";
 
 /**
  * A site's own settings. Everything here runs inside withSite(), so the
@@ -26,6 +27,20 @@ export async function renameSite(p: { actorId: string; siteId: string; name: str
   );
   if (!site) throw new AccessError("That site doesn't exist.");
   return site;
+}
+
+/** The site's look, with defaults filled in. */
+export function siteTheme(site: Pick<Site, "theme">): Theme {
+  return readTheme(site.theme);
+}
+
+/** Owners change how the storefront looks. Validated against themeSchema; unknown keys are dropped. */
+export async function updateTheme(p: { actorId: string; siteId: string; theme: unknown }): Promise<Theme> {
+  await assertAccess(p.actorId, p.siteId, "owner");
+  const theme = parseTheme(p.theme);
+  const [site] = await withSite(p.siteId, (tx) => tx.update(sites).set({ theme }).where(eq(sites.id, p.siteId)).returning());
+  if (!site) throw new AccessError("That site doesn't exist.");
+  return theme;
 }
 
 /**

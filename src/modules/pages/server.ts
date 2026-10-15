@@ -223,6 +223,17 @@ export async function publishedPage(p: { siteId: string; slug: string }): Promis
   });
 }
 
+/** The storefront's menu: every live page's title and address, in order, the front page first. */
+export async function publishedPages(p: { siteId: string }): Promise<Pick<Page, "id" | "slug" | "title">[]> {
+  return withSite(p.siteId, (tx) =>
+    tx
+      .select({ id: pages.id, slug: pages.slug, title: pages.title })
+      .from(pages)
+      .where(and(eq(pages.status, "published"), isNull(pages.deletedAt)))
+      .orderBy(asc(pages.position), asc(pages.createdAt)),
+  );
+}
+
 // ───────────────────────── helpers ─────────────────────────
 
 async function loadPage(tx: Tx, pageId: string): Promise<Page> {

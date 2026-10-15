@@ -109,6 +109,9 @@ function Fields({
     case "hero":
       return (
         <>
+          <Field label="Label" htmlFor={`${id}-label`} hint="Small text above the headline. Leave empty to hide it.">
+            <Input id={`${id}-label`} value={str("label")} maxLength={60} onChange={(e) => onChange({ label: e.target.value })} />
+          </Field>
           <Field label="Headline" htmlFor={`${id}-heading`}>
             <Input id={`${id}-heading`} value={str("heading")} maxLength={120} onChange={(e) => onChange({ heading: e.target.value })} />
           </Field>
@@ -121,6 +124,9 @@ function Fields({
     case "text":
       return (
         <>
+          <Field label="Label" htmlFor={`${id}-label`} hint="Small text above the heading. Leave empty to hide it.">
+            <Input id={`${id}-label`} value={str("label")} maxLength={60} onChange={(e) => onChange({ label: e.target.value })} />
+          </Field>
           <Field label="Heading" htmlFor={`${id}-heading`}>
             <Input id={`${id}-heading`} value={str("heading")} maxLength={120} onChange={(e) => onChange({ heading: e.target.value })} />
           </Field>
