@@ -1,5 +1,6 @@
 import type { Section } from "@/db/schema";
-import { parseSectionData, type SectionData } from "./registry";
+import { mediaUrl } from "@/modules/media/server";
+import { parseSectionData, type ImageRef } from "./registry";
 
 /**
  * How each section type looks on the storefront. Headings come from
@@ -97,7 +98,14 @@ function Paragraphs({ text }: { text: string }) {
   );
 }
 
-function Picture({ image, className }: { image: NonNullable<SectionData<"hero">["image"]>; className: string }) {
-  // eslint-disable-next-line @next/next/no-img-element -- media sizing arrives with the media stage
-  return <img src={image.url} alt={image.alt} className={className} />;
+/**
+ * A picture from the library. Width and height reserve the space so the
+ * page doesn't jump; the browser loads it lazily. The address is worked
+ * out here from settings, never stored in the page.
+ */
+function Picture({ image, className }: { image: ImageRef; className: string }) {
+  const src = mediaUrl(image.key);
+  if (!src) return null;
+  // eslint-disable-next-line @next/next/no-img-element -- served straight from the bucket; no optimiser in the loop
+  return <img src={src} alt={image.alt} width={image.width} height={image.height} loading="lazy" className={className} />;
 }

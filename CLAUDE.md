@@ -26,6 +26,10 @@ node-postgres (`pg`) against Neon · Zod · Vitest · Playwright · pnpm · Node
   Pages link with public paths (`/team`, never `/admin/team`). `src/app/admin/ui.tsx` holds the few primitives.
 - `src/modules/pages/registry.ts` — the section registry: every block a page can hold, with its Zod schema. A new
   section type is an entry here + a renderer in `render.tsx` + an editor in the admin. Never a one-off for a client.
+- `src/modules/media` — the picture library. Bytes go through `src/lib/storage.ts` (one R2 bucket, every site under
+  its own `<site_id>/` folder; local disk when R2 isn't configured outside production), rows in `media` (RLS).
+  Sections reference a picture by storage `key`, never by URL: the public address comes from `R2_PUBLIC_URL` at
+  render time, so the bucket's domain can change without touching a page. The browser shrinks photos before upload.
 - `src/app/site` — the storefront. The site comes from the hostname (`siteFromHost`, via the owner-defined
   `resolve_site(slug)` function, the only way to find a site before one is current); only published pages render.
 - `tests/unit` (pure) · `tests/integration` (real Postgres) · `tests/e2e` (Playwright, Host header per surface)

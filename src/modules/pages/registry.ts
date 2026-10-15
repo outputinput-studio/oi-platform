@@ -11,13 +11,18 @@ import { z } from "zod";
  * Headings come from position: the page title is the h1, a section's
  * heading is an h2. Clients never choose a heading level.
  *
- * Images are a reference to the media library ({ url, alt }). Until the
- * media stage lands they stay optional, so no migration is needed later.
+ * Images are a reference into the media library by storage key, never by
+ * address: the public address comes from settings at render time, so the
+ * bucket can move (r2.dev today, media.outputinput.co tomorrow) without
+ * touching a single page. Width and height are copied in so the storefront
+ * can reserve the space before the picture arrives.
  */
 export const imageRef = z.object({
-  url: z.string().url(),
+  key: z.string().regex(/^[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]{1,5}$/, "Not a picture from the library."),
   /** Shown to people who can't see the picture. Asked for as "Describe this photo". */
-  alt: z.string().max(300).default(""),
+  alt: z.string().trim().max(300).default(""),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
 });
 export type ImageRef = z.infer<typeof imageRef>;
 
