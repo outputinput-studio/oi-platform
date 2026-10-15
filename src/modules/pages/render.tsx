@@ -1,5 +1,7 @@
 import type { Section } from "@/db/schema";
 import { mediaUrl } from "@/modules/media/server";
+import { publicForm } from "@/modules/forms/server";
+import { StorefrontForm } from "@/app/site/storefront-form";
 import { parseSectionData, type ImageRef } from "./registry";
 
 /**
@@ -82,9 +84,26 @@ function RenderSection({ section }: { section: Section }) {
         </section>
       );
     }
+    case "form": {
+      const d = parseSectionData("form", section.data);
+      return (
+        <section className="py-10 md:py-14">
+          {d.heading && <h2 className="mb-3 text-[28px] font-semibold leading-[1.15] tracking-[-0.5px] md:text-[32px]">{d.heading}</h2>}
+          {d.text && <p className="mb-6 max-w-2xl text-[17px] leading-[1.65] text-[var(--text-body)]">{d.text}</p>}
+          <FormBlock siteId={section.siteId} formId={d.formId} />
+        </section>
+      );
+    }
     default:
       return null;
   }
+}
+
+/** The form itself, loaded for this site. A missing or deleted form renders nothing rather than an error. */
+async function FormBlock({ siteId, formId }: { siteId: string; formId: string }) {
+  const form = formId ? await publicForm({ siteId, formId }) : null;
+  if (!form) return null;
+  return <StorefrontForm form={{ id: form.id, fields: form.fields, buttonText: form.buttonText, afterMessage: form.afterMessage }} />;
 }
 
 /** The small accent line above a heading. Nothing when empty. */

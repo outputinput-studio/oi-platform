@@ -227,3 +227,58 @@ export const media = pgTable(
 );
 
 export type Media = typeof media.$inferSelect;
+
+/**
+ * A form a client builds: its fields live in `fields` (validated against
+ * fieldSchema in modules/forms/fields.ts on every write). A page shows it
+ * through a "form" section that points at its id. Soft delete only.
+ */
+export const forms = pgTable(
+  "forms",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    /** Only the team sees this name: "Commission enquiry". */
+    name: text("name").notNull(),
+    fields: jsonb("fields").notNull().$type<unknown[]>().default([]),
+    buttonText: text("button_text").notNull().default("Send"),
+    /** Shown on the page once it's sent. */
+    afterMessage: text("after_message").notNull().default("Thanks, we have it. We'll be in touch."),
+    /** Who gets an email per submission, comma separated. Empty: the owners. */
+    notifyEmails: text("notify_emails").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [index("forms_site_id_idx").on(t.siteId)],
+);
+
+export type Form = typeof forms.$inferSelect;
+
+/** What someone sent through a form, exactly as it arrived. Never edited; marked done, never deleted. */
+export const SUBMISSION_STATUSES = ["new", "done"] as const;
+export type SubmissionStatus = (typeof SUBMISSION_STATUSES)[number];
+
+export const submissions = pgTable(
+  "submissions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    formId: uuid("form_id")
+      .notNull()
+      .references(() => forms.id, { onDelete: "cascade" }),
+    /** Answers by field id. The form's fields at the time are copied in so the inbox can still label them. */
+    answers: jsonb("answers").notNull().$type<Record<string, string>>().default({}),
+    fields: jsonb("fields").notNull().$type<unknown[]>().default([]),
+    status: text("status", { enum: SUBMISSION_STATUSES }).notNull().default("new"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+  },
+  (t) => [index("submissions_site_id_idx").on(t.siteId), index("submissions_form_id_idx").on(t.formId)],
+);
+
+export type Submission = typeof submissions.$inferSelect;

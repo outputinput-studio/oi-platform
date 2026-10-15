@@ -40,6 +40,7 @@ type Item = { href: string; label: string; icon: (p: IconProps) => React.ReactNo
 const primary: Item[] = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/pages", label: "Content", icon: ContentIcon, hint: "Pages" },
+  { href: "/inbox", label: "Inbox", icon: InboxIcon },
   { href: "/media", label: "Images", icon: ImageIcon },
 ];
 const secondary: Item[] = [
@@ -52,18 +53,22 @@ export function Nav({
   userName,
   role,
   envName,
+  inboxCount,
   signOut,
 }: {
   siteName: string;
   userName: string;
   role: string;
   envName: string | null;
+  /** New submissions waiting: the badge on Inbox. */
+  inboxCount: number;
   signOut: () => Promise<void>;
 }) {
   const pathname = usePathname();
   const [more, setMore] = useState(false);
   const folded = useFolded();
-  const active = (href: string) => pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
+  const active = (href: string) =>
+    pathname === href || (href !== "/" && pathname.startsWith(href + "/")) || (href === "/pages" && pathname.startsWith("/forms"));
   const moreActive = secondary.some((i) => active(i.href)) || active("/account");
 
   return (
@@ -100,8 +105,14 @@ export function Nav({
                   active(it.href) ? "bg-selected font-medium text-text" : "text-body hover:bg-hover"
                 }`}
               >
-                <it.icon size={folded ? 21 : 19} />
+                <span className="relative flex">
+                  <it.icon size={folded ? 21 : 19} />
+                  {it.href === "/inbox" && folded && <Badge n={inboxCount} />}
+                </span>
                 <span className={folded ? "sr-only" : "min-w-0 flex-1 truncate"}>{it.label}</span>
+                {it.href === "/inbox" && !folded && inboxCount > 0 && (
+                  <span aria-hidden className="rounded-full bg-accent px-1.5 py-px text-[10.5px] font-semibold text-text">{inboxCount}</span>
+                )}
               </Link>
             </li>
           ))}
@@ -129,7 +140,10 @@ export function Nav({
             aria-current={active(it.href) ? "page" : undefined}
             className={`flex h-14 flex-1 flex-col items-center justify-center gap-[5px] ${active(it.href) ? "text-text" : "text-nav"}`}
           >
-            <it.icon size={22} />
+            <span className="relative flex">
+              <it.icon size={22} />
+              {it.href === "/inbox" && <Badge n={inboxCount} />}
+            </span>
             <span className="text-[10.5px] tracking-[0.1px]">{it.label}</span>
           </Link>
         ))}
@@ -247,6 +261,25 @@ function ContentIcon({ size }: IconProps) {
     </svg>
   );
 }
+/** The count on the Inbox icon. Nothing when nothing's waiting. */
+function Badge({ n }: { n: number }) {
+  if (n <= 0) return null;
+  return (
+    <span data-testid="inbox-badge" aria-hidden className="absolute -right-1.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-text">
+      {n > 99 ? "99+" : n}
+    </span>
+  );
+}
+
+function InboxIcon({ size }: IconProps) {
+  return (
+    <svg {...svg(size)}>
+      <path d="M3 13h5l1.5 2.5h5L16 13h5" />
+      <path d="M5 5h14l2 8v6H3v-6z" />
+    </svg>
+  );
+}
+
 function ImageIcon({ size }: IconProps) {
   return (
     <svg {...svg(size)}>

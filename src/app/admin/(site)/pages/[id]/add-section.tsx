@@ -84,6 +84,14 @@ function TypeIcon({ type }: { type: SectionType }) {
           <path d="M3 15l5-4 4 3 4-5 5 6" />
         </svg>
       );
+    case "form":
+      return (
+        <svg {...p}>
+          <rect x="4" y="5" width="16" height="4" rx="1" />
+          <rect x="4" y="12" width="16" height="4" rx="1" />
+          <path d="M4 20h8" />
+        </svg>
+      );
     case "pictureAndWords":
       return (
         <svg {...p}>

@@ -17,6 +17,7 @@ import { SectionEditor, type Status } from "./section-editor";
  * starts open, the rest folded; a section you've just added opens itself.
  */
 export type EditorSection = { id: string; type: SectionType; data: unknown; imageUrl?: string };
+export type FormOption = { id: string; name: string };
 
 export function Editor({
   page,
@@ -24,6 +25,7 @@ export function Editor({
   isHome,
   live,
   mediaAvailable,
+  forms,
   siteUrl,
   actions,
 }: {
@@ -32,6 +34,8 @@ export function Editor({
   isHome: boolean;
   live: boolean;
   mediaAvailable: boolean;
+  /** The site's forms, for the Form section to pick from. */
+  forms: FormOption[];
   /** The page's public address, shown in the preview's chrome. */
   siteUrl: string;
   actions: {
@@ -131,6 +135,7 @@ export function Editor({
               onToggle={() => toggle(s.id)}
               onStatus={report}
               mediaAvailable={mediaAvailable}
+              forms={forms}
               actions={actions}
             />
           ))}
@@ -242,6 +247,7 @@ function SectionCard({
   onToggle,
   onStatus,
   mediaAvailable,
+  forms,
   actions,
 }: {
   index: number;
@@ -252,6 +258,7 @@ function SectionCard({
   onToggle: () => void;
   onStatus: (id: string, s: Status) => void;
   mediaAvailable: boolean;
+  forms: FormOption[];
   actions: { moveSection: (f: FormData) => Promise<void>; removeSection: (f: FormData) => Promise<void> };
 }) {
   const [menu, setMenu] = useState(false);
@@ -305,7 +312,7 @@ function SectionCard({
       </div>
       {open && (
         <div className="border-t border-line-soft px-4 pb-4 pt-4">
-          <SectionEditor sectionId={section.id} type={section.type} initial={section.data} imageUrl={section.imageUrl} mediaAvailable={mediaAvailable} onStatus={onStatus} />
+          <SectionEditor sectionId={section.id} type={section.type} initial={section.data} imageUrl={section.imageUrl} mediaAvailable={mediaAvailable} forms={forms} onStatus={onStatus} />
         </div>
       )}
     </article>

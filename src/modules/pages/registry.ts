@@ -32,7 +32,7 @@ const body = z.string().max(20_000).default("");
 const label = z.string().trim().max(60).default("");
 
 /** How the add-section sheet groups the types. */
-export const SECTION_GROUPS = { words: "Words", images: "Images" } as const;
+export const SECTION_GROUPS = { words: "Words", images: "Images", forms: "Forms" } as const;
 export type SectionGroup = keyof typeof SECTION_GROUPS;
 
 export const sectionTypes = {
@@ -63,6 +63,13 @@ export const sectionTypes = {
     group: "images" as SectionGroup,
     schema: z.object({ label, heading, text: z.string().trim().max(500).default(""), image: imageRef.optional() }),
   },
+  form: {
+    label: "Form",
+    description: "One of your forms, for people to fill in",
+    group: "forms" as SectionGroup,
+    /** The form is the site's own (checked on save); an empty id shows a reminder in the editor and nothing on the page. */
+    schema: z.object({ formId: z.string().max(40).default(""), heading, text: z.string().trim().max(500).default("") }),
+  },
   pictureAndWords: {
     label: "Image and words",
     description: "One image beside words",
@@ -87,6 +94,8 @@ export function sectionSummary(type: SectionType, data: unknown): string {
       const items = Array.isArray(d.items) ? d.items : [];
       return pick("heading") || (items.length ? `${items.length} question${items.length === 1 ? "" : "s"}` : "");
     }
+    case "form":
+      return pick("heading") || (d.formId ? "" : "No form picked yet");
     default:
       return pick("heading", "text", "body");
   }
