@@ -44,6 +44,7 @@ const primary: Item[] = [
   { href: "/media", label: "Images", icon: ImageIcon },
 ];
 const secondary: Item[] = [
+  { href: "/contacts", label: "Contacts", icon: ContactsIcon },
   { href: "/team", label: "Team", icon: PeopleIcon },
   { href: "/settings", label: "Settings", icon: CogIcon },
 ];
@@ -268,6 +269,16 @@ function Badge({ n }: { n: number }) {
     <span data-testid="inbox-badge" aria-hidden className="absolute -right-1.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-text">
       {n > 99 ? "99+" : n}
     </span>
+  );
+}
+
+function ContactsIcon({ size }: IconProps) {
+  return (
+    <svg {...svg(size)}>
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <circle cx="12" cy="10" r="2.5" />
+      <path d="M8 17c.8-2 2.2-3 4-3s3.2 1 4 3" />
+    </svg>
   );
 }
 

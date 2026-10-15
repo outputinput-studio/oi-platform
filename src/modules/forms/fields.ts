@@ -43,6 +43,8 @@ export const formSettingsSchema = z.object({
     .trim()
     .max(600)
     .refine((s) => splitEmails(s).every((e) => z.string().email().safeParse(e).success), "One of the addresses doesn't look right."),
+  /** Whether a submission with an email address makes (or updates) a contact. */
+  createContact: z.boolean().default(true),
 });
 export type FormSettings = z.infer<typeof formSettingsSchema>;
 
