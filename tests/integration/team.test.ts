@@ -5,7 +5,7 @@
 import { beforeAll, afterAll, describe, expect, test } from "vitest";
 import { Pool } from "pg";
 import { AccessError } from "@/modules/auth/access";
-import { addMember, listMembers, removeMember, setRole } from "@/modules/team/server";
+import { addMember, invitationEmail, listMembers, removeMember, setRole } from "@/modules/team/server";
 import { renameSite, siteSettings } from "@/modules/sites/server";
 
 const owner = new Pool({ connectionString: process.env.MIGRATE_DATABASE_URL, max: 1 });
@@ -106,5 +106,25 @@ describe("site from host", () => {
     expect((await siteFromHost("team-a.outputinput.co"))?.id).toBe(siteA);
     expect((await siteFromHost("TEAM-B.localhost:3000"))?.id).toBe(siteB);
     expect(await siteFromHost("nobody.outputinput.co")).toBeNull();
+  });
+});
+
+describe("invitation", () => {
+  test("says who, what and where, and nothing it shouldn't", () => {
+    const m = invitationEmail("dee@team.invalid", { siteName: "Kini", byName: "Ann", signInUrl: "https://admin.example.test/sign-in" });
+    expect(m.to).toBe("dee@team.invalid");
+    expect(m.subject).toBe("Ann added you to Kini");
+    expect(m.text).toContain("https://admin.example.test/sign-in");
+    expect(m.text).toContain("six-digit code");
+    expect(m.text).not.toMatch(/password[^.]/i);
+  });
+  test("is only attempted for a new membership, and never blocks the add", async () => {
+    const inv = { siteName: "A", byName: "Ann", signInUrl: "https://admin.example.test/sign-in" };
+    const first = await addMember({ actorId: ann, siteId: siteA, email: "eve@team.invalid", invitation: inv });
+    expect(first.added).toBe(true);
+    expect(first.emailed).toBe(false); // console delivery in tests: logged, not delivered
+    const again = await addMember({ actorId: ann, siteId: siteA, email: "eve@team.invalid", invitation: inv });
+    expect(again.added).toBe(false);
+    expect(again.emailed).toBe(false);
   });
 });

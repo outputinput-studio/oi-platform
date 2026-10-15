@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { MEMBERSHIP_ROLES, memberships, users, type MembershipRole } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
+import { sendEmail } from "@/lib/email";
 import { z } from "zod";
 
 /**
@@ -41,17 +42,22 @@ export async function listMembers(p: { actorId: string; siteId: string }): Promi
   return rows.sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : a.role === "owner" ? -1 : 1));
 }
 
+/** What the invitation email needs to say: who added them, to what, and where to sign in. */
+export type Invitation = { siteName: string; byName: string; signInUrl: string };
+
 export async function addMember(p: {
   actorId: string;
   siteId: string;
   email: string;
   role?: MembershipRole;
-}): Promise<Member & { accountCreated: boolean; added: boolean }> {
+  /** When given, a newly added member is told by email. Left out in tests and scripts. */
+  invitation?: Invitation;
+}): Promise<Member & { accountCreated: boolean; added: boolean; emailed: boolean }> {
   await assertAccess(p.actorId, p.siteId, "owner");
   const email = emailSchema.parse(p.email);
   const role = roleSchema.parse(p.role ?? "staff");
 
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     let [user] = await tx.select().from(users).where(eq(users.email, email)).limit(1);
     const accountCreated = !user;
     if (!user) {
@@ -71,6 +77,33 @@ export async function addMember(p: {
     const [m] = await tx.insert(memberships).values({ userId: user.id, siteId: p.siteId, role }).returning();
     return { userId: user.id, name: user.name, email: user.email, role: m.role, since: m.createdAt, accountCreated, added: true };
   });
+
+  // The invitation goes after the membership is in: a failed email never
+  // undoes the add, it just tells the owner to pass the word on themselves.
+  let emailed = false;
+  if (result.added && p.invitation) {
+    try {
+      emailed = (await sendEmail(invitationEmail(result.email, p.invitation))).delivered;
+    } catch (err) {
+      console.error("invitation email failed", err);
+    }
+  }
+  return { ...result, emailed };
+}
+
+/** Plain words, no links to click but the one they need. Exported so the wording can be tested. */
+export function invitationEmail(to: string, inv: Invitation): { to: string; subject: string; text: string } {
+  return {
+    to,
+    subject: `${inv.byName} added you to ${inv.siteName}`,
+    text: [
+      `${inv.byName} has added you to the team for ${inv.siteName}.`,
+      ``,
+      `To sign in, go to ${inv.signInUrl} and enter this email address. We'll send you a six-digit code; there's no password.`,
+      ``,
+      `If you weren't expecting this, you can ignore it.`,
+    ].join("\n"),
+  };
 }
 
 export async function setRole(p: { actorId: string; siteId: string; userId: string; role: MembershipRole }): Promise<void> {
