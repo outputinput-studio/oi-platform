@@ -1,6 +1,7 @@
 import { requireSiteAccess } from "@/modules/auth/access";
 import { getSubmission, senderOf } from "@/modules/forms/server";
 import { setSubmissionStatusAction } from "@/modules/forms/actions";
+import Link from "next/link";
 import { Button, Card, PageHeader } from "../../../ui";
 
 export const dynamic = "force-dynamic";
@@ -20,11 +21,18 @@ export default async function SubmissionPage({ params }: { params: Promise<{ id:
         <p className="text-[13px] text-muted">
           {s.formName} · {when}
         </p>
-        {who.email && (
+        {(who.email || s.contactId) && (
           <div className="mt-4 flex gap-2">
-            <a href={`mailto:${who.email}`} className="inline-flex h-10 items-center rounded-button border border-line-strong px-4 text-[14px] text-text hover:bg-hover">
-              Email {who.name ? who.name.split(" ")[0] : ""}
-            </a>
+            {who.email && (
+              <a href={`mailto:${who.email}`} className="inline-flex h-10 items-center rounded-button border border-line-strong px-4 text-[14px] text-text hover:bg-hover">
+                Email {who.name ? who.name.split(" ")[0] : ""}
+              </a>
+            )}
+            {s.contactId && (
+              <Link href={`/contacts/${s.contactId}`} className="inline-flex h-10 items-center rounded-button border border-line-strong px-4 text-[14px] text-text hover:bg-hover">
+                Open contact
+              </Link>
+            )}
           </div>
         )}
         <Card variant="static" className="mt-5 divide-y divide-line-soft">

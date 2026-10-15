@@ -123,6 +123,12 @@ export function FormEditor({ formId, initial, deleteAction }: { formId: string; 
           <FieldRow label="Send submissions to" htmlFor="form-notify" hint="Email addresses, separated by commas. Leave empty and every owner gets them.">
             <Input id="form-notify" value={form.notifyEmails} maxLength={600} inputMode="email" autoComplete="off" onChange={(e) => change({ notifyEmails: e.target.value })} />
           </FieldRow>
+          <Switch
+            checked={form.createContact}
+            onChange={(v) => change({ createContact: v })}
+            label="Also create a contact"
+            hint="Anyone who sends it with an email address turns up under Contacts. Leave off for a newsletter signup."
+          />
         </div>
 
         <Label className="mt-9">Form settings</Label>

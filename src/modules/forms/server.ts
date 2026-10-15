@@ -4,6 +4,7 @@ import { db, withSite } from "@/db/client";
 import { forms, memberships, submissions, users, type Form, type Submission, type SubmissionStatus } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { sendEmail } from "@/lib/email";
+import { upsertFromSubmission } from "@/modules/contacts/server";
 import { answersSchema, fieldsSchema, formSettingsSchema, headlineAnswer, senderOf, splitEmails, type Field, type FormSettings } from "./fields";
 
 /**
@@ -105,14 +106,18 @@ export async function submitForm(p: { siteId: string; formId: string; answers: u
   if (p.trap) return { ok: true };
   const answers: Record<string, string> = answersSchema(form.fields).parse(p.answers ?? {});
 
-  const [row] = await withSite(p.siteId, (tx) =>
-    tx.insert(submissions).values({ siteId: p.siteId, formId: form.id, answers, fields: form.fields }).returning(),
-  );
+  const sender = senderOf(form.fields, answers);
+  const row = await withSite(p.siteId, async (tx) => {
+    // The person first, so the submission can point at them.
+    const phoneField = form.fields.find((f) => f.type === "phone" && answers[f.id]);
+    const contactId = form.createContact ? await upsertFromSubmission(tx, { siteId: p.siteId, name: sender.name, email: sender.email, phone: phoneField ? answers[phoneField.id] : "" }) : null;
+    const [r] = await tx.insert(submissions).values({ siteId: p.siteId, formId: form.id, answers, fields: form.fields, contactId }).returning();
+    return r;
+  });
 
   try {
     const to = splitEmails(form.notifyEmails);
     const recipients = to.length ? to : await ownerEmails(p.siteId);
-    const sender = senderOf(form.fields, answers);
     const who = sender.name || sender.email || "Someone";
     const lines = form.fields.map((f) => `${f.label}\n${answers[f.id] || "—"}`).join("\n\n");
     await Promise.all(

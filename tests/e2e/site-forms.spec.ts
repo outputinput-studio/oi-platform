@@ -75,6 +75,24 @@ test("a form from the editor to the inbox", async ({ page }) => {
   await row.click();
   await expect(page.getByText("An ice bath")).toBeVisible();
   await expect(page.getByRole("link", { name: "Email Dee" })).toHaveAttribute("href", "mailto:dee@example.com");
+  // They're a contact now: open them, leave a note, come back.
+  await page.getByRole("link", { name: "Open contact" }).click();
+  await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/);
+  await expect(page.getByLabel("Email")).toHaveValue("dee@example.com");
+  await expect(page.getByText("Needs a reply")).toBeVisible();
+  await page.getByRole("button", { name: "Add note" }).click();
+  await page.getByLabel("Note").fill("Quoted 4 weeks.");
+  await page.getByRole("button", { name: "Add note" }).click();
+  await expect(page.getByText("Quoted 4 weeks.")).toBeVisible();
+  await goTo(page, "Contacts");
+  await expect(page.getByTestId("contact")).toHaveCount(1);
+  await page.getByLabel("Search contacts").fill("quoted");
+  await expect(page.getByTestId("contact")).toHaveCount(1);
+  await page.getByLabel("Search contacts").fill("nobody");
+  await expect(page.getByText(/Nobody matches/)).toBeVisible();
+  await page.goBack();
+  await page.goto(admin + "/inbox");
+  await page.getByTestId("submission").first().click();
   await page.getByRole("button", { name: "Mark as done" }).click();
   await expect(page.getByRole("button", { name: "Move back to new" })).toBeVisible();
   await page.goto(admin + "/inbox");

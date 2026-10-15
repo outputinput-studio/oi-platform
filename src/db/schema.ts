@@ -248,6 +248,8 @@ export const forms = pgTable(
     afterMessage: text("after_message").notNull().default("Thanks, we have it. We'll be in touch."),
     /** Who gets an email per submission, comma separated. Empty: the owners. */
     notifyEmails: text("notify_emails").notNull().default(""),
+    /** Whether a submission with an email address makes (or updates) a contact. Off for a newsletter signup. */
+    createContact: boolean("create_contact").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
@@ -275,6 +277,8 @@ export const submissions = pgTable(
     answers: jsonb("answers").notNull().$type<Record<string, string>>().default({}),
     fields: jsonb("fields").notNull().$type<unknown[]>().default([]),
     status: text("status", { enum: SUBMISSION_STATUSES }).notNull().default("new"),
+    /** The contact this made or matched, when the form makes contacts and an email came through. */
+    contactId: uuid("contact_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     doneAt: timestamp("done_at", { withTimezone: true }),
   },
@@ -282,3 +286,33 @@ export const submissions = pgTable(
 );
 
 export type Submission = typeof submissions.$inferSelect;
+
+/**
+ * A person who has written to the site. Made from a submission that
+ * carried an email address (one contact per address per site), or added
+ * by hand. Notes are the team's own, newest last. Soft delete only.
+ */
+export const contacts = pgTable(
+  "contacts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    name: text("name").notNull().default(""),
+    /** Lower-cased. Empty for someone added without one. */
+    email: text("email").notNull().default(""),
+    phone: text("phone").notNull().default(""),
+    notes: jsonb("notes").notNull().$type<{ at: string; text: string }[]>().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("contacts_site_id_idx").on(t.siteId),
+    // One live contact per address per site; the empty address is many people.
+    uniqueIndex("contacts_site_email_idx").on(t.siteId, t.email).where(sql`${t.deletedAt} is null and ${t.email} <> ''`),
+  ],
+);
+
+export type Contact = typeof contacts.$inferSelect;
