@@ -7,7 +7,8 @@ import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { siteFromHost } from "@/modules/sites/server";
 import { SUBMISSION_STATUSES } from "@/db/schema";
-import { createForm, deleteForm, reorderForms, setSubmissionStatus, submitForm, updateForm } from "./server";
+import { createForm, deleteForm, reorderForms, setSubmissionStatus, submitForm, updateForm, uploadSubmissionFile } from "./server";
+import type { UploadedFile } from "./fields";
 
 export type FormState = { ok?: string; error?: string };
 
@@ -94,5 +95,27 @@ export async function submitFormAction(formId: string, _prev: FormState, form: F
     return { ok: r.message };
   } catch (err) {
     return { error: message(err) };
+  }
+}
+
+/** A visitor's file, ahead of the form. Public like submitFormAction; the site comes from the host. */
+export async function uploadFormFileAction(formId: string, fieldId: string, form: FormData): Promise<{ ok: true; file: UploadedFile } | { ok: false; error: string }> {
+  const h = await headers();
+  const site = await siteFromHost(h.get("x-oi-host") ?? h.get("host") ?? "");
+  if (!site) return { ok: false, error: "This form isn't available." };
+  const file = form.get("file");
+  if (!(file instanceof File)) return { ok: false, error: "No file came through." };
+  try {
+    const uploaded = await uploadSubmissionFile({
+      siteId: site.id,
+      formId,
+      fieldId: z.string().max(40).parse(fieldId),
+      filename: file.name,
+      contentType: file.type,
+      bytes: new Uint8Array(await file.arrayBuffer()),
+    });
+    return { ok: true, file: uploaded };
+  } catch (err) {
+    return { ok: false, error: message(err) };
   }
 }

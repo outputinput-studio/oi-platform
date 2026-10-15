@@ -3,7 +3,7 @@ import { readLocalObject, storage } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
-const TYPES: Record<string, string> = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif" };
+const TYPES: Record<string, string> = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", pdf: "application/pdf" };
 
 /**
  * Serves pictures from the local-disk fallback. Only answers when that

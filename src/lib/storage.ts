@@ -23,7 +23,8 @@ export type Storage = {
   url(key: string): string;
 };
 
-const KEY = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]{1,5}$/;
+/** `<site_id>/<id>.<ext>` for the library; `<site_id>/forms/<id>.<ext>` for what visitors send through forms. */
+const KEY = /^[0-9a-f-]{36}\/(forms\/)?[0-9a-f-]{36}\.[a-z0-9]{1,5}$/;
 function checkKey(key: string) {
   if (!KEY.test(key)) throw new Error("Bad storage key.");
 }

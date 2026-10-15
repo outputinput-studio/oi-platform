@@ -14,6 +14,7 @@ export const FIELD_TYPES = {
   phone: { label: "Phone", description: "Digits, spaces and a plus sign" },
   choice: { label: "Single choice", description: "Pick one from a list you write" },
   date: { label: "Date", description: "A day, picked from a calendar" },
+  file: { label: "File upload", description: "Photos or PDFs, up to five" },
 } as const;
 export type FieldType = keyof typeof FIELD_TYPES;
 export const FIELD_TYPE_LIST = Object.keys(FIELD_TYPES) as FieldType[];
@@ -61,7 +62,7 @@ export function splitEmails(s: string): string[] {
 
 /** A new field of a type, with a label to start from. */
 export function newField(type: FieldType): Field {
-  const label = { text: "Your name", longText: "Your message", email: "Email", phone: "Phone", choice: "Pick one", date: "Date" }[type];
+  const label = { text: "Your name", longText: "Your message", email: "Email", phone: "Phone", choice: "Pick one", date: "Date", file: "Photos" }[type];
   return fieldSchema.parse({ id: crypto.randomUUID().slice(0, 8), type, label, options: type === "choice" ? ["Option 1", "Option 2"] : [] });
 }
 
@@ -72,6 +73,27 @@ export function fieldSummary(f: Field): string {
 }
 
 const PHONE = /^[+\d][\d\s().-]{4,29}$/;
+
+/** What a visitor's upload becomes: a key in storage plus what to call it. Answers hold a JSON list of these. */
+export const uploadedFileSchema = z.object({
+  key: z.string().regex(/^[0-9a-f-]{36}\/forms\/[0-9a-f-]{36}\.[a-z0-9]{1,5}$/),
+  name: z.string().trim().min(1).max(200),
+  size: z.number().int().nonnegative(),
+  type: z.string().max(80),
+});
+export type UploadedFile = z.infer<typeof uploadedFileSchema>;
+export const MAX_FILES_PER_FIELD = 5;
+
+/** The files in a file answer; an unreadable answer is no files. */
+export function filesIn(answer: string | undefined): UploadedFile[] {
+  if (!answer) return [];
+  try {
+    const r = z.array(uploadedFileSchema).max(MAX_FILES_PER_FIELD).safeParse(JSON.parse(answer));
+    return r.success ? r.data : [];
+  } catch {
+    return [];
+  }
+}
 
 /**
  * The validator for one form's answers, built from its fields. Every
@@ -88,6 +110,13 @@ export function answersSchema(fields: Field[]) {
       if (f.type === "phone" && !PHONE.test(v)) return "That doesn't look like a phone number.";
       if (f.type === "choice" && !f.options.includes(v)) return "Pick one of the options.";
       if (f.type === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(v)) return "Pick a date.";
+      if (f.type === "file") {
+        try {
+          if (!z.array(uploadedFileSchema).min(1).max(MAX_FILES_PER_FIELD).safeParse(JSON.parse(v)).success) return "Those files didn't come through. Try again.";
+        } catch {
+          return "Those files didn't come through. Try again.";
+        }
+      }
       return null;
     };
     shape[f.id] = base.default("").superRefine((v, ctx) => {
@@ -101,7 +130,7 @@ export function answersSchema(fields: Field[]) {
 /** The answer most worth showing in a list: the first long text, else the first text, else the first anything. */
 export function headlineAnswer(fields: Field[], answers: Record<string, string>): string {
   const pick = (t: FieldType) => fields.find((f) => f.type === t && answers[f.id]);
-  const f = pick("longText") ?? pick("text") ?? fields.find((f) => answers[f.id]);
+  const f = pick("longText") ?? pick("text") ?? fields.find((f) => f.type !== "file" && answers[f.id]);
   return f ? answers[f.id] : "";
 }
 
@@ -123,7 +152,8 @@ export function fillIn(template: string, fields: Field[], answers: Record<string
     const k = key.trim().toLowerCase();
     if (k === "name") return name ? answers[name.id] : "";
     const f = fields.find((x) => x.label.trim().toLowerCase() === k);
-    return f ? (answers[f.id] ?? "") : whole;
+    if (!f) return whole;
+    return f.type === "file" ? filesIn(answers[f.id]).map((u) => u.name).join(", ") : (answers[f.id] ?? "");
   });
 }
 

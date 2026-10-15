@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { submitFormAction, type FormState } from "@/modules/forms/actions";
 import type { Field } from "@/modules/forms/fields";
+import { FileField } from "./file-field";
 
 /**
  * A form on the storefront, drawn from its fields. Everything reads the
@@ -32,7 +33,9 @@ export function StorefrontForm({ form }: { form: { id: string; fields: Field[]; 
               {f.label}
               {f.required && <span aria-hidden> *</span>}
             </label>
-            {f.type === "longText" ? (
+            {f.type === "file" ? (
+              <FileField formId={form.id} field={f} inputClass={input} />
+            ) : f.type === "longText" ? (
               <textarea id={id} name={id} rows={5} required={f.required} className={`${input} py-3 leading-relaxed`} />
             ) : f.type === "choice" ? (
               <select id={id} name={id} required={f.required} defaultValue="" className={`${input} h-12`}>

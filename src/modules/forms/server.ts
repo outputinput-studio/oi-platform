@@ -5,7 +5,8 @@ import { forms, memberships, submissions, users, type Form, type Submission, typ
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { sendEmail } from "@/lib/email";
 import { upsertFromSubmission } from "@/modules/contacts/server";
-import { answersSchema, fieldsSchema, fillIn, formSettingsSchema, headlineAnswer, senderOf, splitEmails, type Field, type FormSettings } from "./fields";
+import { storage } from "@/lib/storage";
+import { answersSchema, fieldsSchema, filesIn, fillIn, formSettingsSchema, headlineAnswer, senderOf, splitEmails, uploadedFileSchema, type Field, type FormSettings, type UploadedFile } from "./fields";
 
 /**
  * Forms and what comes through them.
@@ -111,6 +112,43 @@ export async function deleteForm(p: { actorId: string; siteId: string; formId: s
 
 // ───────────────────────── the public side ─────────────────────────
 
+const UPLOAD_TYPES: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "application/pdf": "pdf",
+};
+export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+
+/**
+ * A visitor's file, sent ahead of the form so each goes in its own
+ * request (the platform caps a request at 4.5 MB). It only lands if the
+ * form is this site's and has that file field. The bytes go under the
+ * site's folder in the bucket, apart from the image library; the key
+ * comes back for the answer. Nothing is written to the database until
+ * the form itself is sent, so a stray upload is just an unreferenced
+ * object.
+ */
+export async function uploadSubmissionFile(p: { siteId: string; formId: string; fieldId: string; filename: string; contentType: string; bytes: Uint8Array }): Promise<UploadedFile> {
+  const form = await publicForm({ siteId: p.siteId, formId: p.formId });
+  if (!form || !form.fields.some((f) => f.id === p.fieldId && f.type === "file")) throw new AccessError("That form doesn't take files.");
+  const ext = UPLOAD_TYPES[p.contentType];
+  if (!ext) throw new Error("Use a JPG, PNG, WebP, GIF or PDF.");
+  if (p.bytes.byteLength === 0) throw new Error("That file is empty.");
+  if (p.bytes.byteLength > MAX_UPLOAD_BYTES) throw new Error("That file is too big. Keep it under 4 MB.");
+  const s = storage();
+  if (!s) throw new Error("Uploads aren't available right now.");
+  const key = `${p.siteId}/forms/${crypto.randomUUID()}.${ext}`;
+  await s.put(key, p.bytes, p.contentType);
+  return uploadedFileSchema.parse({ key, name: p.filename.trim().slice(0, 200) || `file.${ext}`, size: p.bytes.byteLength, type: p.contentType });
+}
+
+/** Where a visitor's file can be seen, for the inbox and the email. Empty when storage is off. */
+export function fileUrl(key: string): string {
+  return storage()?.url(key) ?? "";
+}
+
 /**
  * A visitor sends a form. Answers are checked against the form's fields
  * as they are right now, and a copy of those fields is stored with the
@@ -125,6 +163,10 @@ export async function submitForm(p: { siteId: string; formId: string; answers: u
   if (!form) throw new AccessError("That form isn't on this site.");
   if (p.trap) return { ok: true, message: form.afterMessage };
   const answers: Record<string, string> = answersSchema(form.fields).parse(p.answers ?? {});
+  // A file key must be one of this site's: the form can't be used to point at another site's objects.
+  for (const f of form.fields) {
+    if (f.type === "file" && filesIn(answers[f.id]).some((u) => !u.key.startsWith(`${p.siteId}/forms/`))) throw new AccessError("Those files aren't from this site.");
+  }
 
   const sender = senderOf(form.fields, answers);
   const row = await withSite(p.siteId, async (tx) => {
@@ -139,7 +181,9 @@ export async function submitForm(p: { siteId: string; formId: string; answers: u
     const to = splitEmails(form.notifyEmails);
     const recipients = to.length ? to : await ownerEmails(p.siteId);
     const who = sender.name || sender.email || "Someone";
-    const lines = form.fields.map((f) => `${f.label}\n${answers[f.id] || "—"}`).join("\n\n");
+    const lines = form.fields
+      .map((f) => `${f.label}\n${f.type === "file" ? filesIn(answers[f.id]).map((u) => `${u.name}: ${fileUrl(u.key)}`).join("\n") || "—" : answers[f.id] || "—"}`)
+      .join("\n\n");
     await Promise.all(
       recipients.map((email) =>
         sendEmail({

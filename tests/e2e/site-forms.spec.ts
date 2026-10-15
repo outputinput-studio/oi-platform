@@ -42,6 +42,10 @@ test("a form from the editor to the inbox", async ({ page }) => {
   await choice.getByRole("textbox", { name: "Option 2" }).fill("An ice bath");
   await choice.getByRole("switch", { name: "Required" }).click();
   await expect(page.getByTestId("form-save-status")).toHaveText("✓ Saved");
+  await page.getByRole("button", { name: "+ Add field" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: /^File upload/ }).click();
+  await page.getByTestId("field-4").getByLabel("Label").fill("Photos of your space");
+  await expect(page.getByTestId("form-save-status")).toHaveText("✓ Saved");
   await page.getByLabel("Button text").fill("Send enquiry");
   await page.getByLabel("Message after sending").fill("Thanks {name}, we have it.");
   await page.getByRole("switch", { name: "Reply to them straight away" }).click();
@@ -65,6 +69,8 @@ test("a form from the editor to the inbox", async ({ page }) => {
   await page.getByLabel("Email").fill("dee@example.com");
   await page.getByLabel("Your message").fill("Do you deliver to Phuket?");
   await page.getByLabel("What are you after?").selectOption("An ice bath");
+  await page.getByLabel("Photos of your space").setInputFiles("tests/e2e/fixtures/shop-front.png");
+  await expect(page.getByRole("list", { name: "Files added" })).toContainText("shop-front.jpg");
   await page.getByRole("button", { name: "Send enquiry" }).click();
   await expect(page.getByRole("status")).toHaveText("Thanks Dee Visitor, we have it.");
 
@@ -77,6 +83,11 @@ test("a form from the editor to the inbox", async ({ page }) => {
   await expect(row).toContainText("Do you deliver to Phuket?");
   await row.click();
   await expect(page.getByText("An ice bath")).toBeVisible();
+  const photo = page.getByRole("link", { name: "shop-front.jpg" });
+  await expect(photo).toBeVisible();
+  const photoRes = await page.request.get((await photo.getAttribute("href"))!);
+  expect(photoRes.status()).toBe(200);
+  expect(photoRes.headers()["content-type"]).toBe("image/jpeg");
   await expect(page.getByRole("link", { name: "Email Dee" })).toHaveAttribute("href", "mailto:dee@example.com");
   // They're a contact now: open them, leave a note, come back.
   await page.getByRole("link", { name: "Open contact" }).click();

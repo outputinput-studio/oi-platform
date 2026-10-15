@@ -1,5 +1,6 @@
 import { requireSiteAccess } from "@/modules/auth/access";
-import { getSubmission, senderOf } from "@/modules/forms/server";
+import { fileUrl, getSubmission, senderOf } from "@/modules/forms/server";
+import { filesIn } from "@/modules/forms/fields";
 import { setSubmissionStatusAction } from "@/modules/forms/actions";
 import Link from "next/link";
 import { Button, Card, PageHeader } from "../../../ui";
@@ -39,7 +40,11 @@ export default async function SubmissionPage({ params }: { params: Promise<{ id:
           {s.fields.map((f) => (
             <div key={f.id} className="px-4 py-3.5">
               <p className="text-[12.5px] text-muted">{f.label}</p>
-              <p className="mt-1 whitespace-pre-wrap text-[15px] text-text">{s.answers[f.id] || <span className="text-faint">—</span>}</p>
+              {f.type === "file" ? (
+                <Files files={filesIn(s.answers[f.id])} />
+              ) : (
+                <p className="mt-1 whitespace-pre-wrap text-[15px] text-text">{s.answers[f.id] || <span className="text-faint">—</span>}</p>
+              )}
             </div>
           ))}
         </Card>
@@ -54,5 +59,31 @@ export default async function SubmissionPage({ params }: { params: Promise<{ id:
         </form>
       </div>
     </>
+  );
+}
+
+/** What they attached: a thumbnail for a photo, a plain link for a PDF. Opens in a new tab. */
+function Files({ files }: { files: ReturnType<typeof filesIn> }) {
+  if (files.length === 0) return <p className="mt-1 text-[15px] text-faint">—</p>;
+  return (
+    <ul className="mt-2 flex flex-wrap gap-2">
+      {files.map((u) => {
+        const url = fileUrl(u.key);
+        const img = u.type.startsWith("image/");
+        return (
+          <li key={u.key}>
+            <a href={url || undefined} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-button border border-line bg-surface p-1.5 pr-3 text-[13px] text-text hover:bg-hover">
+              {img && url ? (
+                // eslint-disable-next-line @next/next/no-img-element -- served straight from the bucket
+                <img src={url} alt="" className="h-12 w-12 rounded object-cover" />
+              ) : (
+                <span className="flex h-12 w-12 items-center justify-center rounded bg-sunken font-mono text-[10px] uppercase text-muted">{u.type.split("/")[1] ?? "file"}</span>
+              )}
+              <span className="max-w-[160px] truncate">{u.name}</span>
+            </a>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
