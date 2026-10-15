@@ -8,12 +8,12 @@ import { Button, Field, Input, Notice } from "../../../ui";
 import { MediaLibrary, Sheet } from "../../media/media-library";
 
 /**
- * The picture slot in a section: the current picture (or none), a button
+ * The image slot in a section: the current image (or none), a button
  * to choose one from the library (or upload a new one), and "Describe
  * this photo". The section stores a reference to the library, never the
- * picture itself.
+ * image itself.
  */
-export function PicturePicker({
+export function ImagePicker({
   id,
   value,
   url,
@@ -22,7 +22,7 @@ export function PicturePicker({
 }: {
   id: string;
   value: ImageRef | undefined;
-  /** The current picture's address, worked out on the server. */
+  /** The current image's address, worked out on the server. */
   url: string | undefined;
   available: boolean;
   onChange: (next: ImageRef | undefined) => void;
@@ -30,7 +30,7 @@ export function PicturePicker({
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<MediaItem[] | null>(null);
   const [error, setError] = useState<string>();
-  // Freshly picked pictures carry their address; stored ones get it from the server.
+  // Freshly picked images carry their address; stored ones get it from the server.
   const [pickedUrl, setPickedUrl] = useState<string>();
   const src = pickedUrl ?? url;
 
@@ -49,14 +49,14 @@ export function PicturePicker({
   }
 
   return (
-    <div className="space-y-3" data-testid="picture-picker">
+    <div className="space-y-3" data-testid="image-picker">
       {value && src ? (
         <div className="flex items-start gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={src} alt="" width={value.width} height={value.height} className="h-24 w-24 flex-none rounded-md border border-[var(--border)] object-cover" />
           <div className="flex flex-col gap-2">
             <Button type="button" variant="quiet" onClick={() => void openSheet()}>
-              Change picture
+              Change image
             </Button>
             <Button
               type="button"
@@ -66,13 +66,13 @@ export function PicturePicker({
                 onChange(undefined);
               }}
             >
-              Remove picture
+              Remove image
             </Button>
           </div>
         </div>
       ) : (
         <Button type="button" variant="quiet" onClick={() => void openSheet()}>
-          Choose a picture
+          Choose an image
         </Button>
       )}
       {value && (
@@ -87,7 +87,7 @@ export function PicturePicker({
         </Field>
       )}
       {open && (
-        <Sheet title="Choose a picture" onClose={() => setOpen(false)}>
+        <Sheet title="Choose an image" onClose={() => setOpen(false)}>
           {error && <Notice error={error} />}
           {items ? (
             <MediaLibrary initial={items} mode="pick" available={available} onPick={pick} />

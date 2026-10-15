@@ -6,10 +6,10 @@ import { AccessError, assertAccess } from "@/modules/auth/access";
 import { storage } from "@/lib/storage";
 
 /**
- * The media library: a site's pictures. Bytes go to storage (src/lib/storage),
+ * The media library: a site's images. Bytes go to storage (src/lib/storage),
  * the row goes in `media`, locked to the site like everything else.
  *
- * The browser shrinks pictures before sending them (see the admin's
+ * The browser shrinks images before sending them (see the admin's
  * upload code), so what arrives here is already web-sized; the limits
  * below are the backstop, not the normal case.
  */
@@ -32,7 +32,7 @@ function withUrl(row: Media): MediaItem {
   return { ...row, url: s ? s.url(row.key) : "" };
 }
 
-/** Whether pictures can be stored here. False only in production without R2. */
+/** Whether images can be stored here. False only in production without R2. */
 export function mediaAvailable(): boolean {
   return storage() !== null;
 }
@@ -50,7 +50,7 @@ export async function getMedia(p: { actorId: string; siteId: string; mediaId: st
   const [row] = await withSite(p.siteId, (tx) =>
     tx.select().from(media).where(and(eq(media.id, p.mediaId), isNull(media.deletedAt))).limit(1),
   );
-  if (!row) throw new AccessError("That picture doesn't exist.");
+  if (!row) throw new AccessError("That image doesn't exist.");
   return withUrl(row);
 }
 
@@ -66,16 +66,16 @@ export async function uploadMedia(p: {
 }): Promise<MediaItem> {
   await assertAccess(p.actorId, p.siteId);
   const s = storage();
-  if (!s) throw new Error("Pictures aren't set up on this site yet. Ask us to switch them on.");
+  if (!s) throw new Error("Images aren't set up on this site yet. Ask us to switch them on.");
 
   const ext = CONTENT_TYPES[p.contentType];
-  if (!ext) throw new Error("Use a JPG, PNG, WebP or GIF picture.");
+  if (!ext) throw new Error("Use a JPG, PNG, WebP or GIF image.");
   if (p.bytes.byteLength === 0) throw new Error("That file is empty.");
-  if (p.bytes.byteLength > MAX_BYTES) throw new Error("That picture is too big. Keep it under 4 MB.");
+  if (p.bytes.byteLength > MAX_BYTES) throw new Error("That image is too big. Keep it under 4 MB.");
   const side = z.number().int().min(1).max(MAX_SIDE);
   const width = side.parse(p.width);
   const height = side.parse(p.height);
-  const filename = z.string().trim().min(1).max(200).parse(p.filename || "picture");
+  const filename = z.string().trim().min(1).max(200).parse(p.filename || "image");
   const alt = altSchema.parse(p.alt ?? "");
 
   const id = crypto.randomUUID();
@@ -113,13 +113,13 @@ export async function describeMedia(p: { actorId: string; siteId: string; mediaI
       .where(and(eq(media.id, p.mediaId), isNull(media.deletedAt)))
       .returning(),
   );
-  if (!row) throw new AccessError("That picture doesn't exist.");
+  if (!row) throw new AccessError("That image doesn't exist.");
   return withUrl(row);
 }
 
 /**
  * Soft delete. The bytes are removed from storage too; pages that still
- * point at the key simply show no picture, which is what "removed" means.
+ * point at the key simply show no image, which is what "removed" means.
  */
 export async function deleteMedia(p: { actorId: string; siteId: string; mediaId: string }): Promise<void> {
   await assertAccess(p.actorId, p.siteId);
@@ -130,7 +130,7 @@ export async function deleteMedia(p: { actorId: string; siteId: string; mediaId:
       .where(and(eq(media.id, p.mediaId), isNull(media.deletedAt)))
       .returning(),
   );
-  if (!row) throw new AccessError("That picture doesn't exist.");
+  if (!row) throw new AccessError("That image doesn't exist.");
   await storage()?.remove(row.key);
 }
 

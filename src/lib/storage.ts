@@ -4,7 +4,7 @@ import { AwsClient } from "aws4fetch";
 import { env, environmentName, r2Config, type R2Config } from "./env";
 
 /**
- * Where picture bytes go. Two backends behind one small interface:
+ * Where image bytes go. Two backends behind one small interface:
  *
  * - R2: one Cloudflare bucket, S3-compatible, signed with aws4fetch. The
  *   bucket is public-read, so the storefront links straight to it and no
@@ -87,9 +87,9 @@ export async function readLocalObject(key: string): Promise<Uint8Array | null> {
 let cached: Storage | null | undefined;
 
 /**
- * The configured storage, or null when pictures can't be stored here:
+ * The configured storage, or null when images can't be stored here:
  * production without R2, or R2 only partly set. A half-set R2 is logged
- * once and treated as "off", so a missing setting takes pictures away,
+ * once and treated as "off", so a missing setting takes images away,
  * never the whole admin. Callers turn null into a plain message.
  */
 export function storage(): Storage | null {

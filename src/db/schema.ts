@@ -134,7 +134,7 @@ export type Membership = typeof memberships.$inferSelect;
 // ───────────────────────── client tables (cont.) ─────────────────────────
 
 /**
- * A page is a stack of sections. Clients edit every word and picture,
+ * A page is a stack of sections. Clients edit every word and image,
  * add, remove and reorder sections, and can't break the layout.
  * Soft delete only: deleted_at is set, rows are never removed.
  */
@@ -195,7 +195,7 @@ export const sections = pgTable(
 export type Section = typeof sections.$inferSelect;
 
 /**
- * A picture in a site's media library. The bytes live in object storage
+ * An image in a site's media library. The bytes live in object storage
  * under `key` (always `<site_id>/<id>.<ext>`, so one bucket serves every
  * site and no key can be guessed across sites); this row is what the app
  * knows about it. Soft delete only.
@@ -215,7 +215,7 @@ export const media = pgTable(
     sizeBytes: integer("size_bytes").notNull(),
     width: integer("width").notNull(),
     height: integer("height").notNull(),
-    /** Shown to people who can't see the picture. Asked for as "Describe this photo". */
+    /** Shown to people who can't see the image. Asked for as "Describe this photo". */
     alt: text("alt").notNull().default(""),
     createdBy: text("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

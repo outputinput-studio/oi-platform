@@ -7,7 +7,7 @@ import { deleteMedia, describeMedia, listMedia, uploadMedia, type MediaItem } fr
 
 /**
  * Thin server actions for the media library. The browser has already
- * shrunk the picture (see upload.ts in the admin); these read the form,
+ * shrunk the image (see upload.ts in the admin); these read the form,
  * call the module, and return something the UI can show.
  */
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -30,7 +30,7 @@ export async function listMediaAction(): Promise<Result<MediaItem[]>> {
 export async function uploadMediaAction(form: FormData): Promise<Result<MediaItem>> {
   const { user, site } = await requireSiteAccess();
   const file = form.get("file");
-  if (!(file instanceof File)) return { ok: false, error: "Choose a picture first." };
+  if (!(file instanceof File)) return { ok: false, error: "Choose an image first." };
   try {
     const item = await uploadMedia({
       actorId: user.id,

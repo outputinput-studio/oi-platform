@@ -28,7 +28,7 @@ const schema = z.object({
   EMAIL_FROM: z.string().optional(),
 
   /**
-   * Pictures live in one Cloudflare R2 bucket, every site under its own
+   * Images live in one Cloudflare R2 bucket, every site under its own
    * folder. All five set → uploads go to R2. None set → outside production,
    * files are kept on local disk (tests, previews without a bucket) and
    * served by /api/media-local; in production, uploads are switched off

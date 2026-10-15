@@ -17,8 +17,8 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
   const page = await getPage({ actorId: user.id, siteId: site.id, pageId: id });
   const isHome = page.slug === HOME_SLUG;
   const live = page.status === "published";
-  const pictures = mediaAvailable();
-  // The picture's address is settings-dependent, so it's worked out here, not stored.
+  const images = mediaAvailable();
+  // The image's address is settings-dependent, so it's worked out here, not stored.
   const imageUrlOf = (data: Record<string, unknown>) => {
     const r = imageRef.safeParse(data.image);
     return r.success ? mediaUrl(r.data.key) : undefined;
@@ -90,7 +90,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
                 </div>
               </header>
               <div className="p-4">
-                <SectionEditor sectionId={s.id} type={type} initial={s.data} imageUrl={imageUrlOf(s.data)} mediaAvailable={pictures} />
+                <SectionEditor sectionId={s.id} type={type} initial={s.data} imageUrl={imageUrlOf(s.data)} mediaAvailable={images} />
               </div>
             </article>
           );

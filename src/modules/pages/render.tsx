@@ -23,7 +23,7 @@ function RenderSection({ section }: { section: Section }) {
       const d = parseSectionData("hero", section.data);
       return (
         <section className="py-16 md:py-24">
-          {d.image && <Picture image={d.image} className="mb-8 aspect-[16/9] w-full rounded-lg object-cover" />}
+          {d.image && <Figure image={d.image} className="mb-8 aspect-[16/9] w-full rounded-lg object-cover" />}
           {d.heading && <h2 className="text-4xl font-semibold md:text-6xl">{d.heading}</h2>}
           {d.text && <p className="mt-4 max-w-2xl text-lg text-[var(--muted)]">{d.text}</p>}
         </section>
@@ -48,7 +48,7 @@ function RenderSection({ section }: { section: Section }) {
     }
     case "pictureAndWords": {
       const d = parseSectionData("pictureAndWords", section.data);
-      const pic = d.image ? <Picture image={d.image} className="aspect-[4/3] w-full rounded-lg object-cover" /> : null;
+      const pic = d.image ? <Figure image={d.image} className="aspect-[4/3] w-full rounded-lg object-cover" /> : null;
       return (
         <section className="grid items-center gap-8 py-10 md:grid-cols-2">
           {d.pictureSide === "left" && pic}
@@ -99,11 +99,11 @@ function Paragraphs({ text }: { text: string }) {
 }
 
 /**
- * A picture from the library. Width and height reserve the space so the
+ * An image from the library. Width and height reserve the space so the
  * page doesn't jump; the browser loads it lazily. The address is worked
  * out here from settings, never stored in the page.
  */
-function Picture({ image, className }: { image: ImageRef; className: string }) {
+function Figure({ image, className }: { image: ImageRef; className: string }) {
   const src = mediaUrl(image.key);
   if (!src) return null;
   // eslint-disable-next-line @next/next/no-img-element -- served straight from the bucket; no optimiser in the loop

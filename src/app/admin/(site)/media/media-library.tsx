@@ -4,13 +4,13 @@ import { useRef, useState } from "react";
 import { deleteMediaAction, describeMediaAction } from "@/modules/media/actions";
 import type { MediaItem } from "@/modules/media/server";
 import { Button, Field, Input, Notice } from "../../ui";
-import { uploadPicture } from "./upload";
+import { uploadImage } from "./upload";
 
 /**
- * The picture grid, used two ways:
- *  - manage: the Pictures page. Tap a picture to describe or remove it.
- *  - pick:   inside the section editor. Tap a picture to use it.
- * Uploading works the same in both; new pictures appear at the front.
+ * The image grid, used two ways:
+ *  - manage: the Images page. Tap an image to describe or remove it.
+ *  - pick:   inside the section editor. Tap an image to use it.
+ * Uploading works the same in both; new images appear at the front.
  */
 type Pending = { id: string; name: string; error?: string };
 
@@ -38,7 +38,7 @@ export function MediaLibrary({
       const id = crypto.randomUUID();
       setPending((p) => [...p, { id, name: file.name }]);
       try {
-        const item = await uploadPicture(file);
+        const item = await uploadImage(file);
         setItems((xs) => [item, ...xs]);
         setPending((p) => p.filter((x) => x.id !== id));
         if (mode === "pick" && files.length === 1) onPick?.(item);
@@ -59,16 +59,16 @@ export function MediaLibrary({
             accept="image/*"
             multiple
             className="sr-only"
-            id="picture-file"
-            aria-label="Choose pictures to upload"
+            id="image-file"
+            aria-label="Choose images to upload"
             onChange={(e) => void filesChosen(e.target.files)}
           />
           <Button type="button" className="w-full" onClick={() => input.current?.click()}>
-            + Add pictures
+            + Add images
           </Button>
         </>
       ) : (
-        <Notice error="Pictures aren't set up on this site yet. Ask us to switch them on." />
+        <Notice error="Images aren't set up on this site yet. Ask us to switch them on." />
       )}
 
       {pending.length > 0 && (
@@ -90,10 +90,10 @@ export function MediaLibrary({
 
       {items.length === 0 && pending.length === 0 ? (
         <p className="rounded-md border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted)]">
-          No pictures yet. Add some from your phone or computer.
+          No images yet. Add some from your phone or computer.
         </p>
       ) : (
-        <ul className="grid grid-cols-3 gap-2 md:grid-cols-4" data-testid="picture-grid">
+        <ul className="grid grid-cols-3 gap-2 md:grid-cols-4" data-testid="image-grid">
           {items.map((m) => (
             <li key={m.id}>
               <button
@@ -111,7 +111,7 @@ export function MediaLibrary({
       )}
 
       {open && (
-        <PictureSheet
+        <ImageSheet
           item={open}
           onClose={() => setOpen(null)}
           onChange={(it) => {
@@ -128,8 +128,8 @@ export function MediaLibrary({
   );
 }
 
-/** One picture: describe it, or remove it. */
-function PictureSheet({
+/** One image: describe it, or remove it. */
+function ImageSheet({
   item,
   onClose,
   onChange,
@@ -155,7 +155,7 @@ function PictureSheet({
   }
 
   async function remove() {
-    if (!confirm("Remove this picture? Pages using it will show no picture there.")) return;
+    if (!confirm("Remove this image? Pages using it will show no image there.")) return;
     setBusy(true);
     const r = await deleteMediaAction(item.id);
     setBusy(false);
@@ -164,7 +164,7 @@ function PictureSheet({
   }
 
   return (
-    <Sheet title="Picture" onClose={onClose}>
+    <Sheet title="Image" onClose={onClose}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={item.url} alt={item.alt} width={item.width} height={item.height} className="mb-4 w-full rounded-md" />
       <p className="mb-4 truncate text-sm text-[var(--muted)]">

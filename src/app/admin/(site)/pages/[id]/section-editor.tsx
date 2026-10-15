@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { saveSectionAction } from "@/modules/pages/actions";
 import { emptySection, type ImageRef, type SectionData, type SectionType } from "@/modules/pages/registry";
 import { Field, Input } from "../../../ui";
-import { PicturePicker } from "./picture-picker";
+import { ImagePicker } from "./image-picker";
 
 /**
  * Edit one section's fields. Autosaves a moment after typing stops and
@@ -24,7 +24,7 @@ export function SectionEditor({
   sectionId: string;
   type: SectionType;
   initial: unknown;
-  /** Address of the section's current picture, if it has one (worked out on the server). */
+  /** Address of the section's current image, if it has one (worked out on the server). */
   imageUrl?: string;
   mediaAvailable: boolean;
 }) {
@@ -91,8 +91,8 @@ function Fields({
   const d = data as Record<string, unknown>;
   const str = (k: string) => (typeof d[k] === "string" ? (d[k] as string) : "");
   const image = d.image && typeof d.image === "object" ? (d.image as ImageRef) : undefined;
-  const picture = (
-    <PicturePicker id={id} value={image} url={imageUrl} available={mediaAvailable} onChange={(next) => onChange({ image: next })} />
+  const picker = (
+    <ImagePicker id={id} value={image} url={imageUrl} available={mediaAvailable} onChange={(next) => onChange({ image: next })} />
   );
 
   switch (type) {
@@ -105,7 +105,7 @@ function Fields({
           <Field label="Line underneath" htmlFor={`${id}-text`}>
             <Textarea id={`${id}-text`} value={str("text")} rows={2} maxLength={500} onChange={(v) => onChange({ text: v })} />
           </Field>
-          {picture}
+          {picker}
         </>
       );
     case "text":
@@ -136,7 +136,7 @@ function Fields({
             <Textarea id={`${id}-body`} value={str("body")} rows={5} onChange={(v) => onChange({ body: v })} />
           </Field>
           <fieldset>
-            <legend className="mb-1 block text-sm text-[var(--muted)]">Picture on the</legend>
+            <legend className="mb-1 block text-sm text-[var(--muted)]">Image on the</legend>
             <div className="flex gap-2">
               {(["left", "right"] as const).map((side) => (
                 <button
@@ -153,7 +153,7 @@ function Fields({
               ))}
             </div>
           </fieldset>
-          {picture}
+          {picker}
         </>
       );
     case "questions": {

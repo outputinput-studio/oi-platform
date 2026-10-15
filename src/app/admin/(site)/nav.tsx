@@ -11,7 +11,7 @@ import { usePathname } from "next/navigation";
 const items = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/pages", label: "Pages", icon: PagesIcon },
-  { href: "/media", label: "Pictures", icon: PictureIcon },
+  { href: "/media", label: "Images", icon: ImageIcon },
   { href: "/team", label: "Team", icon: PeopleIcon },
   { href: "/settings", label: "Settings", icon: CogIcon },
 ] as const;
@@ -74,7 +74,7 @@ function PagesIcon({ active }: IconProps) {
     </svg>
   );
 }
-function PictureIcon({ active }: IconProps) {
+function ImageIcon({ active }: IconProps) {
   return (
     <svg {...stroke(active)}>
       <rect x="3" y="5" width="18" height="14" rx="2" />

@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import path from "node:path";
 
 /**
- * Pictures, end to end on a phone: upload (shrunk in the browser first),
+ * Images, end to end on a phone: upload (shrunk in the browser first),
  * describe, put one in a hero, publish, see it on the storefront, and
  * check another site can't fetch it by address.
  */
@@ -24,14 +24,14 @@ async function signInAsOwner(page: Page) {
   await expect(page).toHaveURL(admin + "/");
 }
 
-test("upload a picture, describe it, use it in a hero, see it live", async ({ page }) => {
+test("upload an image, describe it, use it in a hero, see it live", async ({ page }) => {
   await signInAsOwner(page);
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pictures" }).click();
-  await expect(page.getByRole("heading", { name: "Pictures" })).toBeVisible();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Images" }).click();
+  await expect(page.getByRole("heading", { name: "Images" })).toBeVisible();
 
   // Upload. The browser shrinks 2400×1600 to 2000×1333 before sending.
-  await page.getByLabel("Choose pictures to upload").setInputFiles(fixture);
-  const tile = page.getByTestId("picture-grid").getByRole("button").first();
+  await page.getByLabel("Choose images to upload").setInputFiles(fixture);
+  const tile = page.getByTestId("image-grid").getByRole("button").first();
   await expect(tile).toBeVisible();
   const thumb = tile.locator("img");
   await expect(thumb).toHaveAttribute("width", "2000");
@@ -51,27 +51,37 @@ test("upload a picture, describe it, use it in a hero, see it live", async ({ pa
   await expect(page.getByRole("dialog").getByText("Saved")).toBeVisible();
   await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
 
-  // Put it in the front page's hero. pages.spec.ts runs first and builds that page.
+  // Put it in the front page's hero. pages.spec.ts runs first and builds that page; this copes if it didn't.
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pages" }).click();
-  await page.getByTestId("page-home").click();
+  await expect(page.getByRole("heading", { name: "Pages" })).toBeVisible();
+  if (await page.getByTestId("page-home").count()) await page.getByTestId("page-home").click();
+  else await page.getByRole("button", { name: "Create page" }).click();
   await expect(page).toHaveURL(/\/pages\/[0-9a-f-]+$/);
+  await expect(page.getByTestId("page-status")).toBeVisible();
+  if ((await page.getByRole("heading", { name: "Hero" }).count()) === 0) {
+    await page.getByRole("button", { name: "+ Add section" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: /^Hero/ }).click();
+  }
   const hero = page.locator("article", { has: page.getByRole("heading", { name: "Hero" }) }).first();
-  await hero.getByRole("button", { name: "Choose a picture" }).click();
-  await page.getByRole("dialog", { name: "Choose a picture" }).getByRole("button", { name: "The shop front" }).click();
+  await hero.getByRole("button", { name: "Choose an image" }).click();
+  await page.getByRole("dialog", { name: "Choose an image" }).getByRole("button", { name: "The shop front" }).click();
   await expect(hero.getByLabel("Describe this photo")).toHaveValue("The shop front");
   await expect(hero.getByTestId("save-status")).toHaveText("Saved");
 
-  // The page is already live, so the storefront shows it with its description.
+  // Live (publish if this spec got here first), the storefront shows it with its description.
+  if ((await page.getByTestId("page-status").textContent()) !== "Live") {
+    await page.getByRole("button", { name: "Publish", exact: true }).click();
+  }
   await expect(page.getByTestId("page-status")).toHaveText("Live");
   await page.goto(demo + "/");
   const live = page.getByRole("img", { name: "The shop front" });
   await expect(live).toBeVisible();
   expect(await live.getAttribute("src")).toBe(src);
 
-  // Removing it from the section leaves the page without a picture.
+  // Removing it from the section leaves the page without an image.
   await page.goto(admin + "/pages");
   await page.getByTestId("page-home").click();
-  await hero.getByRole("button", { name: "Remove picture" }).click();
+  await hero.getByRole("button", { name: "Remove image" }).click();
   await expect(hero.getByTestId("save-status")).toHaveText("Saved");
   await page.goto(demo + "/");
   await expect(page.getByRole("img", { name: "The shop front" })).toHaveCount(0);
@@ -80,10 +90,10 @@ test("upload a picture, describe it, use it in a hero, see it live", async ({ pa
 test("a wrong kind of file is refused in plain words", async ({ page }) => {
   await signInAsOwner(page);
   await page.goto(admin + "/media");
-  await page.getByLabel("Choose pictures to upload").setInputFiles({
+  await page.getByLabel("Choose images to upload").setInputFiles({
     name: "logo.svg",
     mimeType: "image/svg+xml",
     buffer: Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>"),
   });
-  await expect(page.getByText("Use a JPG, PNG, WebP or GIF picture.")).toBeVisible();
+  await expect(page.getByText("Use a JPG, PNG, WebP or GIF image.")).toBeVisible();
 });
