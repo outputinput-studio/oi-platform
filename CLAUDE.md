@@ -38,5 +38,5 @@ node-postgres (`pg`) against Neon · Zod · Vitest · Playwright · pnpm · Node
 
 ## Environments
 local (your dev branch) → preview (per PR, shared `preview` branch in oi-staging) →
-staging (branch `staging`, oi-staging, *.outputinput.tech) → production (branch `main`, oi-prod, *.outputinput.co).
+staging (branch `staging`, oi-staging, *.outputinput.io) → production (branch `main`, oi-prod, *.outputinput.co).
 Staging and previews only ever hold fake data.
