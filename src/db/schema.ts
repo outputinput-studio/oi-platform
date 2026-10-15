@@ -22,6 +22,8 @@ export const sites = pgTable("sites", {
   id: uuid("id").primaryKey().defaultRandom(),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
+  /** How the storefront looks: see themeSchema in modules/sites/theme.ts. Validated on every write. */
+  theme: jsonb("theme").notNull().$type<Record<string, unknown>>().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
