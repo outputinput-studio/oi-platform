@@ -30,7 +30,15 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   );
 }
 
-export function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
+export function Field({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <label htmlFor={htmlFor} className="mb-1 block text-sm text-[var(--muted)]">
@@ -44,29 +52,45 @@ export function Field({ label, htmlFor, children }: { label: string; htmlFor: st
 export function Notice({ ok, error }: { ok?: string; error?: string }) {
   if (!ok && !error) return null;
   return (
-    <p role={error ? "alert" : "status"} className={`text-sm ${error ? "text-[var(--fg)]" : "text-[var(--muted)]"}`}>
+    <p
+      role={error ? "alert" : "status"}
+      className={`text-sm ${error ? "text-[var(--fg)]" : "text-[var(--muted)]"}`}
+    >
       {error ?? ok}
     </p>
   );
 }
 
 /**
- * A floating Save, bottom right, for forms that save on demand (sections
- * autosave and don't use it). Greyed out until something changes, and
- * again once it's saved; shows Saved / the error beside the button.
- * Sits above the bottom navigation on a phone.
+ * A bar across the bottom of the screen with Save in the middle, for forms
+ * that save on demand (sections autosave and don't use it). Greyed out
+ * until something changes, and again once it's saved; Saved / the error
+ * sits beside the button. On a phone it rests on top of the bottom
+ * navigation; on a laptop it's flush with the bottom edge.
  */
-export function SaveBar({ dirty, pending, state }: { dirty: boolean; pending: boolean; state: { ok?: string; error?: string } }) {
+export function SaveBar({
+  dirty,
+  pending,
+  state,
+}: {
+  dirty: boolean;
+  pending: boolean;
+  state: { ok?: string; error?: string };
+}) {
   return (
-    <div
-      data-testid="save-bar"
-      className="fixed bottom-20 right-4 z-10 flex items-center gap-3 rounded-md border border-[var(--border)] bg-[var(--bg)] py-2 pl-4 pr-2 shadow-lg md:bottom-6 md:right-6"
-    >
-      {!dirty && !pending && <Notice {...state} />}
-      {dirty && !pending && state.error && <Notice error={state.error} />}
-      <Button type="submit" disabled={!dirty || pending}>
-        {pending ? "Saving…" : "Save"}
-      </Button>
-    </div>
+    <>
+      {/* Keeps the end of the page clear of the bar. */}
+      <div aria-hidden className="h-16" />
+      <div
+        data-testid="save-bar"
+        className="fixed inset-x-0 bottom-[59px] z-10 flex items-center justify-center gap-4 border-t border-[var(--border)] bg-[var(--bg)] px-4 py-3 shadow-[0_-8px_24px_var(--shadow)] md:bottom-0"
+      >
+        {!dirty && !pending && <Notice {...state} />}
+        {dirty && !pending && state.error && <Notice error={state.error} />}
+        <Button type="submit" disabled={!dirty || pending}>
+          {pending ? "Saving…" : "Save"}
+        </Button>
+      </div>
+    </>
   );
 }
