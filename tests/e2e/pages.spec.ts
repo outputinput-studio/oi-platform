@@ -92,6 +92,38 @@ test("a second page at its own address; a wrong address has a way out", async ({
   expect(other.status()).toBe(404);
 });
 
+/** A keyboard drag with dnd-kit: pick up, move, drop. It wants a beat between keys. */
+async function dragDown(page: Page, handle: ReturnType<Page["getByTestId"]>) {
+  // Space picks it up once the page has hydrated; aria-pressed says when it has.
+  await handle.focus();
+  for (let i = 0; i < 10; i++) {
+    await page.keyboard.press("Space");
+    await page.waitForTimeout(150);
+    if ((await handle.getAttribute("aria-pressed")) === "true") break;
+    await handle.focus();
+  }
+  await page.keyboard.press("ArrowDown");
+  await page.waitForTimeout(150);
+  await page.keyboard.press("Space");
+}
+
+test("sections can be dragged into a new order", async ({ page }) => {
+  await signInAsOwner(page);
+  await page.goto(admin + "/pages");
+  await page.getByTestId("page-home").click();
+  // Order from the first test: Statement, Hero. Drag the statement one down.
+  await expect(page.getByTestId("section-0")).toContainText("Statement");
+  await dragDown(page, page.getByTestId("section-0").getByRole("button", { name: "Drag to reorder" }));
+  await expect(page.getByTestId("section-0")).toContainText("Hero");
+  await expect(page.getByTestId("page-save-status")).toHaveText("✓ Saved");
+  // It stuck: reload and it's still first; then put it back for the tests that follow.
+  await page.reload();
+  await expect(page.getByTestId("section-0")).toContainText("Hero");
+  await dragDown(page, page.getByTestId("section-0").getByRole("button", { name: "Drag to reorder" }));
+  await expect(page.getByTestId("section-0")).toContainText("Statement");
+  await expect(page.getByTestId("page-save-status")).toHaveText("✓ Saved");
+});
+
 test("a wrong save shows Retry, not silence", async ({ page }) => {
   await signInAsOwner(page);
   await page.goto(admin + "/pages");

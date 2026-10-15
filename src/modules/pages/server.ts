@@ -193,6 +193,26 @@ export async function moveSection(p: {
   });
 }
 
+/**
+ * The whole order at once, from a drag. The list must name every live
+ * section exactly once; anything else is refused, so a stale editor can't
+ * drop a section that was added from another tab.
+ */
+export async function reorderSections(p: { actorId: string; siteId: string; pageId: string; order: string[] }): Promise<void> {
+  await assertAccess(p.actorId, p.siteId);
+  await withSite(p.siteId, async (tx) => {
+    const page = await loadPage(tx, p.pageId);
+    const list = await liveSections(tx, page.id);
+    const want = new Set(p.order);
+    if (want.size !== p.order.length || list.length !== p.order.length || !list.every((s) => want.has(s.id))) {
+      throw new Error("The page changed under you. Reload and try again.");
+    }
+    const byId = new Map(list.map((s) => [s.id, s]));
+    await renumber(tx, page.id, p.order.map((id) => byId.get(id)!));
+    await touch(tx, page.id);
+  });
+}
+
 export async function removeSection(p: { actorId: string; siteId: string; sectionId: string }): Promise<void> {
   await assertAccess(p.actorId, p.siteId);
   await withSite(p.siteId, async (tx) => {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { saveFormAction } from "@/modules/forms/actions";
 import { FIELD_TYPES, FIELD_TYPE_LIST, fieldSummary, fillIns, newField, type Field, type FieldType, type FormSettings } from "@/modules/forms/fields";
 import { Button, Field as FieldRow, Input, Label, PageHeader, Select, Sheet, Switch, Textarea } from "../../../ui";
+import { SortableItem, SortableList } from "../../../sortable";
 
 /**
  * The form editor, as in design/admin.html: the form's name, its fields
@@ -87,16 +88,26 @@ export function FormEditor({ formId, initial, deleteAction }: { formId: string; 
           <Input id="form-name" value={form.name} maxLength={80} onChange={(e) => change({ name: e.target.value })} />
         </FieldRow>
 
-        <Label className="mt-7" right={form.fields.length > 1 ? "Reorder from ⋮" : undefined}>
+        <Label className="mt-7" right={form.fields.length > 1 ? "Drag to reorder" : undefined}>
           Fields
         </Label>
         <section className="space-y-2.5" aria-label="Fields">
           {form.fields.length === 0 && (
             <p className="rounded-card border border-dashed border-line px-5 py-7 text-center text-[13.5px] text-muted">No fields yet. People need at least one thing to fill in.</p>
           )}
+          <SortableList
+            ids={form.fields.map((f) => f.id)}
+            onDragStart={() => setOpen(null)}
+            onReorder={(next) => {
+              const byId = new Map(form.fields.map((f) => [f.id, f]));
+              change({ fields: next.map((id) => byId.get(id)!).filter(Boolean) });
+            }}
+          >
           {form.fields.map((f, i) => (
+            <SortableItem key={f.id} id={f.id}>
+              {({ handle }) => (
             <FieldCard
-              key={f.id}
+              handle={handle}
               field={f}
               index={i}
               count={form.fields.length}
@@ -106,7 +117,10 @@ export function FormEditor({ formId, initial, deleteAction }: { formId: string; 
               onMove={(dir) => moveField(f.id, dir)}
               onRemove={() => removeField(f.id)}
             />
+              )}
+            </SortableItem>
           ))}
+          </SortableList>
           <Button type="button" variant="quiet" className="w-full" onClick={() => setAdding(true)}>
             + Add field
           </Button>
@@ -190,6 +204,7 @@ export function FormEditor({ formId, initial, deleteAction }: { formId: string; 
 
 /** One field: folded to its label and kind; open to edit it. */
 function FieldCard({
+  handle,
   field,
   index,
   count,
@@ -199,6 +214,7 @@ function FieldCard({
   onMove,
   onRemove,
 }: {
+  handle: React.ButtonHTMLAttributes<HTMLButtonElement> & { ref: (el: HTMLElement | null) => void };
   field: Field;
   index: number;
   count: number;
@@ -212,8 +228,13 @@ function FieldCard({
   const id = `field-${field.id}`;
   return (
     <div data-testid={`field-${index}`} className="rounded-card border border-line bg-surface">
-      <div className="flex items-center gap-2 pl-4 pr-2">
-        <button type="button" onClick={onToggle} aria-expanded={open} className="flex min-w-0 flex-1 items-center gap-3 py-3.5 text-left">
+      <div className="flex items-center gap-1 pr-2">
+        <button type="button" {...handle} className="flex h-11 w-10 flex-none cursor-grab touch-none items-center justify-center rounded-button text-faint hover:bg-hover hover:text-text active:cursor-grabbing">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+            <path d="M5 9h14M5 15h14" />
+          </svg>
+        </button>
+        <button type="button" onClick={onToggle} aria-expanded={open} className="flex min-w-0 flex-1 items-center gap-3 py-3.5 pr-2 text-left">
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[15px] font-medium">{field.label || "Untitled field"}</span>
             <span className="block text-[12.5px] text-muted">{fieldSummary(field)}</span>

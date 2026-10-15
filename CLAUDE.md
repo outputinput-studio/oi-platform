@@ -18,7 +18,9 @@ node-postgres (`pg`) against Neon · Zod · Vitest · Playwright · pnpm · Node
 `design/*.html` are Carl's Claude Design prototypes (see `design/README.md`); the admin follows `design/admin.html`
 screen for screen. Tokens are in `src/app/globals.css`, mirrored from its `:root`, with Tailwind names (`bg-surface`,
 `text-muted`, `border-line`, `rounded-card`…). Geist for words, Geist Mono for labels/addresses/numbers (`.label`).
-Admin primitives live in `src/app/admin/ui.tsx`; every screen renders a `PageHeader`.
+Admin primitives live in `src/app/admin/ui.tsx`; every screen renders a `PageHeader`. Lists that reorder (sections, form
+fields) use `src/app/admin/sortable.tsx` (on `@dnd-kit`, approved): a handle starts the drag, cards fold while it runs,
+and the keyboard works (focus the handle, Space, arrows, Space).
 
 ## Layout
 - `src/proxy.ts` — hostname → surface rewrite (admin.* → /admin, ops.* → /ops, else /site)

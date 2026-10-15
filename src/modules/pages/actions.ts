@@ -10,6 +10,7 @@ import {
   deletePage,
   moveSection,
   removeSection,
+  reorderSections,
   setPageStatus,
   updatePage,
   updateSection,
@@ -96,6 +97,18 @@ export async function moveSectionAction(form: FormData) {
     direction: z.enum(["up", "down"]).parse(form.get("direction")),
   });
   revalidatePath(`/pages/${String(form.get("pageId"))}`);
+}
+
+/** A drag's result: the new order of section ids. Returns an error for the editor to show rather than throwing. */
+export async function reorderSectionsAction(pageId: string, order: string[]): Promise<FormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await reorderSections({ actorId: user.id, siteId: site.id, pageId, order: z.array(z.string().uuid()).max(200).parse(order) });
+    revalidatePath(`/pages/${pageId}`);
+    return { ok: "Saved" };
+  } catch (err) {
+    return { error: message(err) };
+  }
 }
 
 export async function removeSectionAction(form: FormData) {

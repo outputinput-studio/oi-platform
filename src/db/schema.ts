@@ -242,6 +242,8 @@ export const forms = pgTable(
       .references(() => sites.id, { onDelete: "cascade" }),
     /** Only the team sees this name: "Commission enquiry". */
     name: text("name").notNull(),
+    /** Order in the Forms list; the team drags them. */
+    position: integer("position").notNull().default(0),
     fields: jsonb("fields").notNull().$type<unknown[]>().default([]),
     buttonText: text("button_text").notNull().default("Send"),
     /** Shown on the page once it's sent. */

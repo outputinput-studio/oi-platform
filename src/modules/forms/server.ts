@@ -28,7 +28,7 @@ function parsed(f: Form): FormWithFields {
 export async function listForms(p: { actorId: string; siteId: string }): Promise<(FormWithFields & { newCount: number })[]> {
   await assertAccess(p.actorId, p.siteId);
   return withSite(p.siteId, async (tx) => {
-    const rows = await tx.select().from(forms).where(isNull(forms.deletedAt)).orderBy(asc(forms.createdAt));
+    const rows = await tx.select().from(forms).where(isNull(forms.deletedAt)).orderBy(asc(forms.position), asc(forms.createdAt));
     const counts = await tx
       .select({ formId: submissions.formId, n: count() })
       .from(submissions)
@@ -62,8 +62,28 @@ export async function createForm(p: { actorId: string; siteId: string; name: str
     { id: "email", type: "email", label: "Email", help: "", required: true, options: [] },
     { id: "message", type: "longText", label: "Your message", help: "", required: true, options: [] },
   ];
-  const [row] = await withSite(p.siteId, (tx) => tx.insert(forms).values({ siteId: p.siteId, name, fields }).returning());
+  const row = await withSite(p.siteId, async (tx) => {
+    // New forms go last.
+    const [last] = await tx.select({ n: count() }).from(forms).where(isNull(forms.deletedAt));
+    const [r] = await tx.insert(forms).values({ siteId: p.siteId, name, fields, position: Number(last?.n ?? 0) }).returning();
+    return r;
+  });
   return parsed(row);
+}
+
+/** The whole order from a drag; must name every live form exactly once. */
+export async function reorderForms(p: { actorId: string; siteId: string; order: string[] }): Promise<void> {
+  await assertAccess(p.actorId, p.siteId);
+  await withSite(p.siteId, async (tx) => {
+    const live = await tx.select({ id: forms.id, position: forms.position }).from(forms).where(isNull(forms.deletedAt));
+    const want = new Set(p.order);
+    if (want.size !== p.order.length || live.length !== p.order.length || !live.every((f) => want.has(f.id))) {
+      throw new Error("The list changed under you. Reload and try again.");
+    }
+    for (let i = 0; i < p.order.length; i++) {
+      await tx.update(forms).set({ position: i }).where(eq(forms.id, p.order[i]));
+    }
+  });
 }
 
 export async function updateForm(p: { actorId: string; siteId: string; formId: string; settings: unknown }): Promise<FormWithFields> {
