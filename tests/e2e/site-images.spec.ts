@@ -29,7 +29,7 @@ test("upload an image, describe it, use it in a hero, see it live", async ({ pag
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Images" }).click();
   await expect(page.getByRole("heading", { name: "Images" })).toBeVisible();
 
-  // Upload. The browser shrinks 2400×1600 to 2000×1333 before sending.
+  // Upload. The browser shrinks 2400×1600 to 2000×1333 and, as the PNG is opaque, sends a JPG.
   await page.getByLabel("Choose images to upload").setInputFiles(fixture);
   const tile = page.getByTestId("image-grid").getByRole("button").first();
   await expect(tile).toBeVisible();
@@ -37,12 +37,12 @@ test("upload an image, describe it, use it in a hero, see it live", async ({ pag
   await expect(thumb).toHaveAttribute("width", "2000");
   await expect(thumb).toHaveAttribute("height", "1333");
   const src = await thumb.getAttribute("src");
-  expect(src).toMatch(/\/api\/media-local\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.png$/);
+  expect(src).toMatch(/\/api\/media-local\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.jpg$/);
 
-  // The file really is there, and is a PNG.
+  // The file really is there, and is a JPG.
   const got = await page.request.get(base + src!, { headers: { host: "admin.localhost" } });
   expect(got.status()).toBe(200);
-  expect(got.headers()["content-type"]).toBe("image/png");
+  expect(got.headers()["content-type"]).toBe("image/jpeg");
 
   // Describe it.
   await tile.click();
@@ -85,6 +85,16 @@ test("upload an image, describe it, use it in a hero, see it live", async ({ pag
   await expect(hero.getByTestId("save-status")).toHaveText("Saved");
   await page.goto(demo + "/");
   await expect(page.getByRole("img", { name: "The shop front" })).toHaveCount(0);
+});
+
+test("a PNG with transparency stays a PNG", async ({ page }) => {
+  await signInAsOwner(page);
+  await page.goto(admin + "/media");
+  // 1×1 fully transparent PNG.
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+  await page.getByLabel("Choose images to upload").setInputFiles({ name: "mark.png", mimeType: "image/png", buffer: png });
+  const thumb = page.getByTestId("image-grid").getByRole("button").first().locator("img");
+  await expect(thumb).toHaveAttribute("src", /\.png$/);
 });
 
 test("a wrong kind of file is refused in plain words", async ({ page }) => {

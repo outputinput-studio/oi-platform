@@ -9,7 +9,9 @@ import type { MediaItem } from "@/modules/media/server";
  * at MAX_SIDE and re-encode, which turns it into a few hundred kilobytes.
  * That keeps uploads quick on a cafe's wifi and the bucket cheap.
  *
- * JPG and WebP become JPG. PNG stays PNG (it may have transparency).
+ * Everything becomes JPG, except a PNG with transparent pixels (a logo on
+ * a clear background), which stays PNG. An opaque PNG — a screenshot, say —
+ * would be several megabytes as PNG and a few hundred kilobytes as JPG.
  * GIF is sent as it is, because resizing would lose the animation.
  */
 export const MAX_SIDE = 2000;
@@ -46,13 +48,20 @@ export async function prepareForUpload(file: File): Promise<Prepared> {
   ctx.drawImage(bitmap, 0, 0, width, height);
   bitmap.close();
 
-  const type = file.type === "image/png" ? "image/png" : "image/jpeg";
+  const type = file.type === "image/png" && hasTransparency(ctx, width, height) ? "image/png" : "image/jpeg";
   const blob = await new Promise<Blob | null>((resolve) =>
     canvas.toBlob(resolve, type, type === "image/jpeg" ? JPEG_QUALITY : undefined),
   );
   if (!blob) throw new Error("Couldn't prepare that image.");
   if (blob.size > MAX_UPLOAD_BYTES) throw new Error("That image is too big even after shrinking. Try a smaller one.");
   return { blob, width, height, type };
+}
+
+/** Any pixel that isn't fully opaque. Sampled every 4th pixel: plenty to spot a clear background. */
+function hasTransparency(ctx: CanvasRenderingContext2D, width: number, height: number): boolean {
+  const { data } = ctx.getImageData(0, 0, width, height);
+  for (let i = 3; i < data.length; i += 16) if (data[i] < 255) return true;
+  return false;
 }
 
 function dimensions(file: File): Promise<{ width: number; height: number }> {
