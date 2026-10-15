@@ -49,3 +49,24 @@ export function Notice({ ok, error }: { ok?: string; error?: string }) {
     </p>
   );
 }
+
+/**
+ * A floating Save, bottom right, for forms that save on demand (sections
+ * autosave and don't use it). Greyed out until something changes, and
+ * again once it's saved; shows Saved / the error beside the button.
+ * Sits above the bottom navigation on a phone.
+ */
+export function SaveBar({ dirty, pending, state }: { dirty: boolean; pending: boolean; state: { ok?: string; error?: string } }) {
+  return (
+    <div
+      data-testid="save-bar"
+      className="fixed bottom-20 right-4 z-10 flex items-center gap-3 rounded-md border border-[var(--border)] bg-[var(--bg)] py-2 pl-4 pr-2 shadow-lg md:bottom-6 md:right-6"
+    >
+      {!dirty && !pending && <Notice {...state} />}
+      {dirty && !pending && state.error && <Notice error={state.error} />}
+      <Button type="submit" disabled={!dirty || pending}>
+        {pending ? "Saving…" : "Save"}
+      </Button>
+    </div>
+  );
+}

@@ -64,9 +64,13 @@ test("settings: rename the site", async ({ page }) => {
   await signInAsOwner(page);
   await page.goto(admin + "/settings");
   const name = page.getByLabel("Site name");
+  const save = page.getByRole("button", { name: "Save" });
+  await expect(save).toBeDisabled(); // nothing changed yet
   await name.fill("Demo site (renamed)");
-  await page.getByRole("button", { name: "Save" }).click();
+  await expect(save).toBeEnabled();
+  await save.click();
   await expect(page.getByText("Saved")).toBeVisible();
+  await expect(save).toBeDisabled(); // saved: nothing to save until the next change
   await expect(page.getByTestId("site-name")).toHaveText("Demo site (renamed)");
   // Put it back so other tests keep their footing.
   await name.fill("Demo site");
