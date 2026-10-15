@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { savePageTitleAction } from "@/modules/pages/actions";
+import { reorderSectionsAction, savePageTitleAction } from "@/modules/pages/actions";
+import { SortableItem, SortableList } from "../../../sortable";
 import { sectionSummary, sectionTypes, type SectionType } from "@/modules/pages/registry";
 import { Button, Input, Label, PageHeader } from "../../../ui";
 import { AddSection } from "./add-section";
@@ -53,6 +54,29 @@ export function Editor({
   const overall: Status = all.some((s) => s.kind === "saving")
     ? { kind: "saving" }
     : (all.find((s) => s.kind === "error") ?? (all.some((s) => s.kind === "saved") ? { kind: "saved" } : { kind: "idle" }));
+
+  // ── the order, held locally so a drag lands at once and the server catches up ──
+  const [order, setOrder] = useState<string[]>(() => sections.map((s) => s.id));
+  const serverOrder = sections.map((s) => s.id).join(",");
+  const lastServerOrder = useRef(serverOrder);
+  useEffect(() => {
+    if (lastServerOrder.current !== serverOrder) {
+      lastServerOrder.current = serverOrder;
+      setOrder(sections.map((s) => s.id));
+    }
+  }, [serverOrder, sections]);
+  const byId = new Map(sections.map((s) => [s.id, s]));
+  const ordered = order.map((id) => byId.get(id)).filter((s): s is EditorSection => !!s);
+  const reorder = async (next: string[]) => {
+    const before = order;
+    setOrder(next);
+    report("order", { kind: "saving" });
+    const r = await reorderSectionsAction(page.id, next).catch(() => ({ error: "couldn't reach the server" }));
+    if (r.error) {
+      setOrder(before);
+      report("order", { kind: "error", message: r.error });
+    } else report("order", { kind: "saved" });
+  };
 
   // ── which sections are open ───────────────────────────────────
   const [open, setOpen] = useState<Set<string>>(() => new Set(sections[0] ? [sections[0].id] : []));
@@ -115,7 +139,7 @@ export function Editor({
         <TitleField pageId={page.id} initial={page.title} onStatus={report} />
         <p className="mt-2 font-mono text-[12.5px] text-muted">{isHome ? "the front page" : `/${page.slug}`}</p>
 
-        <Label className="mt-7" right={sections.length > 1 ? "Reorder from ⋮" : undefined}>
+        <Label className="mt-7" right={sections.length > 1 ? "Drag to reorder" : undefined}>
           Sections
         </Label>
         <section className="space-y-2.5" aria-label="Sections">
@@ -124,11 +148,14 @@ export function Editor({
               This page is empty. Add a section to begin.
             </p>
           )}
-          {sections.map((s, i) => (
+          <SortableList ids={order} onReorder={(next) => void reorder(next)} onDragStart={() => setOpen(new Set())}>
+          {ordered.map((s, i) => (
+            <SortableItem key={s.id} id={s.id}>
+              {({ handle }) => (
             <SectionCard
-              key={s.id}
               index={i}
               count={sections.length}
+              handle={handle}
               section={s}
               pageId={page.id}
               open={open.has(s.id)}
@@ -138,7 +165,10 @@ export function Editor({
               forms={forms}
               actions={actions}
             />
+              )}
+            </SortableItem>
           ))}
+          </SortableList>
           <AddSection pageId={page.id} action={actions.addSection} />
         </section>
 
@@ -241,6 +271,7 @@ function TitleField({ pageId, initial, onStatus }: { pageId: string; initial: st
 function SectionCard({
   index,
   count,
+  handle,
   section,
   pageId,
   open,
@@ -252,6 +283,7 @@ function SectionCard({
 }: {
   index: number;
   count: number;
+  handle: React.ButtonHTMLAttributes<HTMLButtonElement> & { ref: (el: HTMLElement | null) => void };
   section: EditorSection;
   pageId: string;
   open: boolean;
@@ -268,8 +300,10 @@ function SectionCard({
   return (
     <article data-testid={`section-${index}`} className="rounded-card border border-line bg-surface">
       <div className="flex items-center gap-1 pr-2">
-        <button type="button" onClick={onToggle} aria-expanded={open} className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left">
+        <button type="button" {...handle} className="flex h-11 w-10 flex-none cursor-grab touch-none items-center justify-center rounded-button text-faint hover:bg-hover hover:text-text active:cursor-grabbing">
           <DragGlyph />
+        </button>
+        <button type="button" onClick={onToggle} aria-expanded={open} className="flex min-w-0 flex-1 items-center gap-3 py-3 pr-2 text-left">
           <span className="min-w-0 flex-1">
             <span className="label block !text-[10.5px]">{label}</span>
             {!open && summary && <span className="mt-0.5 block truncate text-[15px]">{summary}</span>}
@@ -334,7 +368,7 @@ function MenuItem({ children, disabled, tone }: { children: React.ReactNode; dis
 
 function DragGlyph() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="flex-none text-faint" aria-hidden>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="flex-none" aria-hidden>
       <path d="M5 9h14M5 15h14" />
     </svg>
   );

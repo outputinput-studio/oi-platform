@@ -13,6 +13,7 @@ import {
   moveSection,
   publishedPage,
   removeSection,
+  reorderSections,
   setPageStatus,
   slugFromTitle,
   updatePage,
@@ -106,6 +107,16 @@ describe("pages", () => {
     await moveSection({ actorId: ann, siteId: siteA, sectionId: s1.id, direction: "up" }); // already first: no-op
     page = await getPage({ actorId: ann, siteId: siteA, pageId: aboutId });
     expect(page.sections.map((s) => s.id)).toEqual([s1.id, s2.id, s3.id]);
+
+    // A drag sends the whole order; it has to name every live section once.
+    await reorderSections({ actorId: ann, siteId: siteA, pageId: aboutId, order: [s3.id, s1.id, s2.id] });
+    page = await getPage({ actorId: ann, siteId: siteA, pageId: aboutId });
+    expect(page.sections.map((s) => s.id)).toEqual([s3.id, s1.id, s2.id]);
+    expect(page.sections.map((s) => s.position)).toEqual([0, 1, 2]);
+    await expect(reorderSections({ actorId: ann, siteId: siteA, pageId: aboutId, order: [s1.id, s2.id] })).rejects.toThrow(/changed under you/);
+    await expect(reorderSections({ actorId: ann, siteId: siteA, pageId: aboutId, order: [s1.id, s1.id, s2.id] })).rejects.toThrow(/changed under you/);
+    await expect(reorderSections({ actorId: bob, siteId: siteA, pageId: aboutId, order: [s1.id, s2.id, s3.id] })).rejects.toThrow(AccessError);
+    await reorderSections({ actorId: ann, siteId: siteA, pageId: aboutId, order: [s1.id, s2.id, s3.id] });
 
     await removeSection({ actorId: ann, siteId: siteA, sectionId: s2.id });
     page = await getPage({ actorId: ann, siteId: siteA, pageId: aboutId });
