@@ -2,8 +2,28 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useSyncExternalStore, useState } from "react";
 import { Sheet } from "../ui";
+
+/**
+ * Whether the sidebar is folded to icons. Kept on <html> (set before paint
+ * by a script in the root layout) and in localStorage, per device.
+ */
+const listeners = new Set<() => void>();
+const readFolded = () => (typeof document === "undefined" ? false : document.documentElement.dataset.sidebar === "collapsed");
+const subscribe = (fn: () => void) => {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+};
+function setFolded(folded: boolean) {
+  if (folded) document.documentElement.dataset.sidebar = "collapsed";
+  else delete document.documentElement.dataset.sidebar;
+  try {
+    localStorage.setItem("oi:sidebar", folded ? "collapsed" : "open");
+  } catch {}
+  listeners.forEach((fn) => fn());
+}
+const useFolded = () => useSyncExternalStore(subscribe, readFolded, () => false);
 
 /**
  * Primary navigation, following design/admin.html.
@@ -42,42 +62,61 @@ export function Nav({
 }) {
   const pathname = usePathname();
   const [more, setMore] = useState(false);
+  const folded = useFolded();
   const active = (href: string) => pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
   const moreActive = secondary.some((i) => active(i.href)) || active("/account");
 
   return (
     <nav aria-label="Main">
       {/* ── laptop sidebar ───────────────────────────────── */}
-      <div className="hidden md:fixed md:inset-y-0 md:left-0 md:flex md:w-[290px] md:flex-col md:border-r md:border-line md:bg-bg">
-        <div className="flex h-[90px] flex-none items-center gap-3 border-b border-line px-6">
-          <Wordmark />
-          {envName && <span className="label !text-faint">{envName}</span>}
+      <div
+        data-testid="sidebar"
+        className="hidden md:fixed md:inset-y-0 md:left-0 md:flex md:w-[var(--sidebar)] md:flex-col md:border-r md:border-line md:bg-bg md:transition-[width] md:duration-200"
+      >
+        <div className={`flex h-[90px] flex-none items-center border-b border-line ${folded ? "justify-center px-0" : "gap-3 px-6"}`}>
+          <Link href="/" aria-label="Home" className="flex items-center">
+            <Brandmark />
+          </Link>
+          {!folded && envName && <span className="label !text-faint">{envName}</span>}
+          {!folded && (
+            <button type="button" onClick={() => setFolded(true)} aria-label="Fold the sidebar" className="ml-auto flex h-9 w-9 items-center justify-center rounded-button text-faint hover:bg-hover hover:text-text">
+              <FoldIcon />
+            </button>
+          )}
         </div>
-        <ul className="flex flex-1 flex-col gap-1 overflow-y-auto px-2.5 py-3">
+        {folded && (
+          <button type="button" onClick={() => setFolded(false)} aria-label="Open the sidebar" className="mx-auto mt-3 flex h-9 w-9 items-center justify-center rounded-button text-faint hover:bg-hover hover:text-text">
+            <FoldIcon open />
+          </button>
+        )}
+        <ul className={`flex flex-1 flex-col gap-1 overflow-y-auto py-3 ${folded ? "px-3" : "px-2.5"}`}>
           {[...primary, ...secondary].map((it) => (
             <li key={it.href}>
               <Link
                 href={it.href}
                 aria-current={active(it.href) ? "page" : undefined}
-                className={`flex h-11 items-center gap-[11px] rounded-[6px] px-3 text-[14.5px] ${
+                title={folded ? it.label : undefined}
+                className={`flex h-11 items-center rounded-[6px] text-[14.5px] ${folded ? "justify-center px-0" : "gap-[11px] px-3"} ${
                   active(it.href) ? "bg-selected font-medium text-text" : "text-body hover:bg-hover"
                 }`}
               >
-                <it.icon size={19} />
-                <span className="min-w-0 flex-1 truncate">{it.label}</span>
+                <it.icon size={folded ? 21 : 19} />
+                <span className={folded ? "sr-only" : "min-w-0 flex-1 truncate"}>{it.label}</span>
               </Link>
             </li>
           ))}
         </ul>
-        <Link href="/account" className="flex flex-none items-center gap-3 border-t border-line px-5 py-4 hover:bg-hover">
+        <Link href="/account" title={folded ? userName : undefined} className={`flex flex-none items-center border-t border-line py-4 hover:bg-hover ${folded ? "justify-center px-0" : "gap-3 px-5"}`}>
           <Avatar name={userName} />
-          <span className="min-w-0 flex-1">
+          <span className={folded ? "sr-only" : "min-w-0 flex-1"}>
             <span className="block truncate text-[14.5px] font-medium">{userName}</span>
             <span className="block text-[12.5px] capitalize text-muted">{role}</span>
           </span>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-faint" aria-hidden>
-            <path d="m9 6 6 6-6 6" />
-          </svg>
+          {!folded && (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-faint" aria-hidden>
+              <path d="m9 6 6 6-6 6" />
+            </svg>
+          )}
         </Link>
       </div>
 
@@ -136,6 +175,22 @@ export function Nav({
         </Sheet>
       )}
     </nav>
+  );
+}
+
+/** The O/I mark on its own, for the sidebar. */
+export function Brandmark({ className = "h-[26px]" }: { className?: string }) {
+  // eslint-disable-next-line @next/next/no-img-element -- static SVG
+  return <img src="/brand/brandmark-white.svg" alt="output/input" width={23} height={26} className={`w-auto ${className}`} />;
+}
+
+function FoldIcon({ open }: { open?: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9 4v16" />
+      {open ? <path d="m13 10 2 2-2 2" /> : <path d="m17 10-2 2 2 2" />}
+    </svg>
   );
 }
 

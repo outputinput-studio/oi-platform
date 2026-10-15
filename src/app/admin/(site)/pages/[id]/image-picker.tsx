@@ -4,8 +4,8 @@ import { useState } from "react";
 import { listMediaAction } from "@/modules/media/actions";
 import type { MediaItem } from "@/modules/media/server";
 import type { ImageRef } from "@/modules/pages/registry";
-import { Button, Field, Input, Notice } from "../../../ui";
-import { MediaLibrary, Sheet } from "../../media/media-library";
+import { Button, Field, Input, Notice, Sheet } from "../../../ui";
+import { MediaLibrary } from "../../media/media-library";
 
 /**
  * The image slot in a section: the current image (or none), a button
@@ -53,14 +53,15 @@ export function ImagePicker({
       {value && src ? (
         <div className="flex items-start gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} alt="" width={value.width} height={value.height} className="h-24 w-24 flex-none rounded-md border border-[var(--border)] object-cover" />
+          <img src={src} alt="" width={value.width} height={value.height} className="h-24 w-24 flex-none rounded-card border border-line object-cover" />
           <div className="flex flex-col gap-2">
-            <Button type="button" variant="quiet" onClick={() => void openSheet()}>
+            <Button type="button" variant="quiet" size="sm" onClick={() => void openSheet()}>
               Change image
             </Button>
             <Button
               type="button"
               variant="quiet"
+              size="sm"
               onClick={() => {
                 setPickedUrl(undefined);
                 onChange(undefined);
@@ -92,7 +93,7 @@ export function ImagePicker({
           {items ? (
             <MediaLibrary initial={items} mode="pick" available={available} onPick={pick} />
           ) : (
-            !error && <p className="text-sm text-[var(--muted)]">Loading…</p>
+            !error && <p className="text-[13.5px] text-muted">Loading…</p>
           )}
         </Sheet>
       )}

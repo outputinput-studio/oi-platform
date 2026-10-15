@@ -27,7 +27,7 @@ export default async function AccountPage() {
         </section>
         <section>
           <Label>Signing in</Label>
-          <Rows>
+          <Rows variant="static">
             <Row title="A code each time" detail="We email you a six-digit code when you sign in. Signing in lasts 30 days, and renews whenever you use it." />
           </Rows>
         </section>

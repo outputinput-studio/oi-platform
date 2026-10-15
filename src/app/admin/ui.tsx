@@ -79,9 +79,14 @@ export function Label({ children, className = "", right }: { children: React.Rea
   );
 }
 
-export function Card({ children, className = "", ...rest }: React.HTMLAttributes<HTMLDivElement>) {
+/**
+ * A card. Bordered on the surface colour when it's something to tap or
+ * fill in; `static` (no border, sunken) when it only tells you something.
+ */
+export function Card({ children, className = "", variant = "default", ...rest }: React.HTMLAttributes<HTMLDivElement> & { variant?: "default" | "static" }) {
+  const look = variant === "static" ? "bg-sunken" : "border border-line bg-surface";
   return (
-    <div {...rest} className={`rounded-card border border-line bg-surface ${className}`}>
+    <div {...rest} className={`rounded-card ${look} ${className}`}>
       {children}
     </div>
   );
@@ -143,14 +148,18 @@ export function Row({
   return <div className={cls.replace(" hover:bg-hover", "")}>{inner}</div>;
 }
 
-/** Rows separated by a soft line, inside a Card. */
-export function Rows({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <Card className={`divide-y divide-line-soft ${className}`}>{children}</Card>;
+/** Rows separated by a soft line, inside a Card. `static` when none of them go anywhere. */
+export function Rows({ children, className = "", variant }: { children: React.ReactNode; className?: string; variant?: "default" | "static" }) {
+  return (
+    <Card variant={variant} className={`divide-y divide-line-soft ${className}`}>
+      {children}
+    </Card>
+  );
 }
 
 export function Chevron({ className = "" }: { className?: string }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={`flex-none text-faint ${className}`} aria-hidden>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={`flex-none text-faint ${className}`} aria-hidden>
       <path d="m9 6 6 6-6 6" />
     </svg>
   );
@@ -180,7 +189,7 @@ export function SaveBar({ dirty, pending, state }: { dirty: boolean; pending: bo
       <div aria-hidden className="h-16" />
       <div
         data-testid="save-bar"
-        className="fixed inset-x-0 bottom-[84px] z-10 flex items-center justify-center gap-4 border-t border-line bg-bg px-4 py-3 shadow-[0_-8px_24px_var(--shadow)] md:bottom-0 md:left-[290px]"
+        className="fixed inset-x-0 bottom-[84px] z-10 flex items-center justify-center gap-4 border-t border-line bg-bg px-4 py-3 shadow-[0_-8px_24px_var(--shadow)] md:bottom-0 md:left-[var(--sidebar)]"
       >
         {!dirty && !pending && <Notice {...state} />}
         {dirty && !pending && state.error && <Notice error={state.error} />}

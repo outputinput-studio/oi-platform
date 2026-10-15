@@ -14,6 +14,8 @@ import { storage } from "@/lib/storage";
  * below are the backstop, not the normal case.
  */
 export const MAX_BYTES = 4 * 1024 * 1024; // Vercel's request limit is 4.5 MB
+/** What a site gets before we talk: the storage bar on the Images screen measures against this. */
+export const STORAGE_LIMIT_BYTES = 5 * 1024 * 1024 * 1024;
 export const MAX_SIDE = 4000;
 
 const CONTENT_TYPES: Record<string, string> = {

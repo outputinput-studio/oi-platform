@@ -14,7 +14,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const { site, user, role } = await requireSiteAccess();
   const envName = environmentName();
   return (
-    <div className="min-h-screen md:pl-[290px]">
+    <div className="min-h-screen md:pl-[var(--sidebar)]">
       <Nav siteName={site.name} userName={user.name || user.email} role={role} envName={envName === "production" ? null : envName} signOut={signOut} />
       <main className="px-4 pb-28 md:px-6 md:pb-12">
         <div className="mx-auto w-full max-w-[1120px]">{children}</div>
