@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { HOME_SLUG, listPages } from "@/modules/pages/server";
+import { PageHeader } from "../../ui";
 import { NewPageForm } from "./new-page-form";
 
 export const dynamic = "force-dynamic";
@@ -12,8 +13,8 @@ export default async function PagesPage() {
 
   return (
     <>
-      <h1 className="text-2xl font-semibold">Pages</h1>
-      <p className="mt-1 text-sm text-[var(--muted)]">
+      <PageHeader title="Content" back="/" />
+      <p className="mt-5 text-sm text-[var(--muted)]">
         {all.length ? `${all.length} on ${site.name}.` : "No pages yet. Start with the home page."}
       </p>
 

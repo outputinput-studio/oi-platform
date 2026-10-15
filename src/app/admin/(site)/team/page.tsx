@@ -1,5 +1,6 @@
 import { requireSiteAccess } from "@/modules/auth/access";
 import { listMembers } from "@/modules/team/server";
+import { PageHeader } from "../../ui";
 import { AddMemberForm, MemberRow } from "./team-forms";
 
 export const dynamic = "force-dynamic";
@@ -17,8 +18,8 @@ export default async function TeamPage() {
 
   return (
     <>
-      <h1 className="text-2xl font-semibold">Team</h1>
-      <p className="mt-1 text-sm text-[var(--muted)]">
+      <PageHeader title="Team" back="/" />
+      <p className="mt-5 text-sm text-[var(--muted)]">
         {members.length === 1 ? "Just you so far." : `${members.length} people can sign in to ${site.name}.`}
       </p>
 

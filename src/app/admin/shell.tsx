@@ -1,30 +1,30 @@
 import { environmentName } from "@/lib/env";
+import { Wordmark } from "./(site)/nav";
 
 /**
- * The frame around the signed-out screens (sign in, site picker): one
- * centred card that reads well on a phone. Signed-in pages use AdminShell.
+ * The frame around the signed-out screens (sign in, site picker), as in
+ * design/admin.html: wordmark top left, the screen's words below, a quiet
+ * footer. One column on a phone; on a laptop the same column, centred.
  */
-export function Shell({ children }: { children: React.ReactNode }) {
+export function Shell({ children, footer }: { children: React.ReactNode; footer?: React.ReactNode }) {
+  const envName = environmentName();
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-lg border border-[var(--border)] p-6">
-        <div className="mb-8 flex items-center justify-between">
+    <main className="flex min-h-screen flex-col px-5 pb-8 pt-14 md:items-center md:justify-center md:pt-8">
+      <div className="flex w-full max-w-[360px] flex-1 flex-col md:flex-none">
+        <div className="mb-10 flex items-center gap-3">
           <Wordmark />
-          <EnvBadge />
+          {envName !== "production" && <span className="label !text-faint">{envName}</span>}
         </div>
-        {children}
+        <div className="flex-1">{children}</div>
+        {footer && <div className="mt-12 text-center text-[12.5px] leading-relaxed text-faint md:mt-10">{footer}</div>}
       </div>
     </main>
   );
 }
 
-export function Wordmark() {
-  // eslint-disable-next-line @next/next/no-img-element -- static SVG, no optimisation needed
-  return <img src="/brand/wordmark-white.svg" alt="output/input" width={180} height={26} className="h-5 w-auto" />;
-}
-
+export { Wordmark };
 export function EnvBadge() {
   const envName = environmentName();
   if (envName === "production") return null;
-  return <span className="text-xs text-[var(--muted)]">{envName}</span>;
+  return <span className="label !text-faint">{envName}</span>;
 }

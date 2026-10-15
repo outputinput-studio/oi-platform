@@ -1,10 +1,9 @@
-import Link from "next/link";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { getPage, HOME_SLUG } from "@/modules/pages/server";
 import { addSectionAction, deletePageAction, moveSectionAction, removeSectionAction, setPageStatusAction } from "@/modules/pages/actions";
 import { imageRef, sectionTypes, type SectionType } from "@/modules/pages/registry";
 import { mediaAvailable, mediaUrl } from "@/modules/media/server";
-import { Button } from "../../../ui";
+import { Button, PageHeader } from "../../../ui";
 import { PageSettingsForm } from "./page-settings-form";
 import { SectionEditor } from "./section-editor";
 import { AddSection } from "./add-section";
@@ -26,25 +25,25 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
 
   return (
     <>
-      <p className="text-sm">
-        <Link href="/pages" className="text-[var(--muted)] underline-offset-4 hover:underline">
-          ← Pages
-        </Link>
-      </p>
-      <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="truncate text-2xl font-semibold">{page.title}</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            {isHome ? "Front page" : `/${page.slug}`} · <span data-testid="page-status">{live ? "Live" : "Draft"}</span>
-          </p>
-        </div>
-        <form action={setPageStatusAction}>
-          <input type="hidden" name="pageId" value={page.id} />
-          <input type="hidden" name="status" value={live ? "draft" : "published"} />
-          <Button type="submit" variant={live ? "quiet" : "primary"}>
-            {live ? "Unpublish" : "Publish"}
-          </Button>
-        </form>
+      <PageHeader
+        title="Edit page"
+        back="/pages"
+        actions={
+          <form action={setPageStatusAction} className="flex items-center gap-3">
+            <input type="hidden" name="pageId" value={page.id} />
+            <input type="hidden" name="status" value={live ? "draft" : "published"} />
+            <span data-testid="page-status" className={`text-[13px] ${live ? "text-success" : "text-muted"}`}>
+              {live ? "Live" : "Draft"}
+            </span>
+            <Button type="submit" size="sm" variant={live ? "secondary" : "primary"}>
+              {live ? "Unpublish" : "Publish"}
+            </Button>
+          </form>
+        }
+      />
+      <div className="mt-5">
+        <h2 className="truncate text-xl font-semibold">{page.title}</h2>
+        <p className="mt-1 font-mono text-[12.5px] text-muted">{isHome ? "front page" : `/${page.slug}`}</p>
       </div>
 
       <section className="mt-6 space-y-4" aria-label="Sections">

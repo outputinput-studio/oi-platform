@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { sendCode, verifyCode, type SignInState } from "@/modules/auth/actions";
+import { Button, Input, Notice } from "../ui";
 
 /**
  * Two steps on one screen: email, then the six-digit code. State lives in
@@ -16,25 +17,32 @@ export function SignInForm() {
 
   if (state.step === "code") {
     return (
-      <form action={act} className="space-y-4">
+      <form action={act} className="space-y-5">
         <input type="hidden" name="email" value={state.email} />
-        <p className="text-sm text-[var(--muted)]">
-          If <span className="text-[var(--fg)]">{state.email}</span> belongs to a site, a code is on its way. Didn&apos;t get
-          one? Check the address, or ask the site owner to add you.
+        <p className="text-[13.5px] leading-relaxed text-muted">
+          If <span className="text-text">{state.email}</span> belongs to a site, a code is on its way. Didn&apos;t get one? Check
+          the address, or ask the site owner to add you.
         </p>
         {state.devCode && (
-          <p className="rounded-md border border-dashed border-[var(--border)] p-3 text-sm">
-            <span className="text-[var(--muted)]">Not production, no email provider — your code is </span>
-            <code data-testid="dev-code" className="font-mono text-base tracking-widest">
+          <p className="rounded-card border border-dashed border-line p-3 text-[13px]">
+            <span className="text-muted">Not production, no email provider — your code is </span>
+            <code data-testid="dev-code" className="font-mono text-[15px] tracking-[3px] text-text">
               {state.devCode}
             </code>
           </p>
         )}
-        <Field label="Code" name="code" type="text" inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" />
-        {state.error && <Error text={state.error} />}
-        <Button pending={pending} label="Sign in" />
-        <p className="text-sm">
-          <a href="/sign-in" className="text-[var(--muted)] underline-offset-4 hover:underline">
+        <div>
+          <label htmlFor="field-code" className="label mb-2 block">
+            Code
+          </label>
+          <Input id="field-code" name="code" type="text" inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" required autoFocus className="font-mono tracking-[3px]" />
+        </div>
+        {state.error && <Notice error={state.error} />}
+        <Button type="submit" disabled={pending} className="h-12 w-full text-[16px]">
+          {pending ? "One moment…" : "Sign in"}
+        </Button>
+        <p className="text-center text-[14px]">
+          <a href="/sign-in" className="text-body underline-offset-4 hover:underline">
             Use a different email
           </a>
         </p>
@@ -43,60 +51,17 @@ export function SignInForm() {
   }
 
   return (
-    <form action={act} className="space-y-4">
-      <p className="text-sm text-[var(--muted)]">We&apos;ll email you a six-digit code. No password.</p>
-      <Field label="Email" name="email" type="email" inputMode="email" autoComplete="email" />
-      {state.error && <Error text={state.error} />}
-      <Button pending={pending} label="Send code" />
+    <form action={act} className="space-y-5">
+      <div>
+        <label htmlFor="field-email" className="label mb-2 block">
+          Email
+        </label>
+        <Input id="field-email" name="email" type="email" inputMode="email" autoComplete="email" required autoFocus />
+      </div>
+      {state.error && <Notice error={state.error} />}
+      <Button type="submit" disabled={pending} className="h-12 w-full text-[16px]">
+        {pending ? "One moment…" : "Send code"}
+      </Button>
     </form>
-  );
-}
-
-function Field(props: {
-  label: string;
-  name: string;
-  type: string;
-  inputMode?: "email" | "numeric";
-  pattern?: string;
-  autoComplete?: string;
-}) {
-  const id = `field-${props.name}`;
-  return (
-    <div>
-      <label htmlFor={id} className="mb-1 block text-sm text-[var(--muted)]">
-        {props.label}
-      </label>
-      <input
-        id={id}
-        name={props.name}
-        type={props.type}
-        inputMode={props.inputMode}
-        pattern={props.pattern}
-        autoComplete={props.autoComplete}
-        required
-        autoFocus
-        className="block w-full rounded-md border border-[var(--border)] bg-transparent px-3 py-3 text-base outline-none focus:border-[var(--accent)]"
-      />
-    </div>
-  );
-}
-
-function Error({ text }: { text: string }) {
-  return (
-    <p role="alert" className="text-sm text-[var(--fg)]">
-      {text}
-    </p>
-  );
-}
-
-function Button({ pending, label }: { pending: boolean; label: string }) {
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="block w-full rounded-md bg-[var(--accent)] px-4 py-3 text-base font-medium text-[var(--fg)] disabled:opacity-60"
-    >
-      {pending ? "One moment…" : label}
-    </button>
   );
 }

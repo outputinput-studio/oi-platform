@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { goTo } from "./nav";
 import path from "node:path";
 
 /**
@@ -26,7 +27,7 @@ async function signInAsOwner(page: Page) {
 
 test("upload an image, describe it, use it in a hero, see it live", async ({ page }) => {
   await signInAsOwner(page);
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Images" }).click();
+  await goTo(page, "Images");
   await expect(page.getByRole("heading", { name: "Images" })).toBeVisible();
 
   // Upload. The browser shrinks 2400×1600 to 2000×1333 and, as the PNG is opaque, sends a JPG.
@@ -52,8 +53,8 @@ test("upload an image, describe it, use it in a hero, see it live", async ({ pag
   await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
 
   // Put it in the front page's hero. pages.spec.ts runs first and builds that page; this copes if it didn't.
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pages" }).click();
-  await expect(page.getByRole("heading", { name: "Pages" })).toBeVisible();
+  await goTo(page, "Content");
+  await expect(page.getByRole("heading", { name: "Content" })).toBeVisible();
   if (await page.getByTestId("page-home").count()) await page.getByTestId("page-home").click();
   else await page.getByRole("button", { name: "Create page" }).click();
   await expect(page).toHaveURL(/\/pages\/[0-9a-f-]+$/);

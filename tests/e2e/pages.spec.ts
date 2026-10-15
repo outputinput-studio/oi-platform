@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { goTo } from "./nav";
 
 /**
  * Pages, end to end on a phone: create, add sections, type (autosave),
@@ -23,7 +24,7 @@ async function signInAsOwner(page: Page) {
 
 test("build the front page and publish it", async ({ page }) => {
   await signInAsOwner(page);
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Pages" }).click();
+  await goTo(page, "Content");
 
   // The first page is suggested as the front page.
   await expect(page.getByLabel("Address")).toHaveValue("home");
