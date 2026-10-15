@@ -24,6 +24,7 @@ export function Editor({
   isHome,
   live,
   mediaAvailable,
+  siteUrl,
   actions,
 }: {
   page: { id: string; title: string; slug: string };
@@ -31,6 +32,8 @@ export function Editor({
   isHome: boolean;
   live: boolean;
   mediaAvailable: boolean;
+  /** The page's public address, shown in the preview's chrome. */
+  siteUrl: string;
   actions: {
     setStatus: (form: FormData) => Promise<void>;
     addSection: (form: FormData) => Promise<void>;
@@ -65,6 +68,22 @@ export function Editor({
       return n;
     });
 
+  // ── the preview reloads after every save and every structural change ──
+  const [previewVersion, setPreviewVersion] = useState(0);
+  const wasSaving = useRef(false);
+  useEffect(() => {
+    if (wasSaving.current && overall.kind === "saved") setPreviewVersion((v) => v + 1);
+    wasSaving.current = overall.kind === "saving";
+  }, [overall.kind]);
+  const shape = sections.map((s) => s.id).join(",");
+  const lastShape = useRef(shape);
+  useEffect(() => {
+    if (lastShape.current !== shape) {
+      lastShape.current = shape;
+      setPreviewVersion((v) => v + 1);
+    }
+  }, [shape]);
+
   return (
     <>
       <PageHeader
@@ -87,7 +106,8 @@ export function Editor({
         }
       />
 
-      <div className="pt-5 md:pt-6">
+      <div className="pt-5 md:grid md:grid-cols-[480px_minmax(0,1fr)] md:items-start md:gap-8 md:pt-6">
+      <div>
         <TitleField pageId={page.id} initial={page.title} onStatus={report} />
         <p className="mt-2 font-mono text-[12.5px] text-muted">{isHome ? "the front page" : `/${page.slug}`}</p>
 
@@ -131,7 +151,42 @@ export function Editor({
           )}
         </div>
       </div>
+      <Preview pageId={page.id} url={siteUrl} version={previewVersion} />
+      </div>
     </>
+  );
+}
+
+/**
+ * The page as visitors will see it, beside the editor on a laptop. It's
+ * the real storefront, rendered at /preview/<id> for signed-in members,
+ * reloaded after each save. On a phone there's no room; the page itself
+ * is a tap away once it's live.
+ */
+function Preview({ pageId, url, version }: { pageId: string; url: string; version: number }) {
+  return (
+    <aside className="hidden md:sticky md:top-6 md:block" aria-label="Preview">
+      <div className="mb-2.5 flex items-center gap-2">
+        <span className="label">Preview</span>
+        <span className="h-px flex-1 bg-line-soft" />
+        <span className="text-[11.5px] text-muted">Updates as you save</span>
+      </div>
+      <div className="overflow-hidden rounded-card border border-line bg-surface">
+        <div className="flex h-[34px] items-center gap-2 border-b border-line bg-sunken px-3">
+          <span className="h-[7px] w-[7px] rounded-full bg-line-strong" />
+          <span className="h-[7px] w-[7px] rounded-full bg-line-strong" />
+          <span className="h-[7px] w-[7px] rounded-full bg-line-strong" />
+          <span className="min-w-0 flex-1 truncate text-center font-mono text-[11px] text-muted">{url}</span>
+        </div>
+        <iframe
+          key={version}
+          title="Preview"
+          data-testid="preview"
+          src={`/preview/${pageId}`}
+          className="block h-[640px] w-full bg-panel"
+        />
+      </div>
+    </aside>
   );
 }
 
