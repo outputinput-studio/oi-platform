@@ -14,6 +14,7 @@ import {
   listSubmissions,
   newSubmissionCount,
   publicForm,
+  reorderForms,
   setSubmissionStatus,
   submitForm,
   updateForm,
@@ -85,6 +86,17 @@ describe("forms", () => {
     expect(f.fields[1].label).toBe("Needed by");
     await expect(updateForm({ actorId: ann, siteId: siteA, formId, settings: { name: "x", fields: [], buttonText: "Send", afterMessage: "Ta.", notifyEmails: "not-an-email" } })).rejects.toThrow(/addresses/);
     await expect(updateForm({ actorId: ann, siteId: siteA, formId, settings: { name: "x", fields: [{ id: "a", type: "sparkle", label: "?" }], buttonText: "Send", afterMessage: "Ta.", notifyEmails: "" } })).rejects.toThrow();
+  });
+  test("forms keep the order the team gives them", async () => {
+    const b = await createForm({ actorId: ann, siteId: siteA, name: "Second" });
+    let names = (await listForms({ actorId: ann, siteId: siteA })).map((f) => f.name);
+    expect(names).toEqual(["Enquiry", "Second"]);
+    await reorderForms({ actorId: ann, siteId: siteA, order: [b.id, formId] });
+    names = (await listForms({ actorId: ann, siteId: siteA })).map((f) => f.name);
+    expect(names).toEqual(["Second", "Enquiry"]);
+    await expect(reorderForms({ actorId: ann, siteId: siteA, order: [b.id] })).rejects.toThrow(/changed under you/);
+    await expect(reorderForms({ actorId: bob, siteId: siteA, order: [b.id, formId] })).rejects.toThrow(AccessError);
+    await deleteForm({ actorId: ann, siteId: siteA, formId: b.id });
   });
   test("another site can't see or edit it, and the public lookup is by site too", async () => {
     await expect(updateForm({ actorId: bob, siteId: siteA, formId, settings: {} })).rejects.toThrow(AccessError);

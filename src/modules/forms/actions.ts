@@ -7,7 +7,7 @@ import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { siteFromHost } from "@/modules/sites/server";
 import { SUBMISSION_STATUSES } from "@/db/schema";
-import { createForm, deleteForm, setSubmissionStatus, submitForm, updateForm } from "./server";
+import { createForm, deleteForm, reorderForms, setSubmissionStatus, submitForm, updateForm } from "./server";
 
 export type FormState = { ok?: string; error?: string };
 
@@ -33,6 +33,17 @@ export async function saveFormAction(formId: string, settings: unknown): Promise
   const { user, site } = await requireSiteAccess();
   try {
     await updateForm({ actorId: user.id, siteId: site.id, formId, settings });
+    revalidatePath("/forms");
+    return { ok: "Saved" };
+  } catch (err) {
+    return { error: message(err) };
+  }
+}
+
+export async function reorderFormsAction(order: string[]): Promise<FormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await reorderForms({ actorId: user.id, siteId: site.id, order: z.array(z.string().uuid()).max(200).parse(order) });
     revalidatePath("/forms");
     return { ok: "Saved" };
   } catch (err) {
