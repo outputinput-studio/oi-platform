@@ -9,9 +9,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-md rounded-lg border border-[var(--border)] p-6">
-        <p className="mb-6 text-sm text-[var(--muted)]">
-          output/input{envName !== "production" && <span> · {envName}</span>}
-        </p>
+        <div className="mb-8 flex items-center justify-between">
+          {/* eslint-disable-next-line @next/next/no-img-element -- static SVG, no optimisation needed */}
+          <img src="/brand/wordmark-white.svg" alt="output/input" width={180} height={26} className="h-5 w-auto" />
+          {envName !== "production" && <span className="text-xs text-[var(--muted)]">{envName}</span>}
+        </div>
         {children}
       </div>
     </main>
