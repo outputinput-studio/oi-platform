@@ -39,7 +39,7 @@ const schema = z.object({
   R2_SECRET_ACCESS_KEY: z.string().optional(),
   R2_BUCKET: z.string().optional(),
   /** Where the bucket is public, no trailing slash: https://pub-xxx.r2.dev or https://media.example.com */
-  R2_PUBLIC_URL: z.string().url().optional(),
+  R2_PUBLIC_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
   /** Local-disk fallback directory (default .media-local in the project). */
   MEDIA_LOCAL_DIR: z.string().optional(),
 });

@@ -1,7 +1,7 @@
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { AwsClient } from "aws4fetch";
-import { env, environmentName, r2Config } from "./env";
+import { env, environmentName, r2Config, type R2Config } from "./env";
 
 /**
  * Where picture bytes go. Two backends behind one small interface:
@@ -28,7 +28,7 @@ function checkKey(key: string) {
   if (!KEY.test(key)) throw new Error("Bad storage key.");
 }
 
-function r2Storage(cfg: NonNullable<ReturnType<typeof r2Config>>): Storage {
+function r2Storage(cfg: R2Config): Storage {
   const client = new AwsClient({
     accessKeyId: cfg.accessKeyId,
     secretAccessKey: cfg.secretAccessKey,
@@ -87,12 +87,21 @@ export async function readLocalObject(key: string): Promise<Uint8Array | null> {
 let cached: Storage | null | undefined;
 
 /**
- * The configured storage, or null when pictures can't be stored here
- * (production without R2). Callers turn null into a plain message.
+ * The configured storage, or null when pictures can't be stored here:
+ * production without R2, or R2 only partly set. A half-set R2 is logged
+ * once and treated as "off", so a missing setting takes pictures away,
+ * never the whole admin. Callers turn null into a plain message.
  */
 export function storage(): Storage | null {
   if (cached !== undefined) return cached;
-  const cfg = r2Config();
+  let cfg: R2Config | null;
+  try {
+    cfg = r2Config();
+  } catch (err) {
+    console.error("storage:", err instanceof Error ? err.message : err);
+    cached = null;
+    return cached;
+  }
   if (cfg) cached = r2Storage(cfg);
   else if (environmentName() === "production") cached = null;
   else cached = localStorage();
