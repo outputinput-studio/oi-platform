@@ -11,7 +11,8 @@ export async function GET() {
     database = await ping();
   } catch (err) {
     // Message only, never the connection string. Enough to tell a bad password from a bad host.
-    console.error("health: database check failed:", err instanceof Error ? err.message : String(err));
+    const e = err as { message?: string; cause?: { message?: string; code?: string } };
+    console.error("health: database check failed:", e.message, "cause:", e.cause?.code, e.cause?.message);
     database = false;
   }
   return NextResponse.json(
