@@ -35,7 +35,7 @@ export default async function AdminHome() {
         </div>
 
         <p className="label mt-8">Needs you today</p>
-        <Rows className="mt-2.5">
+        <Rows className="mt-2.5" variant={pages.length && live ? "static" : "default"}>
           {pages.length === 0 ? (
             <Row title="Make your front page" detail="The site shows “coming soon” until it has one." href="/pages" />
           ) : live === 0 ? (

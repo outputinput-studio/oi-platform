@@ -79,9 +79,14 @@ export function Label({ children, className = "", right }: { children: React.Rea
   );
 }
 
-export function Card({ children, className = "", ...rest }: React.HTMLAttributes<HTMLDivElement>) {
+/**
+ * A card. Bordered on the surface colour when it's something to tap or
+ * fill in; `static` (no border, sunken) when it only tells you something.
+ */
+export function Card({ children, className = "", variant = "default", ...rest }: React.HTMLAttributes<HTMLDivElement> & { variant?: "default" | "static" }) {
+  const look = variant === "static" ? "bg-sunken" : "border border-line bg-surface";
   return (
-    <div {...rest} className={`rounded-card border border-line bg-surface ${className}`}>
+    <div {...rest} className={`rounded-card ${look} ${className}`}>
       {children}
     </div>
   );
@@ -143,9 +148,13 @@ export function Row({
   return <div className={cls.replace(" hover:bg-hover", "")}>{inner}</div>;
 }
 
-/** Rows separated by a soft line, inside a Card. */
-export function Rows({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <Card className={`divide-y divide-line-soft ${className}`}>{children}</Card>;
+/** Rows separated by a soft line, inside a Card. `static` when none of them go anywhere. */
+export function Rows({ children, className = "", variant }: { children: React.ReactNode; className?: string; variant?: "default" | "static" }) {
+  return (
+    <Card variant={variant} className={`divide-y divide-line-soft ${className}`}>
+      {children}
+    </Card>
+  );
 }
 
 export function Chevron({ className = "" }: { className?: string }) {
