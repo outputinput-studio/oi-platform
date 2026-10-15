@@ -32,8 +32,6 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: create the app role (by SQL, same as Neon)
-        run: psql "$MIGRATE_DATABASE_URL" -c "CREATE ROLE app LOGIN PASSWORD 'app' NOBYPASSRLS;"
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test:unit

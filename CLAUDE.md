@@ -12,6 +12,7 @@ node-postgres (`pg`) against Neon · Zod · Vitest · Playwright · pnpm · Node
 - `pnpm lint` · `pnpm typecheck` · `pnpm test:unit` · `pnpm test:integration` · `pnpm test:e2e`
 - `pnpm db:generate` — new migration from schema changes · `pnpm db:migrate` · `pnpm db:seed`
 - Vercel builds run `pnpm db:migrate && next build`: a failed migration is a failed deploy.
+- `db:migrate` also sets the `app` role's password to match `DATABASE_URL`, so the two never drift.
 
 ## Layout
 - `src/proxy.ts` — hostname → surface rewrite (admin.* → /admin, ops.* → /ops, else /site)
