@@ -75,11 +75,42 @@ async function syncAppRole() {
   console.log("app role: password in step with DATABASE_URL");
 }
 
+/**
+ * First site and first owner, from environment, so production can be born
+ * without anyone running SQL by hand and without a name in the code:
+ *
+ *   OI_BOOTSTRAP_SITE_SLUG=outputinput
+ *   OI_BOOTSTRAP_SITE_NAME="output/input"
+ *   OI_BOOTSTRAP_OWNER_EMAIL=you@example.com
+ *
+ * Idempotent: creates what is missing, touches nothing that exists.
+ */
+async function bootstrap() {
+  const slug = process.env.OI_BOOTSTRAP_SITE_SLUG;
+  const name = process.env.OI_BOOTSTRAP_SITE_NAME;
+  const email = process.env.OI_BOOTSTRAP_OWNER_EMAIL?.trim().toLowerCase();
+  if (!slug || !name || !email) return;
+  await pool.query(`insert into sites (slug, name) values ($1, $2) on conflict (slug) do nothing`, [slug, name]);
+  await pool.query(
+    `insert into users (id, name, email, email_verified, updated_at)
+     values (gen_random_uuid()::text, $1, $2, true, now()) on conflict (email) do nothing`,
+    [email.split("@")[0], email],
+  );
+  await pool.query(
+    `insert into memberships (user_id, site_id, role)
+     select u.id, s.id, 'owner' from users u, sites s where u.email = $1 and s.slug = $2
+     on conflict (user_id, site_id) do nothing`,
+    [email, slug],
+  );
+  console.log(`bootstrap: site "${slug}" has an owner`);
+}
+
 (async () => {
   try {
     await migrate(db, { migrationsFolder: "./src/db/migrations" });
     console.log("migrations: up to date");
     await syncAppRole();
+    await bootstrap();
   } catch (err) {
     console.error("migration failed", err);
     process.exit(1);

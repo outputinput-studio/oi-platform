@@ -1,5 +1,5 @@
 /**
- * The tenancy lock, proven against a real Postgres with the migration applied.
+ * The tenancy lock, proven against a real Postgres with the migrations applied.
  * Needs DATABASE_URL (app role) and MIGRATE_DATABASE_URL (owner). CI provides
  * both from a throwaway container; locally they are your own dev branch.
  */
@@ -8,6 +8,13 @@ import { Pool } from "pg";
 import { sql } from "drizzle-orm";
 import { db, withSite } from "@/db/client";
 import { sites } from "@/db/schema";
+
+/**
+ * Shared across sites, so deliberately NOT under row-level security.
+ * Adding a table here is a design decision: it means the table holds no
+ * client data, or holds the keys we need before a site is known.
+ */
+const PLATFORM_TABLES = ["users", "sessions", "accounts", "verifications", "memberships"];
 
 const owner = new Pool({ connectionString: process.env.MIGRATE_DATABASE_URL, max: 1 });
 let siteA = "";
@@ -57,12 +64,30 @@ describe("row-level security", () => {
     expect(owned.rows[0].n).toBe(0);
   });
 
-  test("every public table has forced row-level security", async () => {
+  test("every client table has forced row-level security", async () => {
     const r = await owner.query(
       `select relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
-       where n.nspname = 'public' and c.relkind = 'r' and relname <> '__drizzle_migrations'
+       where n.nspname = 'public' and c.relkind = 'r'
+         and relname <> '__drizzle_migrations' and relname <> all($1)
          and not (c.relrowsecurity and c.relforcerowsecurity)`,
+      [PLATFORM_TABLES],
     );
     expect(r.rows).toEqual([]);
+  });
+
+  test("platform tables are exactly the allowlist, and the app role can use them", async () => {
+    const r = await owner.query(
+      `select relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'public' and c.relkind = 'r'
+         and relname <> '__drizzle_migrations' and not c.relrowsecurity
+       order by relname`,
+    );
+    expect(r.rows.map((x) => x.relname)).toEqual([...PLATFORM_TABLES].sort());
+    for (const t of PLATFORM_TABLES) {
+      const g = await db.execute(
+        sql`select has_table_privilege(current_user, ${t}, 'SELECT, INSERT, UPDATE, DELETE') as ok`,
+      );
+      expect(g.rows[0], t).toEqual({ ok: true });
+    }
   });
 });
