@@ -250,6 +250,10 @@ export const forms = pgTable(
     notifyEmails: text("notify_emails").notNull().default(""),
     /** Whether a submission with an email address makes (or updates) a contact. Off for a newsletter signup. */
     createContact: boolean("create_contact").notNull().default(true),
+    /** An email back to the sender the moment they send it. Subject and message take {fill-ins}. */
+    autoReply: boolean("auto_reply").notNull().default(false),
+    replySubject: text("reply_subject").notNull().default(""),
+    replyMessage: text("reply_message").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),

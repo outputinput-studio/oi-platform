@@ -45,6 +45,10 @@ export const formSettingsSchema = z.object({
     .refine((s) => splitEmails(s).every((e) => z.string().email().safeParse(e).success), "One of the addresses doesn't look right."),
   /** Whether a submission with an email address makes (or updates) a contact. */
   createContact: z.boolean().default(true),
+  /** Reply to the sender straight away. Needs an email field to go anywhere. */
+  autoReply: z.boolean().default(false),
+  replySubject: z.string().trim().max(200).default(""),
+  replyMessage: z.string().trim().max(5_000).default(""),
 });
 export type FormSettings = z.infer<typeof formSettingsSchema>;
 
@@ -106,4 +110,24 @@ export function senderOf(fields: Field[], answers: Record<string, string>): { na
   const email = fields.find((f) => f.type === "email" && answers[f.id]);
   const name = fields.find((f) => f.type === "text" && answers[f.id]);
   return { name: name ? answers[name.id] : "", email: email ? answers[email.id] : "" };
+}
+
+/**
+ * Fill-ins: {name} is the first short-text answer, and any field goes in
+ * by its label, {Email} or {What are you after?}. Case doesn't matter.
+ * An unanswered field fills in as nothing, so a sentence still reads.
+ */
+export function fillIn(template: string, fields: Field[], answers: Record<string, string>): string {
+  const name = fields.find((f) => f.type === "text" && answers[f.id]);
+  return template.replace(/\{([^{}]{1,120})\}/g, (whole, key: string) => {
+    const k = key.trim().toLowerCase();
+    if (k === "name") return name ? answers[name.id] : "";
+    const f = fields.find((x) => x.label.trim().toLowerCase() === k);
+    return f ? (answers[f.id] ?? "") : whole;
+  });
+}
+
+/** The fill-ins a form offers, for the editor's hint. */
+export function fillIns(fields: Field[]): string[] {
+  return ["{name}", ...fields.map((f) => `{${f.label}}`)];
 }
