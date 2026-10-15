@@ -1,33 +1,33 @@
 import { requireSiteAccess } from "@/modules/auth/access";
-import { signOut } from "@/modules/auth/actions";
-import { PageHeader } from "../../ui";
-import { SettingsForm } from "./settings-form";
+import { Label, PageHeader, Row, Rows } from "../../ui";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Settings, as in design/admin.html: groups of rows, each a screen of its
+ * own. More rows arrive with each module (selling, messages, domains…).
+ */
 export default async function SettingsPage() {
   const { site, role, user } = await requireSiteAccess();
   return (
     <>
       <PageHeader title="Settings" back="/" />
-      <section className="mt-5 rounded-md border border-[var(--border)] p-4">
-        <SettingsForm name={site.name} slug={site.slug} canEdit={role === "owner"} />
-      </section>
-
-      <section className="mt-6 rounded-md border border-[var(--border)] p-4">
-        <h2 className="text-base font-medium">Your account</h2>
-        <p className="mt-1 text-sm text-[var(--muted)]">{user.email}</p>
-        <div className="mt-4 flex items-center gap-6 text-sm">
-          <a href="/sites" className="text-[var(--muted)] underline-offset-4 hover:underline">
-            Switch site
-          </a>
-          <form action={signOut}>
-            <button type="submit" className="text-[var(--muted)] underline-offset-4 hover:underline">
-              Sign out
-            </button>
-          </form>
-        </div>
-      </section>
+      <div className="space-y-7 pt-5 md:pt-6">
+        <section>
+          <Label>Your site</Label>
+          <Rows>
+            <Row title="Site name" detail={site.name} href="/settings/site" />
+            <Row title="Address" detail={`${site.slug} · your own domain arrives in a later stage`} />
+            <Row title="Team" detail={role === "owner" ? "Who can sign in, and as what" : "Who can sign in"} href="/team" />
+          </Rows>
+        </section>
+        <section>
+          <Label>You</Label>
+          <Rows>
+            <Row title="Your account" detail={user.email} href="/account" />
+          </Rows>
+        </section>
+      </div>
     </>
   );
 }

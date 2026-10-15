@@ -59,6 +59,7 @@ test("email → code → pick a site → signed in → sign out", async ({ page 
   await expect(page.getByTestId("role")).toHaveText("owner");
 
   await goTo(page, "Settings");
+  await page.getByRole("link", { name: "Your account" }).click();
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
 

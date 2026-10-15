@@ -1,24 +1,13 @@
 import { requireSiteAccess } from "@/modules/auth/access";
-import { listMedia, mediaAvailable } from "@/modules/media/server";
-import { PageHeader } from "../../ui";
+import { listMedia, mediaAvailable, STORAGE_LIMIT_BYTES } from "@/modules/media/server";
 import { MediaLibrary } from "./media-library";
 
 export const dynamic = "force-dynamic";
 
-/** The site's images. Upload from a phone, describe each one, remove what's not needed. */
+/** The site's images, as in design/admin.html: storage bar, then the grid. Upload from the header. */
 export default async function MediaPage() {
   const { user, site } = await requireSiteAccess();
   const items = await listMedia({ actorId: user.id, siteId: site.id });
-  return (
-    <>
-      <PageHeader title="Images" back="/" />
-      <p className="mt-5 text-sm text-[var(--muted)]">
-        {items.length === 0 ? "Nothing here yet." : `${items.length} image${items.length === 1 ? "" : "s"}.`} Big photos are shrunk on your phone
-        before they&apos;re sent.
-      </p>
-      <div className="mt-6">
-        <MediaLibrary initial={items} mode="manage" available={mediaAvailable()} />
-      </div>
-    </>
-  );
+  const used = items.reduce((n, m) => n + m.sizeBytes, 0);
+  return <MediaLibrary initial={items} mode="manage" available={mediaAvailable()} storage={{ used, limit: STORAGE_LIMIT_BYTES }} />;
 }

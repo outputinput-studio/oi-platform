@@ -40,7 +40,8 @@ test("team: add, change role, remove", async ({ page }) => {
   await expect(page).toHaveURL(/\/team$/);
   await expect(page.getByText("owner@example.com")).toBeVisible();
 
-  // Add
+  // Add (a sheet from the header)
+  await page.getByRole("button", { name: "Add someone" }).click();
   await page.getByLabel("Email").fill("newstaff@example.com");
   await page.getByRole("button", { name: "Add to team" }).click();
   const row = page.getByTestId("member-newstaff@example.com");
@@ -68,7 +69,7 @@ test("the last owner cannot remove themselves", async ({ page }) => {
 
 test("settings: rename the site", async ({ page }) => {
   await signInAsOwner(page);
-  await page.goto(admin + "/settings");
+  await page.goto(admin + "/settings/site");
   const name = page.getByLabel("Site name");
   const save = page.getByRole("button", { name: "Save" });
   await expect(save).toBeDisabled(); // nothing changed yet
@@ -81,7 +82,7 @@ test("settings: rename the site", async ({ page }) => {
   await goTo(page, "Home");
   await expect(page.getByTestId("site-name")).toHaveText("Demo site (renamed)");
   // Put it back so other tests keep their footing.
-  await page.goto(admin + "/settings");
+  await page.goto(admin + "/settings/site");
   await name.fill("Demo site");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("Saved")).toBeVisible();

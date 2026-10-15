@@ -3,13 +3,14 @@
 import { useRef, useState } from "react";
 import { deleteMediaAction, describeMediaAction } from "@/modules/media/actions";
 import type { MediaItem } from "@/modules/media/server";
-import { Button, Field, Input, Notice } from "../../ui";
+import { Button, Field, Input, Notice, PageHeader, Sheet } from "../../ui";
 import { uploadImage } from "./upload";
 
 /**
- * The image grid, used two ways:
- *  - manage: the Images page. Tap an image to describe or remove it.
- *  - pick:   inside the section editor. Tap an image to use it.
+ * The image grid, following design/admin.html. Used two ways:
+ *  - manage: the Images screen, with its own header, storage bar and
+ *    upload. Tap an image to describe or remove it.
+ *  - pick:   inside the section editor's sheet. Tap an image to use it.
  * Uploading works the same in both; new images appear at the front.
  */
 type Pending = { id: string; name: string; error?: string };
@@ -18,17 +19,20 @@ export function MediaLibrary({
   initial,
   mode,
   available,
+  storage,
   onPick,
 }: {
   initial: MediaItem[];
   mode: "manage" | "pick";
   available: boolean;
+  storage?: { used: number; limit: number };
   onPick?: (item: MediaItem) => void;
 }) {
   const [items, setItems] = useState(initial);
   const [pending, setPending] = useState<Pending[]>([]);
   const [open, setOpen] = useState<MediaItem | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const used = (storage?.used ?? 0) + items.reduce((n, m) => n + m.sizeBytes, 0) - initial.reduce((n, m) => n + m.sizeBytes, 0);
 
   async function filesChosen(list: FileList | null) {
     if (!list) return;
@@ -49,39 +53,30 @@ export function MediaLibrary({
     }
   }
 
-  return (
-    <div className="space-y-4">
-      {available ? (
-        <>
-          <input
-            ref={input}
-            type="file"
-            accept="image/*"
-            multiple
-            className="sr-only"
-            id="image-file"
-            aria-label="Choose images to upload"
-            onChange={(e) => void filesChosen(e.target.files)}
-          />
-          <Button type="button" className="w-full" onClick={() => input.current?.click()}>
-            + Add images
-          </Button>
-        </>
-      ) : (
-        <Notice error="Images aren't set up on this site yet. Ask us to switch them on." />
-      )}
+  const uploadButton = available ? (
+    <>
+      <input ref={input} type="file" accept="image/*" multiple className="sr-only" id="image-file" aria-label="Choose images to upload" onChange={(e) => void filesChosen(e.target.files)} />
+      <Button type="button" size={mode === "manage" ? "sm" : "md"} className={mode === "pick" ? "w-full" : ""} onClick={() => input.current?.click()}>
+        Add images
+      </Button>
+    </>
+  ) : null;
+
+  const grid = (
+    <>
+      {!available && <Notice error="Images aren't set up on this site yet. Ask us to switch them on." />}
 
       {pending.length > 0 && (
-        <ul className="space-y-1 text-sm" aria-live="polite">
+        <ul className="space-y-1.5 text-[13px]" aria-live="polite">
           {pending.map((p) => (
-            <li key={p.id} className="flex items-center justify-between gap-2 rounded-md border border-[var(--border)] px-3 py-2">
+            <li key={p.id} className="flex items-center justify-between gap-2 rounded-card border border-line bg-surface px-3.5 py-2.5">
               <span className="truncate">{p.name}</span>
               {p.error ? (
-                <button type="button" onClick={() => setPending((xs) => xs.filter((x) => x.id !== p.id))} className="text-[var(--fg)] underline-offset-4 hover:underline">
+                <button type="button" onClick={() => setPending((xs) => xs.filter((x) => x.id !== p.id))} className="text-alert underline-offset-4 hover:underline">
                   {p.error} — dismiss
                 </button>
               ) : (
-                <span className="text-[var(--muted)]">Uploading…</span>
+                <span className="text-muted">Uploading…</span>
               )}
             </li>
           ))}
@@ -89,17 +84,18 @@ export function MediaLibrary({
       )}
 
       {items.length === 0 && pending.length === 0 ? (
-        <p className="rounded-md border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted)]">
-          No images yet. Add some from your phone or computer.
-        </p>
+        <div className="rounded-card border border-dashed border-line px-5 py-8 text-center">
+          <p className="text-[15px] font-medium">No images yet</p>
+          <p className="mt-1 text-[13px] text-muted">Add some from your phone or computer. Big photos are shrunk before they&apos;re sent.</p>
+        </div>
       ) : (
-        <ul className="grid grid-cols-3 gap-2 md:grid-cols-4" data-testid="image-grid">
+        <ul className={`grid gap-2.5 ${mode === "pick" ? "grid-cols-2" : "grid-cols-2 md:grid-cols-4"}`} data-testid="image-grid">
           {items.map((m) => (
             <li key={m.id}>
               <button
                 type="button"
                 onClick={() => (mode === "pick" ? onPick?.(m) : setOpen(m))}
-                className="block aspect-square w-full overflow-hidden rounded-md border border-[var(--border)] bg-[var(--muted)]/10 hover:border-[var(--accent)]"
+                className="block aspect-[4/3] w-full overflow-hidden rounded-card border border-line bg-surface hover:border-line-strong"
                 aria-label={m.alt || m.filename}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- thumbnails straight from the bucket */}
@@ -124,8 +120,48 @@ export function MediaLibrary({
           }}
         />
       )}
+    </>
+  );
+
+  if (mode === "pick") return <div className="space-y-4">{uploadButton}{grid}</div>;
+
+  return (
+    <>
+      <PageHeader title="Images" back="/" actions={uploadButton} />
+      <div className="space-y-5 pt-5 md:pt-6">
+        {storage && <StorageBar used={used} limit={storage.limit} />}
+        {grid}
+      </div>
+    </>
+  );
+}
+
+/** "STORAGE — 1.8 of 5 GB", with a thin bar. */
+function StorageBar({ used, limit }: { used: number; limit: number }) {
+  const pct = Math.min(100, (used / limit) * 100);
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="label">Storage</span>
+        <span className="font-mono text-[12px] text-muted">
+          {fmtBytes(used)} of {fmtBytes(limit)}
+        </span>
+      </div>
+      <div className="h-[3px] w-full overflow-hidden rounded-full bg-line-soft">
+        <div className="h-full rounded-full bg-accent" style={{ width: `${Math.max(pct, used ? 1 : 0)}%` }} />
+      </div>
     </div>
   );
+}
+
+function fmtBytes(n: number): string {
+  if (n >= 1024 ** 3) {
+    const gb = n / 1024 ** 3;
+    return `${Number.isInteger(gb) || gb >= 10 ? Math.round(gb) : gb.toFixed(1)} GB`;
+  }
+  if (n >= 1024 ** 2) return `${Math.round(n / 1024 ** 2)} MB`;
+  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+  return `${n} B`;
 }
 
 /** One image: describe it, or remove it. */
@@ -166,15 +202,14 @@ function ImageSheet({
   return (
     <Sheet title="Image" onClose={onClose}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={item.url} alt={item.alt} width={item.width} height={item.height} className="mb-4 w-full rounded-md" />
-      <p className="mb-4 truncate text-sm text-[var(--muted)]">
-        {item.filename} · {item.width}×{item.height}
+      <img src={item.url} alt={item.alt} width={item.width} height={item.height} className="mb-3 w-full rounded-card border border-line" />
+      <p className="mb-5 truncate font-mono text-[12px] text-muted">
+        {item.filename} · {item.width}×{item.height} · {fmtBytes(item.sizeBytes)}
       </p>
-      <Field label="Describe this photo" htmlFor="alt">
+      <Field label="Describe this photo" htmlFor="alt" hint="Read out to people who can't see it, and used by search engines.">
         <Input id="alt" value={alt} maxLength={300} onChange={(e) => setAlt(e.target.value)} placeholder="e.g. Our shop front on a sunny day" />
       </Field>
-      <p className="mt-1 text-sm text-[var(--muted)]">Read out to people who can&apos;t see it, and used by search engines.</p>
-      <div className="mt-4 flex items-center gap-2">
+      <div className="mt-5 flex items-center gap-2.5">
         <Button type="button" onClick={() => void save()} disabled={busy}>
           Save
         </Button>
@@ -184,27 +219,5 @@ function ImageSheet({
         <Notice {...note} />
       </div>
     </Sheet>
-  );
-}
-
-/** Bottom sheet on a phone, side panel on a laptop. Same as the add-section sheet. */
-export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-20 flex items-end bg-black/60 md:items-stretch md:justify-end" onClick={onClose}>
-      <div
-        role="dialog"
-        aria-label={title}
-        className="max-h-[85vh] w-full overflow-y-auto rounded-t-lg border border-[var(--border)] bg-[var(--bg)] p-4 md:h-full md:max-h-none md:w-[28rem] md:rounded-none md:border-y-0 md:border-r-0"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-medium">{title}</h2>
-          <button type="button" onClick={onClose} className="text-sm text-[var(--muted)]">
-            Close
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
   );
 }
