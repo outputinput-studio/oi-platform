@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { saveSectionAction } from "@/modules/pages/actions";
 import { emptySection, type ImageRef, type SectionData, type SectionType } from "@/modules/pages/registry";
-import { Field, Input } from "../../../ui";
+import { Field, Input, Textarea } from "../../../ui";
 import { ImagePicker } from "./image-picker";
 
 /**
@@ -12,7 +12,7 @@ import { ImagePicker } from "./image-picker";
  * Nothing is lost on a dropped connection: the text stays on screen and
  * the next change saves it all over again.
  */
-type Status = { kind: "idle" } | { kind: "saving" } | { kind: "saved" } | { kind: "error"; message: string };
+export type Status = { kind: "idle" } | { kind: "saving" } | { kind: "saved" } | { kind: "error"; message: string };
 
 export function SectionEditor({
   sectionId,
@@ -20,6 +20,7 @@ export function SectionEditor({
   initial,
   imageUrl,
   mediaAvailable,
+  onStatus,
 }: {
   sectionId: string;
   type: SectionType;
@@ -27,9 +28,18 @@ export function SectionEditor({
   /** Address of the section's current image, if it has one (worked out on the server). */
   imageUrl?: string;
   mediaAvailable: boolean;
+  /** Tells the page what this section is up to, so the header can show one Saved for everything. */
+  onStatus?: (id: string, s: Status) => void;
 }) {
   const [data, setData] = useState<Record<string, unknown>>(() => ({ ...emptySection(type), ...(initial as object) }));
-  const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [status, setStatusLocal] = useState<Status>({ kind: "idle" });
+  const setStatus = useCallback(
+    (s: Status) => {
+      setStatusLocal(s);
+      onStatus?.(sectionId, s);
+    },
+    [onStatus, sectionId],
+  );
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const save = useCallback(
@@ -43,7 +53,7 @@ export function SectionEditor({
         setStatus({ kind: "error", message: "couldn't reach the server" });
       }
     },
-    [sectionId],
+    [sectionId, setStatus],
   );
 
   const change = (patch: Record<string, unknown>) => {
@@ -60,11 +70,11 @@ export function SectionEditor({
   return (
     <div className="space-y-3">
       <Fields type={type} data={data as SectionData} onChange={change} id={sectionId} imageUrl={imageUrl} mediaAvailable={mediaAvailable} />
-      <p className="text-right text-xs text-[var(--muted)]" aria-live="polite" data-testid="save-status">
+      <p className="text-right text-[12px] text-muted" aria-live="polite" data-testid="save-status">
         {status.kind === "saving" && "Saving…"}
         {status.kind === "saved" && "Saved"}
         {status.kind === "error" && (
-          <button type="button" onClick={() => void save(data)} className="underline underline-offset-4">
+          <button type="button" onClick={() => void save(data)} className="text-alert underline underline-offset-4">
             Retry — {status.message}
           </button>
         )}
@@ -102,8 +112,8 @@ function Fields({
           <Field label="Headline" htmlFor={`${id}-heading`}>
             <Input id={`${id}-heading`} value={str("heading")} maxLength={120} onChange={(e) => onChange({ heading: e.target.value })} />
           </Field>
-          <Field label="Line underneath" htmlFor={`${id}-text`}>
-            <Textarea id={`${id}-text`} value={str("text")} rows={2} maxLength={500} onChange={(v) => onChange({ text: v })} />
+          <Field label="Line underneath" htmlFor={`${id}-text`} hint="One or two sentences. Leave empty to hide it.">
+            <Textarea id={`${id}-text`} value={str("text")} rows={2} maxLength={500} onChange={(e) => onChange({ text: e.target.value })} />
           </Field>
           {picker}
         </>
@@ -114,16 +124,15 @@ function Fields({
           <Field label="Heading" htmlFor={`${id}-heading`}>
             <Input id={`${id}-heading`} value={str("heading")} maxLength={120} onChange={(e) => onChange({ heading: e.target.value })} />
           </Field>
-          <Field label="Text" htmlFor={`${id}-body`}>
-            <Textarea id={`${id}-body`} value={str("body")} rows={6} onChange={(v) => onChange({ body: v })} />
+          <Field label="Text" htmlFor={`${id}-body`} hint="Leave an empty line between paragraphs.">
+            <Textarea id={`${id}-body`} value={str("body")} rows={6} onChange={(e) => onChange({ body: e.target.value })} />
           </Field>
-          <p className="text-sm text-[var(--muted)]">Leave an empty line between paragraphs.</p>
         </>
       );
     case "statement":
       return (
-        <Field label="The line" htmlFor={`${id}-text`}>
-          <Textarea id={`${id}-text`} value={str("text")} rows={2} maxLength={300} onChange={(v) => onChange({ text: v })} />
+        <Field label="The line" htmlFor={`${id}-text`} hint="One sentence, big. Make it count.">
+          <Textarea id={`${id}-text`} value={str("text")} rows={2} maxLength={300} onChange={(e) => onChange({ text: e.target.value })} />
         </Field>
       );
     case "pictureAndWords":
@@ -132,20 +141,20 @@ function Fields({
           <Field label="Heading" htmlFor={`${id}-heading`}>
             <Input id={`${id}-heading`} value={str("heading")} maxLength={120} onChange={(e) => onChange({ heading: e.target.value })} />
           </Field>
-          <Field label="Text" htmlFor={`${id}-body`}>
-            <Textarea id={`${id}-body`} value={str("body")} rows={5} onChange={(v) => onChange({ body: v })} />
+          <Field label="Text" htmlFor={`${id}-body`} hint="Leave an empty line between paragraphs.">
+            <Textarea id={`${id}-body`} value={str("body")} rows={5} onChange={(e) => onChange({ body: e.target.value })} />
           </Field>
           <fieldset>
-            <legend className="mb-1 block text-sm text-[var(--muted)]">Image on the</legend>
-            <div className="flex gap-2">
+            <legend className="mb-1.5 block text-[13.5px] text-body">Image on the</legend>
+            <div className="flex rounded-[6px] border border-line bg-bg p-[3px]">
               {(["left", "right"] as const).map((side) => (
                 <button
                   key={side}
                   type="button"
                   aria-pressed={d.pictureSide === side}
                   onClick={() => onChange({ pictureSide: side })}
-                  className={`rounded-md border px-4 py-2 text-sm ${
-                    d.pictureSide === side ? "border-[var(--accent)] text-[var(--fg)]" : "border-[var(--border)] text-[var(--muted)]"
+                  className={`h-9 flex-1 rounded-button text-[13.5px] capitalize ${
+                    d.pictureSide === side ? "bg-accent text-text" : "text-muted hover:text-text"
                   }`}
                 >
                   {side}
@@ -165,7 +174,7 @@ function Fields({
             <Input id={`${id}-heading`} value={str("heading")} maxLength={120} onChange={(e) => onChange({ heading: e.target.value })} />
           </Field>
           {items.map((it, i) => (
-            <div key={i} className="rounded-md border border-[var(--border)] p-3">
+            <div key={i} className="rounded-card border border-line-soft bg-bg p-3">
               <Field label={`Question ${i + 1}`} htmlFor={`${id}-q-${i}`}>
                 <Input
                   id={`${id}-q-${i}`}
@@ -180,14 +189,14 @@ function Fields({
                     id={`${id}-a-${i}`}
                     value={it.answer}
                     rows={3}
-                    onChange={(v) => setItems(items.map((x, j) => (j === i ? { ...x, answer: v } : x)))}
+                    onChange={(e) => setItems(items.map((x, j) => (j === i ? { ...x, answer: e.target.value } : x)))}
                   />
                 </Field>
               </div>
               <button
                 type="button"
                 onClick={() => setItems(items.filter((_, j) => j !== i))}
-                className="mt-2 text-sm text-[var(--muted)] underline-offset-4 hover:underline"
+                className="mt-2 text-[13px] text-muted underline-offset-4 hover:underline"
               >
                 Remove this question
               </button>
@@ -196,7 +205,7 @@ function Fields({
           <button
             type="button"
             onClick={() => setItems([...items, { question: "", answer: "" }])}
-            className="text-sm text-[var(--muted)] underline-offset-4 hover:underline"
+            className="text-[13.5px] text-accent-text underline-offset-4 hover:underline"
           >
             + Add a question
           </button>
@@ -204,29 +213,4 @@ function Fields({
       );
     }
   }
-}
-
-function Textarea({
-  id,
-  value,
-  rows,
-  maxLength,
-  onChange,
-}: {
-  id: string;
-  value: string;
-  rows: number;
-  maxLength?: number;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <textarea
-      id={id}
-      value={value}
-      rows={rows}
-      maxLength={maxLength}
-      onChange={(e) => onChange(e.target.value)}
-      className="block w-full rounded-md border border-[var(--border)] bg-transparent px-3 py-3 text-base outline-none focus:border-[var(--accent)]"
-    />
-  );
 }

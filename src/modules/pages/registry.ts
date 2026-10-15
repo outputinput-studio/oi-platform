@@ -29,25 +29,42 @@ export type ImageRef = z.infer<typeof imageRef>;
 const heading = z.string().trim().max(120).default("");
 const body = z.string().max(20_000).default("");
 
+/** How the add-section sheet groups the types. */
+export const SECTION_GROUPS = { words: "Words", images: "Images" } as const;
+export type SectionGroup = keyof typeof SECTION_GROUPS;
+
 export const sectionTypes = {
   text: {
     label: "Text",
-    description: "A heading and some paragraphs.",
+    description: "A heading and words",
+    group: "words" as SectionGroup,
     schema: z.object({ heading, body }),
   },
   statement: {
     label: "Statement",
-    description: "One big line that stands on its own.",
+    description: "One big line on its own",
+    group: "words" as SectionGroup,
     schema: z.object({ text: z.string().trim().max(300).default("") }),
+  },
+  questions: {
+    label: "Questions and answers",
+    description: "Things people ask, with answers",
+    group: "words" as SectionGroup,
+    schema: z.object({
+      heading,
+      items: z.array(z.object({ question: z.string().trim().max(300), answer: z.string().max(5_000) })).max(50).default([]),
+    }),
   },
   hero: {
     label: "Hero",
-    description: "The opening: a headline, a line underneath, an image.",
+    description: "A headline, a line underneath, one big image",
+    group: "images" as SectionGroup,
     schema: z.object({ heading, text: z.string().trim().max(500).default(""), image: imageRef.optional() }),
   },
   pictureAndWords: {
     label: "Image and words",
-    description: "An image beside some text.",
+    description: "One image beside words",
+    group: "images" as SectionGroup,
     schema: z.object({
       heading,
       body,
@@ -55,15 +72,23 @@ export const sectionTypes = {
       pictureSide: z.enum(["left", "right"]).default("left"),
     }),
   },
-  questions: {
-    label: "Questions and answers",
-    description: "A list of questions people ask, each with its answer.",
-    schema: z.object({
-      heading,
-      items: z.array(z.object({ question: z.string().trim().max(300), answer: z.string().max(5_000) })).max(50).default([]),
-    }),
-  },
 } as const;
+
+/** The words a section shows when it's folded up: its heading, or its first line. */
+export function sectionSummary(type: SectionType, data: unknown): string {
+  const d = (data ?? {}) as Record<string, unknown>;
+  const pick = (...keys: string[]) => keys.map((k) => (typeof d[k] === "string" ? (d[k] as string).trim() : "")).find(Boolean) ?? "";
+  switch (type) {
+    case "statement":
+      return pick("text");
+    case "questions": {
+      const items = Array.isArray(d.items) ? d.items : [];
+      return pick("heading") || (items.length ? `${items.length} question${items.length === 1 ? "" : "s"}` : "");
+    }
+    default:
+      return pick("heading", "text", "body");
+  }
+}
 
 export type SectionType = keyof typeof sectionTypes;
 export const SECTION_TYPES = Object.keys(sectionTypes) as SectionType[];

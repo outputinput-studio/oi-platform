@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { goTo } from "./nav";
+import { goTo, openSection } from "./nav";
 import path from "node:path";
 
 /**
@@ -56,14 +56,18 @@ test("upload an image, describe it, use it in a hero, see it live", async ({ pag
   await goTo(page, "Content");
   await expect(page.getByRole("heading", { name: "Content" })).toBeVisible();
   if (await page.getByTestId("page-home").count()) await page.getByTestId("page-home").click();
-  else await page.getByRole("button", { name: "Create page" }).click();
+  else {
+    await page.getByRole("button", { name: "Add page" }).click();
+    await page.getByRole("button", { name: "Create page" }).click();
+  }
   await expect(page).toHaveURL(/\/pages\/[0-9a-f-]+$/);
-  await expect(page.getByTestId("page-status")).toBeVisible();
-  if ((await page.getByRole("heading", { name: "Hero" }).count()) === 0) {
+  await expect(page.getByRole("heading", { name: "Edit page" })).toBeVisible();
+  if ((await page.locator("article", { hasText: "Hero" }).count()) === 0) {
     await page.getByRole("button", { name: "+ Add section" }).click();
     await page.getByRole("dialog").getByRole("button", { name: /^Hero/ }).click();
   }
-  const hero = page.locator("article", { has: page.getByRole("heading", { name: "Hero" }) }).first();
+  const hero = page.locator("article", { hasText: "Hero" }).first();
+  await openSection(hero);
   await hero.getByRole("button", { name: "Choose an image" }).click();
   await page.getByRole("dialog", { name: "Choose an image" }).getByRole("button", { name: "The shop front" }).click();
   await expect(hero.getByLabel("Describe this photo")).toHaveValue("The shop front");
@@ -82,6 +86,7 @@ test("upload an image, describe it, use it in a hero, see it live", async ({ pag
   // Removing it from the section leaves the page without an image.
   await page.goto(admin + "/pages");
   await page.getByTestId("page-home").click();
+  await openSection(hero);
   await hero.getByRole("button", { name: "Remove image" }).click();
   await expect(hero.getByTestId("save-status")).toHaveText("Saved");
   await page.goto(demo + "/");

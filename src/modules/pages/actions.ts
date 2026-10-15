@@ -47,8 +47,9 @@ export async function updatePageAction(_prev: FormState, form: FormData): Promis
       actorId: user.id,
       siteId: site.id,
       pageId: String(form.get("pageId")),
-      title: String(form.get("title") ?? ""),
-      slug: String(form.get("slug") ?? ""),
+      // Either field may be left out: the title autosaves on its own, the address saves on demand.
+      title: form.has("title") ? String(form.get("title")) : undefined,
+      slug: form.has("slug") ? String(form.get("slug")) : undefined,
     });
     revalidatePath("/pages");
     return { ok: "Saved" };
@@ -101,6 +102,18 @@ export async function removeSectionAction(form: FormData) {
   const { user, site } = await requireSiteAccess();
   await removeSection({ actorId: user.id, siteId: site.id, sectionId: String(form.get("sectionId")) });
   revalidatePath(`/pages/${String(form.get("pageId"))}`);
+}
+
+/** Autosave target for the page title (the address is saved on demand, from its own form). */
+export async function savePageTitleAction(pageId: string, title: string): Promise<FormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await updatePage({ actorId: user.id, siteId: site.id, pageId, title });
+    revalidatePath("/pages");
+    return { ok: "Saved" };
+  } catch (err) {
+    return { error: message(err) };
+  }
 }
 
 /**

@@ -1,11 +1,17 @@
 import Link from "next/link";
+import { timeAgo } from "@/lib/time";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { HOME_SLUG, listPages } from "@/modules/pages/server";
-import { PageHeader } from "../../ui";
-import { NewPageForm } from "./new-page-form";
+import { Card, PageHeader, Pill } from "../../ui";
+import { AddPage } from "./add-page";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Content, as in design/admin.html: the site's pages as cards, each with
+ * its address, when it was last edited, and whether it's live. Articles,
+ * forms and menus join as tabs when they're built.
+ */
 export default async function PagesPage() {
   const { user, site } = await requireSiteAccess();
   const all = await listPages({ actorId: user.id, siteId: site.id });
@@ -13,37 +19,33 @@ export default async function PagesPage() {
 
   return (
     <>
-      <PageHeader title="Content" back="/" />
-      <p className="mt-5 text-sm text-[var(--muted)]">
-        {all.length ? `${all.length} on ${site.name}.` : "No pages yet. Start with the home page."}
-      </p>
-
-      <section className="mt-6 rounded-md border border-[var(--border)] p-4">
-        <h2 className="mb-3 text-base font-medium">New page</h2>
-        <NewPageForm suggestHome={!hasHome} />
-      </section>
-
-      {all.length > 0 && (
-        <ul className="mt-6 divide-y divide-[var(--border)] rounded-md border border-[var(--border)]">
-          {all.map((p) => (
-            <li key={p.id}>
-              <Link
-                href={`/pages/${p.id}`}
-                data-testid={`page-${p.slug}`}
-                className="flex items-center justify-between gap-3 p-4 hover:bg-[var(--border)]/30"
-              >
-                <span className="min-w-0">
-                  <span className="block truncate text-base">{p.title}</span>
-                  <span className="block truncate text-sm text-[var(--muted)]">
-                    {p.slug === HOME_SLUG ? "Front page" : `/${p.slug}`}
-                  </span>
-                </span>
-                <span className="shrink-0 text-sm text-[var(--muted)]">{p.status === "published" ? "Live" : "Draft"}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+      <PageHeader title="Content" back="/" actions={<AddPage suggestHome={!hasHome} />} />
+      <div className="pt-5 md:pt-6">
+        <p className="label mb-2.5">Pages</p>
+        {all.length === 0 ? (
+          <Card className="px-5 py-8 text-center">
+            <p className="text-[15px] font-medium">No pages yet</p>
+            <p className="mt-1 text-[13px] text-muted">Start with the front page. Add page is at the top.</p>
+          </Card>
+        ) : (
+          <ul className="space-y-2.5">
+            {all.map((p) => (
+              <li key={p.id}>
+                <Link href={`/pages/${p.id}`} data-testid={`page-${p.slug}`} className="block">
+                  <Card className="p-[14px] hover:bg-hover">
+                    <div className="flex items-center justify-between gap-2.5">
+                      <span className="truncate text-[15px] font-medium">{p.title}</span>
+                      {p.status === "published" ? <Pill tone="success">Live</Pill> : <Pill tone="neutral">Draft</Pill>}
+                    </div>
+                    <p className="mt-1.5 font-mono text-[12.5px] text-muted">{p.slug === HOME_SLUG ? "/" : `/${p.slug}`}</p>
+                    <p className="mt-1.5 text-[12px] text-muted">Edited {timeAgo(p.updatedAt)}</p>
+                  </Card>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </>
   );
 }
