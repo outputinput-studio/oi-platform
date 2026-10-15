@@ -47,13 +47,13 @@ if (appUrl) {
   }
 }
 
-async function syncAppRole() {
-  if (!appUrl) return;
-  const u = new URL(appUrl);
-  const user = decodeURIComponent(u.username);
-  const password = decodeURIComponent(u.password);
-  if (user !== "app" || !password) return;
-  // Create the role if it is missing (CI, a fresh branch), otherwise just set the password.
+/**
+ * The app role must exist BEFORE migrations run: the very first migration
+ * grants it access. On a fresh database (CI, a new Neon branch) this is what
+ * creates it. Created by SQL on purpose: roles made in Neon's console get
+ * BYPASSRLS, which would quietly switch the tenancy lock off.
+ */
+async function ensureAppRole() {
   await pool.query(
     `do $$ begin
        if not exists (select 1 from pg_roles where rolname = 'app') then
@@ -61,6 +61,14 @@ async function syncAppRole() {
        end if;
      end $$`,
   );
+}
+
+async function syncAppRole() {
+  if (!appUrl) return;
+  const u = new URL(appUrl);
+  const user = decodeURIComponent(u.username);
+  const password = decodeURIComponent(u.password);
+  if (user !== "app" || !password) return;
   await pool
     .query(`alter role app with login nobypassrls password $1`, [password])
     .catch(async (err) => {
@@ -107,6 +115,7 @@ async function bootstrap() {
 
 (async () => {
   try {
+    await ensureAppRole();
     await migrate(db, { migrationsFolder: "./src/db/migrations" });
     console.log("migrations: up to date");
     await syncAppRole();
