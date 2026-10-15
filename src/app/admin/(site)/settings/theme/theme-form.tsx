@@ -6,7 +6,7 @@ import type { Theme } from "@/modules/sites/theme";
 import { Input, Label, SaveBar } from "../../../ui";
 
 /** Light or dark, and the accent colour, with a swatch so the choice is visible before Save. */
-export function LookForm({ theme, canEdit }: { theme: Theme; canEdit: boolean }) {
+export function ThemeForm({ theme, canEdit }: { theme: Theme; canEdit: boolean }) {
   const [saved, setSaved] = useState(theme);
   const [value, setValue] = useState(theme);
   const [state, act, pending] = useActionState(async (prev: SettingsFormState, form: FormData) => {

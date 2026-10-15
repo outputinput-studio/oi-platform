@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { goTo } from "./nav";
 
 /**
- * The site's look, end to end: an owner switches to light with a brand
+ * The site's theme, end to end: an owner switches to light with a brand
  * colour, and the storefront (built by pages.spec.ts before this) shows
  * it, with the published pages in its menu.
  */
@@ -29,7 +29,7 @@ test("light with a brand colour, seen on the storefront with its menu", async ({
 
   await signInAsOwner(page);
   await goTo(page, "Settings");
-  await page.getByRole("link", { name: /^Look/ }).click();
+  await page.getByRole("link", { name: /^Theme/ }).click();
   const save = page.getByTestId("save-bar").getByRole("button", { name: "Save" });
   await expect(save).toBeDisabled();
   await page.getByRole("radio", { name: "light" }).click();
