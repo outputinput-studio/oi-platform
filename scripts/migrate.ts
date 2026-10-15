@@ -25,6 +25,28 @@ if (!url) {
 const pool = new Pool({ connectionString: url, max: 1 });
 const db = drizzle({ client: pool });
 
+/** host + database of a connection string, never the password. */
+function describe(connectionString: string) {
+  const u = new URL(connectionString);
+  return `${u.hostname}${u.pathname}`;
+}
+
+/** Neon's pooled endpoint is the same database as its direct one. */
+function sameDatabase(a: string, b: string) {
+  return describe(a).replace("-pooler", "") === describe(b).replace("-pooler", "");
+}
+
+console.log(`migrator → ${describe(url)}`);
+if (appUrl) {
+  console.log(`app      → ${describe(appUrl)}`);
+  if (!sameDatabase(url, appUrl)) {
+    console.warn(
+      "WARNING: MIGRATE_DATABASE_URL and DATABASE_URL point at different databases. " +
+        "Migrations and the app password sync will land somewhere the app never connects to.",
+    );
+  }
+}
+
 async function syncAppRole() {
   if (!appUrl) return;
   const u = new URL(appUrl);
