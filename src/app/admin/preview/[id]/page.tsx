@@ -1,7 +1,7 @@
 import { requireSiteAccess } from "@/modules/auth/access";
-import { getPage, publishedPages } from "@/modules/pages/server";
+import { getPage } from "@/modules/pages/server";
 import { RenderSections } from "@/modules/pages/render";
-import { Frame } from "@/app/site/storefront";
+import { Frame, storefrontMenu } from "@/app/site/storefront";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +14,9 @@ export const dynamic = "force-dynamic";
 export default async function PreviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { user, site } = await requireSiteAccess();
-  const [page, menu] = await Promise.all([getPage({ actorId: user.id, siteId: site.id, pageId: id }), publishedPages({ siteId: site.id })]);
+  const [page, menu] = await Promise.all([getPage({ actorId: user.id, siteId: site.id, pageId: id }), storefrontMenu(site.id)]);
   // A draft page isn't in the menu yet; show it where it will go.
-  const withThis = menu.some((p) => p.id === page.id) ? menu : [...menu, { id: page.id, slug: page.slug, title: page.title }];
+  const withThis = menu.some((p) => p.slug === page.slug) ? menu : [...menu, { slug: page.slug, title: page.title }];
   return (
     <Frame site={site} menu={withThis} current={page.slug} preview>
       <h1 className="sr-only">{page.title}</h1>

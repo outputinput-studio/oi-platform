@@ -322,3 +322,39 @@ export const contacts = pgTable(
 );
 
 export type Contact = typeof contacts.$inferSelect;
+
+/**
+ * An article: a dated piece of writing with a cover, listed on the
+ * storefront's journal at /journal and read at /journal/<slug>. The body
+ * is plain paragraphs (a blank line between them), like a text section.
+ * Soft delete only.
+ */
+export const articles = pgTable(
+  "articles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    slug: text("slug").notNull(),
+    title: text("title").notNull(),
+    excerpt: text("excerpt").notNull().default(""),
+    body: text("body").notNull().default(""),
+    /** An imageRef from the library, or null. */
+    cover: jsonb("cover").$type<Record<string, unknown> | null>(),
+    /** Shows under the title. Empty means the site's name. */
+    author: text("author").notNull().default(""),
+    status: text("status", { enum: PAGE_STATUSES }).notNull().default("draft"),
+    /** The date shown on it and used to order the journal. Set when first published; editable. */
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("articles_site_slug_idx").on(t.siteId, t.slug).where(sql`${t.deletedAt} is null`),
+    index("articles_site_id_idx").on(t.siteId),
+  ],
+);
+
+export type Article = typeof articles.$inferSelect;
