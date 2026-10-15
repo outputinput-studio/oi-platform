@@ -2,7 +2,8 @@ import Link from "next/link";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { getPage, HOME_SLUG } from "@/modules/pages/server";
 import { addSectionAction, deletePageAction, moveSectionAction, removeSectionAction, setPageStatusAction } from "@/modules/pages/actions";
-import { sectionTypes, type SectionType } from "@/modules/pages/registry";
+import { imageRef, sectionTypes, type SectionType } from "@/modules/pages/registry";
+import { mediaAvailable, mediaUrl } from "@/modules/media/server";
 import { Button } from "../../../ui";
 import { PageSettingsForm } from "./page-settings-form";
 import { SectionEditor } from "./section-editor";
@@ -16,6 +17,12 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
   const page = await getPage({ actorId: user.id, siteId: site.id, pageId: id });
   const isHome = page.slug === HOME_SLUG;
   const live = page.status === "published";
+  const images = mediaAvailable();
+  // The image's address is settings-dependent, so it's worked out here, not stored.
+  const imageUrlOf = (data: Record<string, unknown>) => {
+    const r = imageRef.safeParse(data.image);
+    return r.success ? mediaUrl(r.data.key) : undefined;
+  };
 
   return (
     <>
@@ -83,7 +90,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
                 </div>
               </header>
               <div className="p-4">
-                <SectionEditor sectionId={s.id} type={type} initial={s.data} />
+                <SectionEditor sectionId={s.id} type={type} initial={s.data} imageUrl={imageUrlOf(s.data)} mediaAvailable={images} />
               </div>
             </article>
           );

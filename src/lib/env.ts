@@ -26,6 +26,22 @@ const schema = z.object({
   /** When both are set, sign-in codes go out through Resend. Otherwise they are logged. */
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().optional(),
+
+  /**
+   * Images live in one Cloudflare R2 bucket, every site under its own
+   * folder. All five set → uploads go to R2. None set → outside production,
+   * files are kept on local disk (tests, previews without a bucket) and
+   * served by /api/media-local; in production, uploads are switched off
+   * with a clear message rather than silently stored somewhere odd.
+   */
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET: z.string().optional(),
+  /** Where the bucket is public, no trailing slash: https://pub-xxx.r2.dev or https://media.example.com */
+  R2_PUBLIC_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
+  /** Local-disk fallback directory (default .media-local in the project). */
+  MEDIA_LOCAL_DIR: z.string().optional(),
 });
 
 export type Env = z.infer<typeof schema>;
@@ -50,6 +66,35 @@ export function environmentName(): NonNullable<Env["OI_ENV"]> {
   if (e.VERCEL_ENV === "production") return "production";
   if (e.VERCEL_ENV === "preview") return "preview";
   return "local";
+}
+
+export type R2Config = { accountId: string; accessKeyId: string; secretAccessKey: string; bucket: string; publicUrl: string };
+
+/**
+ * The R2 settings when all five are present, null when none are. Some but
+ * not all is a misconfiguration and fails loudly, naming what's missing.
+ */
+export function r2Config(): R2Config | null {
+  const e = env();
+  const values = {
+    R2_ACCOUNT_ID: e.R2_ACCOUNT_ID,
+    R2_ACCESS_KEY_ID: e.R2_ACCESS_KEY_ID,
+    R2_SECRET_ACCESS_KEY: e.R2_SECRET_ACCESS_KEY,
+    R2_BUCKET: e.R2_BUCKET,
+    R2_PUBLIC_URL: e.R2_PUBLIC_URL,
+  };
+  const missing = Object.entries(values)
+    .filter(([, v]) => !v)
+    .map(([k]) => k);
+  if (missing.length === 5) return null;
+  if (missing.length > 0) throw new Error(`R2 is half configured. Missing: ${missing.join(", ")}`);
+  return {
+    accountId: values.R2_ACCOUNT_ID!,
+    accessKeyId: values.R2_ACCESS_KEY_ID!,
+    secretAccessKey: values.R2_SECRET_ACCESS_KEY!,
+    bucket: values.R2_BUCKET!,
+    publicUrl: values.R2_PUBLIC_URL!.replace(/\/+$/, ""),
+  };
 }
 
 /** Hosts that may serve sign-in. */

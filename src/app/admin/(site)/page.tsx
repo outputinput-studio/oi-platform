@@ -14,10 +14,11 @@ export default async function AdminHome() {
       </p>
       <div className="mt-8 grid gap-3 sm:grid-cols-2">
         <Card href="/pages" title="Pages" body="What the site says. Build each page from sections." />
+        <Card href="/media" title="Images" body="Photos for your pages. Upload straight from your phone." />
         <Card href="/team" title="Team" body="Who can sign in to this site, and as what." />
         <Card href="/settings" title="Settings" body="The site's name. More arrives with each stage." />
       </div>
-      <p className="mt-10 text-sm text-[var(--muted)]">Media, forms and the inbox are the next stages.</p>
+      <p className="mt-10 text-sm text-[var(--muted)]">Forms and the inbox are the next stages.</p>
     </>
   );
 }

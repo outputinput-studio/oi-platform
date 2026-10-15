@@ -134,7 +134,7 @@ export type Membership = typeof memberships.$inferSelect;
 // ───────────────────────── client tables (cont.) ─────────────────────────
 
 /**
- * A page is a stack of sections. Clients edit every word and picture,
+ * A page is a stack of sections. Clients edit every word and image,
  * add, remove and reorder sections, and can't break the layout.
  * Soft delete only: deleted_at is set, rows are never removed.
  */
@@ -193,3 +193,35 @@ export const sections = pgTable(
 );
 
 export type Section = typeof sections.$inferSelect;
+
+/**
+ * An image in a site's media library. The bytes live in object storage
+ * under `key` (always `<site_id>/<id>.<ext>`, so one bucket serves every
+ * site and no key can be guessed across sites); this row is what the app
+ * knows about it. Soft delete only.
+ */
+export const media = pgTable(
+  "media",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    /** Object key in the bucket. The public address is `${R2_PUBLIC_URL}/${key}`. */
+    key: text("key").notNull().unique(),
+    /** The name the file had when it was uploaded, for the library listing. */
+    filename: text("filename").notNull(),
+    contentType: text("content_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
+    /** Shown to people who can't see the image. Asked for as "Describe this photo". */
+    alt: text("alt").notNull().default(""),
+    createdBy: text("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [index("media_site_id_idx").on(t.siteId)],
+);
+
+export type Media = typeof media.$inferSelect;

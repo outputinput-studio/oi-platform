@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { saveSectionAction } from "@/modules/pages/actions";
-import { emptySection, type SectionData, type SectionType } from "@/modules/pages/registry";
+import { emptySection, type ImageRef, type SectionData, type SectionType } from "@/modules/pages/registry";
 import { Field, Input } from "../../../ui";
+import { ImagePicker } from "./image-picker";
 
 /**
  * Edit one section's fields. Autosaves a moment after typing stops and
@@ -13,7 +14,20 @@ import { Field, Input } from "../../../ui";
  */
 type Status = { kind: "idle" } | { kind: "saving" } | { kind: "saved" } | { kind: "error"; message: string };
 
-export function SectionEditor({ sectionId, type, initial }: { sectionId: string; type: SectionType; initial: unknown }) {
+export function SectionEditor({
+  sectionId,
+  type,
+  initial,
+  imageUrl,
+  mediaAvailable,
+}: {
+  sectionId: string;
+  type: SectionType;
+  initial: unknown;
+  /** Address of the section's current image, if it has one (worked out on the server). */
+  imageUrl?: string;
+  mediaAvailable: boolean;
+}) {
   const [data, setData] = useState<Record<string, unknown>>(() => ({ ...emptySection(type), ...(initial as object) }));
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -45,7 +59,7 @@ export function SectionEditor({ sectionId, type, initial }: { sectionId: string;
 
   return (
     <div className="space-y-3">
-      <Fields type={type} data={data as SectionData} onChange={change} id={sectionId} />
+      <Fields type={type} data={data as SectionData} onChange={change} id={sectionId} imageUrl={imageUrl} mediaAvailable={mediaAvailable} />
       <p className="text-right text-xs text-[var(--muted)]" aria-live="polite" data-testid="save-status">
         {status.kind === "saving" && "Saving…"}
         {status.kind === "saved" && "Saved"}
@@ -64,14 +78,22 @@ function Fields({
   data,
   onChange,
   id,
+  imageUrl,
+  mediaAvailable,
 }: {
   type: SectionType;
   data: SectionData;
   onChange: (patch: Record<string, unknown>) => void;
   id: string;
+  imageUrl?: string;
+  mediaAvailable: boolean;
 }) {
   const d = data as Record<string, unknown>;
   const str = (k: string) => (typeof d[k] === "string" ? (d[k] as string) : "");
+  const image = d.image && typeof d.image === "object" ? (d.image as ImageRef) : undefined;
+  const picker = (
+    <ImagePicker id={id} value={image} url={imageUrl} available={mediaAvailable} onChange={(next) => onChange({ image: next })} />
+  );
 
   switch (type) {
     case "hero":
@@ -83,7 +105,7 @@ function Fields({
           <Field label="Line underneath" htmlFor={`${id}-text`}>
             <Textarea id={`${id}-text`} value={str("text")} rows={2} maxLength={500} onChange={(v) => onChange({ text: v })} />
           </Field>
-          <p className="text-sm text-[var(--muted)]">Pictures arrive with the media stage.</p>
+          {picker}
         </>
       );
     case "text":
@@ -114,7 +136,7 @@ function Fields({
             <Textarea id={`${id}-body`} value={str("body")} rows={5} onChange={(v) => onChange({ body: v })} />
           </Field>
           <fieldset>
-            <legend className="mb-1 block text-sm text-[var(--muted)]">Picture on the</legend>
+            <legend className="mb-1 block text-sm text-[var(--muted)]">Image on the</legend>
             <div className="flex gap-2">
               {(["left", "right"] as const).map((side) => (
                 <button
@@ -131,7 +153,7 @@ function Fields({
               ))}
             </div>
           </fieldset>
-          <p className="text-sm text-[var(--muted)]">Pictures arrive with the media stage.</p>
+          {picker}
         </>
       );
     case "questions": {
