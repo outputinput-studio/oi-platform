@@ -127,6 +127,13 @@ describe("pages", () => {
     expect(r.rows[0].deleted_at).not.toBeNull();
   });
 
+  test("search and sharing saves with the page and refuses junk", async () => {
+    const p = await updatePage({ actorId: ann, siteId: siteA, pageId: aboutId, seo: { title: "About us — Pages A", description: "Who we are.", noindex: true } });
+    expect(p.seo).toMatchObject({ title: "About us — Pages A", description: "Who we are.", noindex: true, image: null });
+    await expect(updatePage({ actorId: ann, siteId: siteA, pageId: aboutId, seo: { image: { url: "http://x" } } })).rejects.toThrow();
+    await updatePage({ actorId: ann, siteId: siteA, pageId: aboutId, seo: {} });
+  });
+
   test("an unknown section type is refused", async () => {
     await expect(addSection({ actorId: ann, siteId: siteA, pageId: aboutId, type: "carousel" })).rejects.toThrow(AccessError);
   });

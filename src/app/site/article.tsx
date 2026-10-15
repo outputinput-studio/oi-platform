@@ -6,7 +6,9 @@ import { publishedArticle, publishedArticles, type ArticleRow } from "@/modules/
 import { mediaUrl } from "@/modules/media/server";
 import { Placeholder } from "@/lib/placeholder";
 import type { Site } from "@/db/schema";
+import type { Metadata } from "next";
 import { Frame, storefrontMenu } from "./storefront";
+import { hostAndSite, storefrontMetadata } from "./metadata";
 
 /**
  * The journal: /journal lists every live article newest first; an
@@ -104,4 +106,19 @@ function dateOf(a: ArticleRow): string {
 async function currentSite() {
   const h = await headers();
   return siteFromHost(h.get("x-oi-host") ?? h.get("host") ?? "");
+}
+
+export async function journalMetadata(): Promise<Metadata> {
+  const { host, site } = await hostAndSite();
+  if (!site) return { title: "output/input" };
+  const list = await publishedArticles({ siteId: site.id });
+  return storefrontMetadata({ site, seo: {}, title: "Journal", fallbackDescription: list[0]?.excerpt ?? "", fallbackImage: list.find((a) => a.cover)?.cover ?? null, path: "/journal", host });
+}
+
+export async function articleMetadata(slug: string): Promise<Metadata> {
+  const { host, site } = await hostAndSite();
+  if (!site) return { title: "output/input" };
+  const a = await publishedArticle({ siteId: site.id, slug });
+  if (!a) return { title: site.name, robots: { index: false, follow: false } };
+  return storefrontMetadata({ site, seo: a.seo, title: a.title, fallbackDescription: a.excerpt || a.body, fallbackImage: a.cover, path: `/journal/${a.slug}`, host });
 }

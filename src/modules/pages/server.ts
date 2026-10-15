@@ -5,6 +5,7 @@ import { pages, sections, type Page, type Section } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { isSectionType, parseSectionData, type SectionType } from "./registry";
 import { slugFromTitle } from "./slug";
+import { seoSchema, type Seo } from "./seo";
 
 /**
  * Pages and their sections. Every function authorises the actor, then
@@ -73,11 +74,13 @@ export async function updatePage(p: {
   pageId: string;
   title?: string;
   slug?: string;
+  seo?: unknown;
 }): Promise<Page> {
   await assertAccess(p.actorId, p.siteId);
-  const patch: Partial<Pick<Page, "title" | "slug">> = {};
+  const patch: Partial<Pick<Page, "title" | "slug" | "seo">> = {};
   if (p.title !== undefined) patch.title = titleSchema.parse(p.title);
   if (p.slug !== undefined) patch.slug = slugSchema.parse(p.slug);
+  if (p.seo !== undefined) patch.seo = seoSchema.parse(p.seo) as Seo;
   return withSite(p.siteId, async (tx) => {
     const page = await loadPage(tx, p.pageId);
     if (patch.slug && patch.slug !== page.slug) await assertSlugFree(tx, patch.slug);

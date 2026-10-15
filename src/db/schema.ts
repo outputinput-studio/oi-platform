@@ -155,6 +155,8 @@ export const pages = pgTable(
     title: text("title").notNull(),
     status: text("status", { enum: PAGE_STATUSES }).notNull().default("draft"),
     position: integer("position").notNull().default(0),
+    /** Search and sharing: see seoSchema in modules/pages/seo.ts. */
+    seo: jsonb("seo").notNull().$type<Record<string, unknown>>().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     publishedAt: timestamp("published_at", { withTimezone: true }),
@@ -345,6 +347,8 @@ export const articles = pgTable(
     /** Shows under the title. Empty means the site's name. */
     author: text("author").notNull().default(""),
     status: text("status", { enum: PAGE_STATUSES }).notNull().default("draft"),
+    /** Search and sharing: see seoSchema in modules/pages/seo.ts. */
+    seo: jsonb("seo").notNull().$type<Record<string, unknown>>().default({}),
     /** The date shown on it and used to order the journal. Set when first published; editable. */
     publishedAt: timestamp("published_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

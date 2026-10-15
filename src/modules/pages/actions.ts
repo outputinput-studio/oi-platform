@@ -117,6 +117,17 @@ export async function removeSectionAction(form: FormData) {
   revalidatePath(`/pages/${String(form.get("pageId"))}`);
 }
 
+/** Autosave target for search and sharing. */
+export async function savePageSeoAction(pageId: string, seo: unknown): Promise<FormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await updatePage({ actorId: user.id, siteId: site.id, pageId, seo });
+    return { ok: "Saved" };
+  } catch (err) {
+    return { error: message(err) };
+  }
+}
+
 /** Autosave target for the page title (the address is saved on demand, from its own form). */
 export async function savePageTitleAction(pageId: string, title: string): Promise<FormState> {
   const { user, site } = await requireSiteAccess();

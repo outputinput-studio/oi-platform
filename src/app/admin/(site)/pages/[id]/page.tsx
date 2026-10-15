@@ -4,6 +4,8 @@ import { getPage, HOME_SLUG } from "@/modules/pages/server";
 import { listForms } from "@/modules/forms/server";
 import { addSectionAction, deletePageAction, moveSectionAction, removeSectionAction, setPageStatusAction } from "@/modules/pages/actions";
 import { imageRef, type SectionType } from "@/modules/pages/registry";
+import { readSeo } from "@/modules/pages/seo";
+import { fallbacksFromSections } from "@/app/site/metadata";
 import { headers } from "next/headers";
 import { Editor, type EditorSection } from "./editor";
 
@@ -17,6 +19,8 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
   // The public address: the admin host with "admin" swapped for the site's slug.
   const adminHost = (await headers()).get("x-oi-host") ?? "";
   const siteUrl = `${adminHost.replace(/^admin\./, `${site.slug}.`)}${page.slug === HOME_SLUG ? "" : `/${page.slug}`}`;
+  const seo = readSeo(page.seo);
+  const fb = fallbacksFromSections(page.sections);
 
   const sections: EditorSection[] = page.sections.map((s) => {
     const r = imageRef.safeParse((s.data as Record<string, unknown>).image);
@@ -32,6 +36,13 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
       mediaAvailable={mediaAvailable()}
       forms={forms.map((f) => ({ id: f.id, name: f.name }))}
       siteUrl={siteUrl}
+      seo={{
+        initial: seo,
+        imageUrl: seo.image ? mediaUrl(seo.image.key) : undefined,
+        fallback: { title: page.slug === HOME_SLUG ? site.name : `${page.title} · ${site.name}`, description: fb.description, imageUrl: fb.image ? mediaUrl(fb.image.key) : undefined },
+        host: adminHost.replace(/^admin\./, `${site.slug}.`),
+        path: page.slug === HOME_SLUG ? "/" : `/${page.slug}`,
+      }}
       actions={{
         setStatus: setPageStatusAction,
         addSection: addSectionAction,
