@@ -9,16 +9,21 @@ test("admin.localhost is the admin: it asks you to sign in", async ({ request })
   expect(res.headers()["location"]).toBe("/sign-in");
 });
 
-for (const [host, surface] of [
-  ["ops.localhost", "ops"],
-  ["demo.localhost", "site"],
-] as const) {
-  test(`${host} shows the ${surface} placeholder`, async ({ request }) => {
-    const res = await request.get(base + "/", { headers: { host } });
-    expect(res.status()).toBe(200);
-    expect(await res.text()).toContain(`data-surface="${surface}"`);
-  });
-}
+test("ops.localhost shows the ops placeholder", async ({ request }) => {
+  const res = await request.get(base + "/", { headers: { host: "ops.localhost" } });
+  expect(res.status()).toBe(200);
+  expect(await res.text()).toContain('data-surface="ops"');
+});
+
+test("a storefront host answers as a site, published or not", async ({ request }) => {
+  const res = await request.get(base + "/", { headers: { host: "demo.localhost" } });
+  expect(res.status()).toBe(200);
+  expect(await res.text()).toContain("Demo site");
+  // A host that matches no site keeps the stage-1 placeholder rather than failing.
+  const none = await request.get(base + "/", { headers: { host: "nobody.localhost" } });
+  expect(none.status()).toBe(200);
+  expect(await none.text()).toContain('data-surface="site"');
+});
 
 test("surface trees cannot be reached by path", async ({ request }) => {
   const res = await request.get(base + "/admin", { headers: { host: "demo.localhost" } });
