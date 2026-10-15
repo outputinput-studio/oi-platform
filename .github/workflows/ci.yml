@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main, staging]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: owner
+          POSTGRES_PASSWORD: owner
+          POSTGRES_DB: oi
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U owner -d oi"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      # Throwaway database inside the runner. CI never touches Neon.
+      MIGRATE_DATABASE_URL: postgresql://owner:owner@localhost:5432/oi
+      DATABASE_URL: postgresql://app:app@localhost:5432/oi
+      OI_ENV: preview
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: create the app role (by SQL, same as Neon)
+        run: psql "$MIGRATE_DATABASE_URL" -c "CREATE ROLE app LOGIN PASSWORD 'app' NOBYPASSRLS;"
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test:unit
+      - run: pnpm db:migrate
+      - run: pnpm test:integration
+      - run: pnpm db:seed
+      - run: pnpm exec next build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
