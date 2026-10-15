@@ -19,7 +19,11 @@ node-postgres (`pg`) against Neon · Zod · Vitest · Playwright · pnpm · Node
 - `src/app/{admin,ops,site}` — the three surfaces. Never link to these paths directly.
 - `src/db` — the ONLY place that touches the database driver. `withSite()` lives here.
 - `src/lib` — shared pure code. `src/modules/<name>` — modules. `modules/auth` holds sign-in and the access
-  helpers (`requireUser`, `requireSiteAccess`, `membershipFor`) that every admin page and action goes through.
+  helpers (`requireUser`, `requireSiteAccess`, `membershipFor`, `assertAccess`) that every admin page and action
+  goes through. A module is `server.ts` (pure functions taking `actorId` + `siteId`, authorising first, testable
+  without a browser) and `actions.ts` (thin server actions that read the form and call it).
+- `src/app/admin/(site)` — the signed-in admin: its layout calls `requireSiteAccess`; pages under it are for one site.
+  Pages link with public paths (`/team`, never `/admin/team`). `src/app/admin/ui.tsx` holds the few primitives.
 - `tests/unit` (pure) · `tests/integration` (real Postgres) · `tests/e2e` (Playwright, Host header per surface)
 
 ## Non-negotiables
