@@ -12,7 +12,11 @@ import { resolveSurface, SURFACE_PREFIX } from "@/lib/surface";
  */
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const { surface, host } = resolveSurface(request.headers.get("host"));
+  // x-forwarded-host first. Vercel sets it to the real host on every request,
+  // and Next fills it from Host locally. It matters because when a server
+  // action calls redirect(), Next fetches the target page from itself with
+  // Host: localhost; only x-forwarded-host still says which site asked.
+  const { surface, host } = resolveSurface(request.headers.get("x-forwarded-host") ?? request.headers.get("host"));
 
   // Surface trees are internal. Reaching one directly by path is a 404.
   for (const prefix of Object.values(SURFACE_PREFIX)) {

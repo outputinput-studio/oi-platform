@@ -3,8 +3,13 @@ import { test, expect } from "@playwright/test";
 /** One check per front door, against the built app, by Host header. */
 const base = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000";
 
+test("admin.localhost is the admin: it asks you to sign in", async ({ request }) => {
+  const res = await request.get(base + "/", { headers: { host: "admin.localhost" }, maxRedirects: 0 });
+  expect(res.status()).toBe(307);
+  expect(res.headers()["location"]).toBe("/sign-in");
+});
+
 for (const [host, surface] of [
-  ["admin.localhost", "admin"],
   ["ops.localhost", "ops"],
   ["demo.localhost", "site"],
 ] as const) {

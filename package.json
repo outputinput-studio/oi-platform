@@ -17,6 +17,7 @@
     "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
+    "better-auth": "^1.7.9",
     "drizzle-orm": "^0.45.4",
     "next": "16.4.1",
     "pg": "^8.23.1",

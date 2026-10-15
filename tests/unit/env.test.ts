@@ -1,10 +1,16 @@
 import { describe, expect, test } from "vitest";
-import { environmentName } from "@/lib/env";
+import { authHosts, environmentName } from "@/lib/env";
 
-describe("environmentName", () => {
-  test("reads OI_ENV when set", () => {
-    process.env.DATABASE_URL = "postgresql://app:x@localhost:5432/oi";
-    process.env.OI_ENV = "staging";
+process.env.DATABASE_URL = "postgresql://app:x@localhost:5432/oi";
+process.env.BETTER_AUTH_SECRET = "unit-test-secret-long-enough-to-pass-validation";
+process.env.OI_ENV = "staging";
+
+describe("env", () => {
+  test("environmentName reads OI_ENV when set", () => {
     expect(environmentName()).toBe("staging");
+  });
+
+  test("authHosts defaults to localhost and trims a comma list", () => {
+    expect(authHosts()).toEqual(["localhost", "*.localhost", "localhost:3000", "*.localhost:3000"]);
   });
 });
