@@ -24,12 +24,16 @@ node-postgres (`pg`) against Neon · Zod · Vitest · Playwright · pnpm · Node
   without a browser) and `actions.ts` (thin server actions that read the form and call it).
 - `src/app/admin/(site)` — the signed-in admin: its layout calls `requireSiteAccess`; pages under it are for one site.
   Pages link with public paths (`/team`, never `/admin/team`). `src/app/admin/ui.tsx` holds the few primitives.
+- `src/modules/pages/registry.ts` — the section registry: every block a page can hold, with its Zod schema. A new
+  section type is an entry here + a renderer in `render.tsx` + an editor in the admin. Never a one-off for a client.
+- `src/app/site` — the storefront. The site comes from the hostname (`siteFromHost`, via the owner-defined
+  `resolve_site(slug)` function, the only way to find a site before one is current); only published pages render.
 - `tests/unit` (pure) · `tests/integration` (real Postgres) · `tests/e2e` (Playwright, Host header per surface)
 
 ## Non-negotiables
 1. Every client-owned table has `site_id`, `ENABLE` and `FORCE ROW LEVEL SECURITY`, a policy on
    `NULLIF(current_setting('app.site_id', true), '')::uuid`, and explicit GRANTs to the `app` role.
-   Copy the four statements from `src/db/migrations/0000_sites.sql`. The only tables without RLS are the
+   Copy the statements from `src/db/migrations/0002_pages.sql`. The only tables without RLS are the
    platform tables (users, sessions, accounts, verifications, memberships): shared, no client data. Their list
    is pinned in `tests/integration/tenancy.test.ts`; adding to it is a design decision, not a shortcut.
 2. Touch data only through `withSite()`. Only `src/db` imports `pg` or creates a Drizzle instance (lint enforces).

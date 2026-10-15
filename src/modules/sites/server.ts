@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { withSite } from "@/db/client";
+import { db, withSite } from "@/db/client";
 import { sites, type Site } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 
@@ -26,4 +26,20 @@ export async function renameSite(p: { actorId: string; siteId: string; name: str
   );
   if (!site) throw new AccessError("That site doesn't exist.");
   return site;
+}
+
+/**
+ * Which site a storefront hostname belongs to. The first label of the
+ * host is the site's slug (kini.outputinput.co → kini) until custom
+ * domains arrive. Uses resolve_site(), an owner-defined function, because
+ * no site is current yet and `sites` is locked by id.
+ */
+export async function siteFromHost(host: string): Promise<Site | null> {
+  const slug = host.toLowerCase().split(":")[0].split(".")[0];
+  if (!slug) return null;
+  const r = await db.execute(sql`select resolve_site(${slug}) as id`);
+  const id = (r.rows[0] as { id: string | null } | undefined)?.id;
+  if (!id) return null;
+  const [site] = await withSite(id, (tx) => tx.select().from(sites).limit(1));
+  return site ?? null;
 }

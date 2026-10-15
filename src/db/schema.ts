@@ -1,4 +1,5 @@
-import { pgTable, uuid, text, timestamp, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, boolean, index, uniqueIndex, integer, jsonb } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 /**
  * Two kinds of table live here.
@@ -129,3 +130,66 @@ export const memberships = pgTable(
 );
 
 export type Membership = typeof memberships.$inferSelect;
+
+// ───────────────────────── client tables (cont.) ─────────────────────────
+
+/**
+ * A page is a stack of sections. Clients edit every word and picture,
+ * add, remove and reorder sections, and can't break the layout.
+ * Soft delete only: deleted_at is set, rows are never removed.
+ */
+export const PAGE_STATUSES = ["draft", "published"] as const;
+export type PageStatus = (typeof PAGE_STATUSES)[number];
+
+export const pages = pgTable(
+  "pages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    /** URL path segment. "home" is the site's front page. */
+    slug: text("slug").notNull(),
+    title: text("title").notNull(),
+    status: text("status", { enum: PAGE_STATUSES }).notNull().default("draft"),
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [
+    // Live pages only: a deleted page must not keep its address forever.
+    uniqueIndex("pages_site_slug_idx").on(t.siteId, t.slug).where(sql`${t.deletedAt} is null`),
+    index("pages_site_id_idx").on(t.siteId),
+  ],
+);
+
+export type Page = typeof pages.$inferSelect;
+
+/**
+ * One block on a page. `type` names an entry in the section registry
+ * (src/modules/pages/registry.ts) and `data` is validated against that
+ * entry's schema on every write.
+ */
+export const sections = pgTable(
+  "sections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    pageId: uuid("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    position: integer("position").notNull().default(0),
+    data: jsonb("data").notNull().$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [index("sections_page_id_idx").on(t.pageId), index("sections_site_id_idx").on(t.siteId)],
+);
+
+export type Section = typeof sections.$inferSelect;

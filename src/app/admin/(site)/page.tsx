@@ -13,10 +13,11 @@ export default async function AdminHome() {
         {site.name} · you&apos;re signed in as <span data-testid="role">{role}</span>.
       </p>
       <div className="mt-8 grid gap-3 sm:grid-cols-2">
+        <Card href="/pages" title="Pages" body="What the site says. Build each page from sections." />
         <Card href="/team" title="Team" body="Who can sign in to this site, and as what." />
         <Card href="/settings" title="Settings" body="The site's name. More arrives with each stage." />
       </div>
-      <p className="mt-10 text-sm text-[var(--muted)]">Pages, media, forms and the inbox are the next stages.</p>
+      <p className="mt-10 text-sm text-[var(--muted)]">Media, forms and the inbox are the next stages.</p>
     </>
   );
 }

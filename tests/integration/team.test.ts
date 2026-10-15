@@ -99,3 +99,12 @@ describe("site settings", () => {
     await expect(renameSite({ actorId: ann, siteId: siteA, name: "   " })).rejects.toThrow();
   });
 });
+
+describe("site from host", () => {
+  test("the first label of the host is the slug; unknown hosts resolve to nothing", async () => {
+    const { siteFromHost } = await import("@/modules/sites/server");
+    expect((await siteFromHost("team-a.outputinput.co"))?.id).toBe(siteA);
+    expect((await siteFromHost("TEAM-B.localhost:3000"))?.id).toBe(siteB);
+    expect(await siteFromHost("nobody.outputinput.co")).toBeNull();
+  });
+});

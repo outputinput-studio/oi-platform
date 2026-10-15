@@ -10,6 +10,7 @@ import { usePathname } from "next/navigation";
  */
 const items = [
   { href: "/", label: "Home", icon: HomeIcon },
+  { href: "/pages", label: "Pages", icon: PagesIcon },
   { href: "/team", label: "Team", icon: PeopleIcon },
   { href: "/settings", label: "Settings", icon: CogIcon },
 ] as const;
@@ -60,6 +61,15 @@ function HomeIcon({ active }: IconProps) {
     <svg {...stroke(active)}>
       <path d="M3 11.5 12 4l9 7.5" />
       <path d="M5.5 10.5V20h13v-9.5" />
+    </svg>
+  );
+}
+function PagesIcon({ active }: IconProps) {
+  return (
+    <svg {...stroke(active)}>
+      <path d="M7 3h7l5 5v13H7z" />
+      <path d="M14 3v5h5" />
+      <path d="M10 13h6M10 17h6" />
     </svg>
   );
 }
