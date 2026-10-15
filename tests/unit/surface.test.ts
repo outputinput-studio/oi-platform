@@ -6,7 +6,7 @@ describe("resolveSurface", () => {
     expect(resolveSurface("admin.outputinput.co")).toEqual({ surface: "admin", host: "admin.outputinput.co" });
   });
   test("ops host goes to operations", () => {
-    expect(resolveSurface("ops.outputinput.tech:443")).toEqual({ surface: "ops", host: "ops.outputinput.tech" });
+    expect(resolveSurface("ops.outputinput.io:443")).toEqual({ surface: "ops", host: "ops.outputinput.io" });
   });
   test("any other host is a storefront", () => {
     expect(resolveSurface("kinikouture.outputinput.co").surface).toBe("site");
