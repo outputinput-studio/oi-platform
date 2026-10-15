@@ -57,10 +57,16 @@
   /* shape */
   --radius-button: 5px;
   --radius-card: 8px;
+  --sidebar: 290px;
 
   /* older names, kept so nothing breaks while screens move over */
   --fg: var(--text);
   --muted: var(--text-muted);
+}
+
+/* The sidebar folds to icons; the setting lives on <html> so the page can move with it before paint. */
+:root[data-sidebar="collapsed"] {
+  --sidebar: 72px;
 }
 
 /* Tailwind names for the tokens: bg-surface, text-muted, border-soft, rounded-card … */
