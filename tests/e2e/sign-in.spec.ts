@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { goTo } from "./nav";
 
 /**
  * Sign-in with an emailed code, end to end, against the built app.
@@ -57,7 +58,7 @@ test("email → code → pick a site → signed in → sign out", async ({ page 
   await expect(page.getByTestId("site-name")).toHaveText("Demo site");
   await expect(page.getByTestId("role")).toHaveText("owner");
 
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Settings" }).click();
+  await goTo(page, "Settings");
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
 

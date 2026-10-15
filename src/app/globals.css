@@ -1,10 +1,110 @@
 @import "tailwindcss";
 
+/*
+ * Tokens, mirrored from the :root block of design/admin.html. Components
+ * use these (or the Tailwind names below) and never a raw colour.
+ * Dark is the only theme for now; the design also carries a light one.
+ */
 :root {
-  --bg: #111111;
-  --fg: #ffffff;
-  --muted: #888888;
-  --border: #303030;
+  /* greys */
+  --g0d: #0d0d0d;
+  --g111: #111111;
+  --g16: #161616;
+  --g1a: #1a1a1a;
+  --g1d: #1d1d1d;
+  --g26: #262626;
+  --g30: #303030;
+  --g40: #404040;
+
+  /* surfaces */
+  --bg: var(--g111);
+  --surface: var(--g1a);
+  --surface-sunken: var(--g0d);
+  --surface-hover: var(--g1d);
+  --panel: var(--g16);
+
+  /* lines */
+  --border: var(--g30);
+  --border-soft: var(--g26);
+  --border-strong: var(--g40);
+  --border-control: #6e6e6e;
+
+  /* text */
+  --text: #ffffff;
+  --text-body: #cccccc;
+  --text-muted: #888888;
+  --text-faint: #6e6e6e;
+  --nav: #8a8a8a;
+  --nav-active: #ffffff;
+
+  /* accent and meaning */
   --accent: #2060ee;
+  --accent-text: #6f9bf0;
+  --accent-hover: #1a52d6;
+  --accent-active: #1544b8;
+  --selected: rgba(32, 96, 238, 0.14);
+  --success: #22aa66;
+  --success-light: #4cbe86;
+  --success-bg: rgba(34, 170, 102, 0.14);
+  --warning: #cc8800;
+  --warning-light: #e0a83a;
+  --warning-bg: rgba(204, 136, 0, 0.14);
+  --alert: #cc3333;
+  --alert-light: #e06464;
+  --alert-bg: rgba(204, 51, 51, 0.14);
   --shadow: #000000;
+
+  /* shape */
+  --radius-button: 5px;
+  --radius-card: 8px;
+
+  /* older names, kept so nothing breaks while screens move over */
+  --fg: var(--text);
+  --muted: var(--text-muted);
+}
+
+/* Tailwind names for the tokens: bg-surface, text-muted, border-soft, rounded-card … */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-sunken: var(--surface-sunken);
+  --color-hover: var(--surface-hover);
+  --color-panel: var(--panel);
+  --color-line: var(--border);
+  --color-line-soft: var(--border-soft);
+  --color-line-strong: var(--border-strong);
+  --color-control: var(--border-control);
+  --color-text: var(--text);
+  --color-body: var(--text-body);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-nav: var(--nav);
+  --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
+  --color-accent-hover: var(--accent-hover);
+  --color-selected: var(--selected);
+  --color-success: var(--success-light);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning-light);
+  --color-warning-bg: var(--warning-bg);
+  --color-alert: var(--alert-light);
+  --color-alert-bg: var(--alert-bg);
+  --radius-button: var(--radius-button);
+  --radius-card: var(--radius-card);
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* The small uppercase label above a field or a group: "PAGE TITLE", "SECTIONS". */
+.label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1.3px;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }

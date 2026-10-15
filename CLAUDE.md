@@ -14,6 +14,12 @@ node-postgres (`pg`) against Neon · Zod · Vitest · Playwright · pnpm · Node
 - Vercel builds run `pnpm db:migrate && next build`: a failed migration is a failed deploy.
 - `db:migrate` also sets the `app` role's password to match `DATABASE_URL`, so the two never drift.
 
+## Design
+`design/*.html` are Carl's Claude Design prototypes (see `design/README.md`); the admin follows `design/admin.html`
+screen for screen. Tokens are in `src/app/globals.css`, mirrored from its `:root`, with Tailwind names (`bg-surface`,
+`text-muted`, `border-line`, `rounded-card`…). Geist for words, Geist Mono for labels/addresses/numbers (`.label`).
+Admin primitives live in `src/app/admin/ui.tsx`; every screen renders a `PageHeader`.
+
 ## Layout
 - `src/proxy.ts` — hostname → surface rewrite (admin.* → /admin, ops.* → /ops, else /site)
 - `src/app/{admin,ops,site}` — the three surfaces. Never link to these paths directly.
@@ -53,7 +59,7 @@ node-postgres (`pg`) against Neon · Zod · Vitest · Playwright · pnpm · Node
    form can't be used to find out who works where. Outside production with no email provider, the code is
    shown on screen — that is how staging, previews and CI sign in. Production never shows it.
 8. Small pull requests, tests before code, nothing merges red.
-9. Tokens only in UI (`--bg`, `--fg`, `--muted`, `--border`, `--accent`); no raw colours in components.
+9. Tokens only in UI (the set in `src/app/globals.css`, mirrored from `design/admin.html`); no raw colours in components.
 10. Adding a dependency, pattern or convention? Stop and ask first.
 
 ## Environments

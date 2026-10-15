@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { goTo } from "./nav";
 
 /**
  * The admin shell and the team page, in a real browser on a phone-sized
@@ -22,15 +23,19 @@ async function signInAsOwner(page: Page) {
 test("the shell has navigation and shows the site", async ({ page }) => {
   await signInAsOwner(page);
   const nav = page.getByRole("navigation", { name: "Main" });
-  await expect(nav).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Content" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Images" })).toBeVisible();
+  // On a phone, Team and Settings sit behind More.
+  await nav.getByRole("button", { name: "More" }).click();
   await expect(nav.getByRole("link", { name: "Team" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Settings" })).toBeVisible();
+  await nav.getByRole("button", { name: "Close" }).click();
   await expect(page.getByTestId("site-name")).toHaveText("Demo site");
 });
 
 test("team: add, change role, remove", async ({ page }) => {
   await signInAsOwner(page);
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Team" }).click();
+  await goTo(page, "Team");
   await expect(page).toHaveURL(/\/team$/);
   await expect(page.getByText("owner@example.com")).toBeVisible();
 
@@ -71,8 +76,11 @@ test("settings: rename the site", async ({ page }) => {
   await save.click();
   await expect(page.getByText("Saved")).toBeVisible();
   await expect(save).toBeDisabled(); // saved: nothing to save until the next change
+  // The new name shows on Home.
+  await goTo(page, "Home");
   await expect(page.getByTestId("site-name")).toHaveText("Demo site (renamed)");
   // Put it back so other tests keep their footing.
+  await page.goto(admin + "/settings");
   await name.fill("Demo site");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("Saved")).toBeVisible();

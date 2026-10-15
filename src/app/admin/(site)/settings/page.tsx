@@ -1,5 +1,6 @@
 import { requireSiteAccess } from "@/modules/auth/access";
 import { signOut } from "@/modules/auth/actions";
+import { PageHeader } from "../../ui";
 import { SettingsForm } from "./settings-form";
 
 export const dynamic = "force-dynamic";
@@ -8,8 +9,8 @@ export default async function SettingsPage() {
   const { site, role, user } = await requireSiteAccess();
   return (
     <>
-      <h1 className="text-2xl font-semibold">Settings</h1>
-      <section className="mt-6 rounded-md border border-[var(--border)] p-4">
+      <PageHeader title="Settings" back="/" />
+      <section className="mt-5 rounded-md border border-[var(--border)] p-4">
         <SettingsForm name={site.name} slug={site.slug} canEdit={role === "owner"} />
       </section>
 

@@ -8,8 +8,9 @@ export const dynamic = "force-dynamic";
 export default async function SignInPage() {
   if (await currentUser()) redirect("/sites");
   return (
-    <Shell>
-      <h1 className="mb-4 text-2xl font-semibold">Sign in</h1>
+    <Shell footer={<>O/I is invite-only. If you need access, ask the person who runs your site.</>}>
+      <h1 className="text-[26px] font-semibold tracking-[-0.5px]">Sign in</h1>
+      <p className="mb-7 mt-1.5 text-[13.5px] text-muted">A six-digit code, emailed to you. No password to remember.</p>
       <SignInForm />
     </Shell>
   );
