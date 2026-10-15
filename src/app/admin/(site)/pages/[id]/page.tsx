@@ -1,6 +1,7 @@
 import { requireSiteAccess } from "@/modules/auth/access";
 import { mediaAvailable, mediaUrl } from "@/modules/media/server";
 import { getPage, HOME_SLUG } from "@/modules/pages/server";
+import { listForms } from "@/modules/forms/server";
 import { addSectionAction, deletePageAction, moveSectionAction, removeSectionAction, setPageStatusAction } from "@/modules/pages/actions";
 import { imageRef, type SectionType } from "@/modules/pages/registry";
 import { headers } from "next/headers";
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function EditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { user, site } = await requireSiteAccess();
-  const page = await getPage({ actorId: user.id, siteId: site.id, pageId: id });
+  const [page, forms] = await Promise.all([getPage({ actorId: user.id, siteId: site.id, pageId: id }), listForms({ actorId: user.id, siteId: site.id })]);
   // The public address: the admin host with "admin" swapped for the site's slug.
   const adminHost = (await headers()).get("x-oi-host") ?? "";
   const siteUrl = `${adminHost.replace(/^admin\./, `${site.slug}.`)}${page.slug === HOME_SLUG ? "" : `/${page.slug}`}`;
@@ -29,6 +30,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
       isHome={page.slug === HOME_SLUG}
       live={page.status === "published"}
       mediaAvailable={mediaAvailable()}
+      forms={forms.map((f) => ({ id: f.id, name: f.name }))}
       siteUrl={siteUrl}
       actions={{
         setStatus: setPageStatusAction,

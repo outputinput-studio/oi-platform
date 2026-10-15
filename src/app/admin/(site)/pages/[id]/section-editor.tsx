@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { saveSectionAction } from "@/modules/pages/actions";
 import { emptySection, type ImageRef, type SectionData, type SectionType } from "@/modules/pages/registry";
-import { Field, Input, Textarea } from "../../../ui";
+import { Field, Input, Select, Textarea } from "../../../ui";
 import { ImagePicker } from "./image-picker";
 
 /**
@@ -20,6 +20,7 @@ export function SectionEditor({
   initial,
   imageUrl,
   mediaAvailable,
+  forms = [],
   onStatus,
 }: {
   sectionId: string;
@@ -28,6 +29,8 @@ export function SectionEditor({
   /** Address of the section's current image, if it has one (worked out on the server). */
   imageUrl?: string;
   mediaAvailable: boolean;
+  /** The site's forms, for a Form section to pick from. */
+  forms?: { id: string; name: string }[];
   /** Tells the page what this section is up to, so the header can show one Saved for everything. */
   onStatus?: (id: string, s: Status) => void;
 }) {
@@ -69,7 +72,7 @@ export function SectionEditor({
 
   return (
     <div className="space-y-3">
-      <Fields type={type} data={data as SectionData} onChange={change} id={sectionId} imageUrl={imageUrl} mediaAvailable={mediaAvailable} />
+      <Fields type={type} data={data as SectionData} onChange={change} id={sectionId} imageUrl={imageUrl} mediaAvailable={mediaAvailable} forms={forms} />
       <p className="text-right text-[12px] text-muted" aria-live="polite" data-testid="save-status">
         {status.kind === "saving" && "Saving…"}
         {status.kind === "saved" && "Saved"}
@@ -90,6 +93,7 @@ function Fields({
   id,
   imageUrl,
   mediaAvailable,
+  forms,
 }: {
   type: SectionType;
   data: SectionData;
@@ -97,6 +101,7 @@ function Fields({
   id: string;
   imageUrl?: string;
   mediaAvailable: boolean;
+  forms: { id: string; name: string }[];
 }) {
   const d = data as Record<string, unknown>;
   const str = (k: string) => (typeof d[k] === "string" ? (d[k] as string) : "");
@@ -169,6 +174,27 @@ function Fields({
             </div>
           </fieldset>
           {picker}
+        </>
+      );
+    case "form":
+      return (
+        <>
+          <Field label="Which form" htmlFor={`${id}-form`} hint={forms.length ? undefined : "You don't have a form yet. Make one under Content → Forms, then pick it here."}>
+            <Select id={`${id}-form`} value={str("formId")} onChange={(e) => onChange({ formId: e.target.value })}>
+              <option value="">{forms.length ? "Pick a form" : "No forms yet"}</option>
+              {forms.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Heading" htmlFor={`${id}-heading`} hint="Above the form. Leave empty to hide it.">
+            <Input id={`${id}-heading`} value={str("heading")} maxLength={120} onChange={(e) => onChange({ heading: e.target.value })} />
+          </Field>
+          <Field label="Line underneath" htmlFor={`${id}-text`} hint="A sentence or two before the fields. Optional.">
+            <Textarea id={`${id}-text`} value={str("text")} rows={2} maxLength={500} onChange={(e) => onChange({ text: e.target.value })} />
+          </Field>
         </>
       );
     case "questions": {

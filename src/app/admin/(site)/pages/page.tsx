@@ -2,7 +2,8 @@ import Link from "next/link";
 import { timeAgo } from "@/lib/time";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { HOME_SLUG, listPages } from "@/modules/pages/server";
-import { Card, PageHeader, Pill } from "../../ui";
+import { Card, Chips, PageHeader, Pill } from "../../ui";
+import { CONTENT_TABS } from "../content-tabs";
 import { AddPage } from "./add-page";
 
 export const dynamic = "force-dynamic";
@@ -20,8 +21,9 @@ export default async function PagesPage() {
   return (
     <>
       <PageHeader title="Content" back="/" actions={<AddPage suggestHome={!hasHome} />} />
-      <div className="pt-5 md:pt-6">
-        <p className="label mb-2.5">Pages</p>
+      <div className="pt-4 md:pt-5">
+        <Chips ariaLabel="Content" current="/pages" items={CONTENT_TABS} />
+        <p className="label mb-2.5 mt-5">Pages</p>
         {all.length === 0 ? (
           <Card className="px-5 py-8 text-center">
             <p className="text-[15px] font-medium">No pages yet</p>

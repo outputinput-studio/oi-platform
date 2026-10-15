@@ -46,6 +46,55 @@ export function Textarea({ className = "", ...props }: React.TextareaHTMLAttribu
   );
 }
 
+/** A drop-down, styled like Input. */
+export function Select({ className = "", children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select
+      {...props}
+      className={`block h-11 w-full appearance-none rounded-button border border-control bg-transparent bg-[url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")] bg-[length:16px] bg-[right_12px_center] bg-no-repeat pl-3.5 pr-10 text-[15px] text-text outline-none focus:border-accent ${className}`}
+    >
+      {children}
+    </select>
+  );
+}
+
+/** An on/off switch with its words beside it, as in the design's settings rows. */
+export function Switch({ checked, onChange, label, hint, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string; disabled?: boolean }) {
+  return (
+    <button type="button" role="switch" aria-checked={checked} disabled={disabled} onClick={() => onChange(!checked)} className="flex w-full items-center gap-4 text-left disabled:opacity-50">
+      <span className="min-w-0 flex-1">
+        <span className="block text-[14.5px] text-text">{label}</span>
+        {hint && <span className="mt-0.5 block text-[12.5px] text-muted">{hint}</span>}
+      </span>
+      <span className={`relative h-[26px] w-[44px] flex-none rounded-full transition-colors ${checked ? "bg-accent" : "bg-line-strong"}`}>
+        <span className={`absolute top-[3px] h-5 w-5 rounded-full bg-text transition-[left] ${checked ? "left-[21px]" : "left-[3px]"}`} />
+      </span>
+    </button>
+  );
+}
+
+/** A row of chips that link: Pages · Forms, or All · Done. The current one is filled. */
+export function Chips({ items, current, ariaLabel }: { items: { href: string; label: string; count?: number }[]; current: string; ariaLabel: string }) {
+  return (
+    <nav aria-label={ariaLabel} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:px-0">
+      {items.map((it) => {
+        const on = it.href === current;
+        return (
+          <Link
+            key={it.href}
+            href={it.href}
+            aria-current={on ? "page" : undefined}
+            className={`flex h-9 flex-none items-center gap-1.5 rounded-full border px-3.5 text-[13.5px] ${on ? "border-text bg-text text-bg" : "border-line text-body hover:bg-hover"}`}
+          >
+            {it.label}
+            {it.count !== undefined && it.count > 0 && <span className={on ? "opacity-70" : "text-muted"}>{it.count}</span>}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 /** A field: plain label above the control, optional hint below. */
 export function Field({
   label,
