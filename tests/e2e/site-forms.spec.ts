@@ -43,6 +43,9 @@ test("a form from the editor to the inbox", async ({ page }) => {
   await choice.getByRole("switch", { name: "Required" }).click();
   await expect(page.getByTestId("form-save-status")).toHaveText("✓ Saved");
   await page.getByLabel("Button text").fill("Send enquiry");
+  await page.getByLabel("Message after sending").fill("Thanks {name}, we have it.");
+  await page.getByRole("switch", { name: "Reply to them straight away" }).click();
+  await page.getByLabel("Subject").fill("Got it, {name}");
   await expect(page.getByTestId("form-save-status")).toHaveText("✓ Saved");
 
   // Put it on the front page.
@@ -63,7 +66,7 @@ test("a form from the editor to the inbox", async ({ page }) => {
   await page.getByLabel("Your message").fill("Do you deliver to Phuket?");
   await page.getByLabel("What are you after?").selectOption("An ice bath");
   await page.getByRole("button", { name: "Send enquiry" }).click();
-  await expect(page.getByRole("status")).toContainText("Thanks, we have it");
+  await expect(page.getByRole("status")).toHaveText("Thanks Dee Visitor, we have it.");
 
   // It's in the inbox, with a badge; open it, mark it done.
   await page.goto(admin + "/");

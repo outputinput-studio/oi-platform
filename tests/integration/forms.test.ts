@@ -5,7 +5,7 @@
 import { beforeAll, afterAll, describe, expect, test } from "vitest";
 import { Pool } from "pg";
 import { AccessError } from "@/modules/auth/access";
-import { answersSchema, newField } from "@/modules/forms/fields";
+import { answersSchema, fillIn, newField } from "@/modules/forms/fields";
 import {
   createForm,
   deleteForm,
@@ -58,6 +58,14 @@ describe("fields", () => {
   });
 });
 
+describe("fill-ins", () => {
+  test("{name} and any field by label, case-free; unanswered is blank; unknown stays put", () => {
+    const fields = [{ ...newField("text"), label: "Your name" }, { ...newField("email"), label: "Email" }, { ...newField("choice"), label: "What are you after?" }];
+    const answers = { [fields[0].id]: "Dee", [fields[1].id]: "dee@x.invalid", [fields[2].id]: "" };
+    expect(fillIn("Hi {name}, re {what are you after?} from {EMAIL} {nope}", fields, answers)).toBe("Hi Dee, re  from dee@x.invalid {nope}");
+  });
+});
+
 describe("forms", () => {
   let formId = "";
   test("a new form starts with name, email and message", async () => {
@@ -102,6 +110,7 @@ describe("submissions", () => {
     await expect(submitForm({ ...base, siteId: siteA, formId, answers: { [fieldIds[0]]: "Dee", [fieldIds[1]]: "dee", [fieldIds[2]]: "hi" } })).rejects.toThrow(/email/);
     const r = await submitForm({ ...base, siteId: siteA, formId, answers: { [fieldIds[0]]: "Dee", [fieldIds[1]]: "dee@x.invalid", [fieldIds[2]]: "Do you ship to NZ?" } });
     expect(r.ok).toBe(true);
+    expect(r.message).toBe("Thanks, we have it. We'll be in touch.");
   });
   test("the trap field swallows bots quietly", async () => {
     const before = await newSubmissionCount({ siteId: siteA });

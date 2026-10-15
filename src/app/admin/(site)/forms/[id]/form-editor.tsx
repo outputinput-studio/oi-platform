@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { saveFormAction } from "@/modules/forms/actions";
-import { FIELD_TYPES, FIELD_TYPE_LIST, fieldSummary, newField, type Field, type FieldType, type FormSettings } from "@/modules/forms/fields";
+import { FIELD_TYPES, FIELD_TYPE_LIST, fieldSummary, fillIns, newField, type Field, type FieldType, type FormSettings } from "@/modules/forms/fields";
 import { Button, Field as FieldRow, Input, Label, PageHeader, Select, Sheet, Switch, Textarea } from "../../../ui";
 
 /**
@@ -117,12 +117,39 @@ export function FormEditor({ formId, initial, deleteAction }: { formId: string; 
           <FieldRow label="Button text" htmlFor="form-button">
             <Input id="form-button" value={form.buttonText} maxLength={40} onChange={(e) => change({ buttonText: e.target.value })} />
           </FieldRow>
-          <FieldRow label="Message after sending" htmlFor="form-after" hint="Replaces the form on the page once it's sent.">
+          <FieldRow label="Message after sending" htmlFor="form-after" hint="Replaces the form on the page once it's sent. Curly brackets pull in what they answered: {name}, or any field by its label.">
             <Textarea id="form-after" value={form.afterMessage} rows={3} maxLength={600} onChange={(e) => change({ afterMessage: e.target.value })} />
           </FieldRow>
           <FieldRow label="Send submissions to" htmlFor="form-notify" hint="Email addresses, separated by commas. Leave empty and every owner gets them.">
             <Input id="form-notify" value={form.notifyEmails} maxLength={600} inputMode="email" autoComplete="off" onChange={(e) => change({ notifyEmails: e.target.value })} />
           </FieldRow>
+          <Switch
+            checked={form.autoReply}
+            onChange={(v) => change({ autoReply: v })}
+            label="Reply to them straight away"
+            hint="An email that goes out the moment they send it, so they know it arrived. Needs an Email field."
+          />
+          {form.autoReply && (
+            <div className="space-y-4 rounded-card border border-line-soft bg-sunken p-4">
+              <FieldRow label="Subject" htmlFor="form-reply-subject">
+                <Input id="form-reply-subject" value={form.replySubject} maxLength={200} placeholder="Thanks {name}, I have your message" onChange={(e) => change({ replySubject: e.target.value })} />
+              </FieldRow>
+              <FieldRow label="Message" htmlFor="form-reply-message">
+                <Textarea id="form-reply-message" value={form.replyMessage} rows={6} maxLength={5000} placeholder={"Hi {name},\n\nThanks for getting in touch. I answer everything myself, usually within two days."} onChange={(e) => change({ replyMessage: e.target.value })} />
+              </FieldRow>
+              <div>
+                <p className="text-[12.5px] text-muted">Fill-ins you can use</p>
+                <p className="mt-1.5 flex flex-wrap gap-1.5">
+                  {fillIns(form.fields).map((f) => (
+                    <span key={f} className="rounded border border-line px-1.5 py-0.5 font-mono text-[11.5px] text-body">
+                      {f}
+                    </span>
+                  ))}
+                </p>
+                <p className="mt-1.5 text-[12.5px] text-muted">Any field by its label, in curly brackets. Works in the message on screen too.</p>
+              </div>
+            </div>
+          )}
           <Switch
             checked={form.createContact}
             onChange={(v) => change({ createContact: v })}

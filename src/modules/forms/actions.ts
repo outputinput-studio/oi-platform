@@ -72,7 +72,7 @@ export async function submitFormAction(formId: string, _prev: FormState, form: F
   const answers: Record<string, string> = {};
   for (const [k, v] of form.entries()) if (k.startsWith("f_") && typeof v === "string") answers[k.slice(2)] = v;
   try {
-    await submitForm({
+    const r = await submitForm({
       siteId: site.id,
       formId,
       answers,
@@ -80,7 +80,7 @@ export async function submitFormAction(formId: string, _prev: FormState, form: F
       siteName: site.name,
       inboxUrl: `https://${host.replace(/^[^.]+\./, "admin.")}/inbox`,
     });
-    return { ok: "sent" };
+    return { ok: r.message };
   } catch (err) {
     return { error: message(err) };
   }

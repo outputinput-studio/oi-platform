@@ -12,7 +12,7 @@ export default async function EditFormPage({ params }: { params: Promise<{ id: s
   return (
     <FormEditor
       formId={form.id}
-      initial={{ name: form.name, fields: form.fields, buttonText: form.buttonText, afterMessage: form.afterMessage, notifyEmails: form.notifyEmails, createContact: form.createContact }}
+      initial={{ name: form.name, fields: form.fields, buttonText: form.buttonText, afterMessage: form.afterMessage, notifyEmails: form.notifyEmails, createContact: form.createContact, autoReply: form.autoReply, replySubject: form.replySubject, replyMessage: form.replyMessage }}
       deleteAction={deleteFormAction}
     />
   );

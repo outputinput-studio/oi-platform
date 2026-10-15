@@ -5,7 +5,7 @@ import { forms, memberships, submissions, users, type Form, type Submission, typ
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { sendEmail } from "@/lib/email";
 import { upsertFromSubmission } from "@/modules/contacts/server";
-import { answersSchema, fieldsSchema, formSettingsSchema, headlineAnswer, senderOf, splitEmails, type Field, type FormSettings } from "./fields";
+import { answersSchema, fieldsSchema, fillIn, formSettingsSchema, headlineAnswer, senderOf, splitEmails, type Field, type FormSettings } from "./fields";
 
 /**
  * Forms and what comes through them.
@@ -100,10 +100,10 @@ export async function deleteForm(p: { actorId: string; siteId: string; formId: s
  * `trap` is a field the page keeps hidden; a bot that fills it in gets a
  * thank-you and nothing is stored.
  */
-export async function submitForm(p: { siteId: string; formId: string; answers: unknown; trap?: string; siteName: string; inboxUrl: string }): Promise<{ ok: true }> {
+export async function submitForm(p: { siteId: string; formId: string; answers: unknown; trap?: string; siteName: string; inboxUrl: string }): Promise<{ ok: true; message: string }> {
   const form = await publicForm({ siteId: p.siteId, formId: p.formId });
   if (!form) throw new AccessError("That form isn't on this site.");
-  if (p.trap) return { ok: true };
+  if (p.trap) return { ok: true, message: form.afterMessage };
   const answers: Record<string, string> = answersSchema(form.fields).parse(p.answers ?? {});
 
   const sender = senderOf(form.fields, answers);
@@ -132,7 +132,20 @@ export async function submitForm(p: { siteId: string; formId: string; answers: u
   } catch (err) {
     console.error("submission email failed", err);
   }
-  return { ok: true };
+
+  // The reply to them, if the form sends one and they left an address.
+  if (form.autoReply && sender.email) {
+    try {
+      await sendEmail({
+        to: sender.email,
+        subject: fillIn(form.replySubject, form.fields, answers) || `Thanks for writing to ${p.siteName}`,
+        text: fillIn(form.replyMessage, form.fields, answers) || `We have your message and will be in touch.\n\n${p.siteName}`,
+      });
+    } catch (err) {
+      console.error("auto-reply failed", err);
+    }
+  }
+  return { ok: true, message: fillIn(form.afterMessage, form.fields, answers) };
 }
 
 /** Owners' addresses, for a form with no "send to". Platform tables, so outside withSite(). */

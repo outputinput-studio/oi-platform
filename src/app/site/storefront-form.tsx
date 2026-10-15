@@ -16,7 +16,7 @@ export function StorefrontForm({ form }: { form: { id: string; fields: Field[]; 
   if (state.ok) {
     return (
       <p role="status" className="max-w-2xl rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-5 py-4 text-[17px] leading-relaxed">
-        {form.afterMessage}
+        {state.ok}
       </p>
     );
   }
