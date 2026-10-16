@@ -41,9 +41,9 @@ export type ProductDraft = {
 
 const AVAILABILITY_HINT: Record<ProductAvailability, string> = {
   forSale: "People can buy it now.",
-  sold: "Stays on your site as a past piece, and asks for an enquiry.",
+  sold: "Stays on your site as a past product, with a link to enquire about something like it.",
   soldOut: "Set on its own when stock hits zero. You can set it yourself too.",
-  enquire: "No cart. People get in touch to order it.",
+  enquire: "No cart. Sends people to your enquiry form with the product named.",
   comingSoon: "Visible, but not buyable yet.",
 };
 
@@ -57,6 +57,7 @@ export function ProductEditor({
   mediaAvailable,
   seo,
   deleteAction,
+  hasEnquiryForm,
 }: {
   product: ProductDraft & { id: string };
   photoUrls: Record<string, string>;
@@ -68,6 +69,8 @@ export function ProductEditor({
   mediaAvailable: boolean;
   seo: { initial: Seo; imageUrl?: string; fallback: { title: string; description: string; imageUrl?: string } };
   deleteAction: (f: FormData) => Promise<void>;
+  /** Whether Settings · Enquiries has a form, so enquire-only and sold products get a button. */
+  hasEnquiryForm: boolean;
 }) {
   const [d, setD] = useState<ProductDraft>(product);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -272,6 +275,15 @@ export function ProductEditor({
               </button>
             ))}
           </div>
+          {!hasEnquiryForm && (d.availability === "enquire" || d.availability === "sold") && (
+            <p data-testid="no-enquiry-form" className="mt-2 text-[12.5px] leading-[1.5] text-warning">
+              No enquiry form is chosen yet, so customers won&apos;t see a button. Choose one in{" "}
+              <Link href="/settings/enquiries" className="underline underline-offset-2">
+                Settings · Enquiries
+              </Link>
+              .
+            </p>
+          )}
         </fieldset>
 
         <div>

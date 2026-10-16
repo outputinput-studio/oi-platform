@@ -6,6 +6,7 @@ import { deleteProductAction } from "@/modules/products/actions";
 import { mediaAvailable, mediaUrl } from "@/modules/media/server";
 import { readSeo } from "@/modules/pages/seo";
 import { siteShop } from "@/modules/sites/server";
+import { publicForm } from "@/modules/forms/server";
 import { ProductEditor } from "./product-editor";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
   const [p, cats] = await Promise.all([getProduct({ actorId: user.id, siteId: site.id, productId: id }), listProductCategories({ actorId: user.id, siteId: site.id })]);
   const siteHost = ((await headers()).get("x-oi-host") ?? "").replace(/^admin\./, `${site.slug}.`);
   const shop = siteShop(site);
+  const hasEnquiryForm = shop.enquiryFormId ? !!(await publicForm({ siteId: site.id, formId: shop.enquiryFormId })) : false;
   const seo = readSeo(p.seo);
   const main = p.photos[0];
   return (
@@ -46,6 +48,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
       mediaAvailable={mediaAvailable()}
       seo={{ initial: seo, imageUrl: seo.image ? mediaUrl(seo.image.key) : undefined, fallback: { title: `${p.name} · ${site.name}`, description: p.description, imageUrl: main ? mediaUrl(main.key) : undefined } }}
       deleteAction={deleteProductAction}
+      hasEnquiryForm={hasEnquiryForm}
     />
   );
 }

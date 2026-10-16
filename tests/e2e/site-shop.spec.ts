@@ -261,3 +261,93 @@ test("a discount code: made in the admin, used at checkout, counted", async ({ p
   await page.goto(admin + "/products/discounts");
   await expect(page.getByTestId("code-SAVE10")).toContainText("1 used");
 });
+
+test("a refund from the order page, in part and then the rest", async ({ page }) => {
+  await signInAsOwner(page);
+  await page.goto(admin + "/orders");
+  await page.getByTestId(/^order-\d+$/).filter({ hasText: "Dee Buyer" }).click();
+  await page.getByRole("button", { name: "Refund this order" }).click();
+  const sheet = page.getByRole("dialog");
+  await expect(sheet.getByLabel("Amount")).toHaveValue("380");
+  await sheet.getByLabel("Amount").fill("80");
+  await sheet.getByRole("switch", { name: "Email the customer" }).click();
+  await sheet.getByRole("button", { name: "Refund it" }).click();
+  await expect(page.getByTestId("refunded")).toHaveText("−$80");
+  await expect(page.getByText("Part refunded")).toBeVisible();
+
+  await page.getByRole("button", { name: "Refund this order" }).click();
+  await expect(sheet.getByLabel("Amount")).toHaveValue("300");
+  await sheet.getByRole("button", { name: "Refund it" }).click();
+  await expect(page.getByTestId("refunded")).toHaveText("−$380");
+  await expect(page.getByText("Refunded", { exact: true }).first()).toBeVisible(); // the pill
+  await expect(page.getByRole("button", { name: "Refund this order" })).toHaveCount(0);
+});
+
+test("enquiries: a zone quoted individually, then an enquire-only product", async ({ page }) => {
+  await signInAsOwner(page);
+  // The form enquiries go through.
+  await goTo(page, "Content");
+  await page.getByRole("navigation", { name: "Content" }).getByRole("link", { name: "Forms" }).click();
+  await page.getByRole("button", { name: "Add form" }).click();
+  await page.getByLabel("Form name").fill("Product enquiry");
+  await page.getByRole("button", { name: "Create form" }).click();
+  await expect(page).toHaveURL(/\/forms\/[0-9a-f-]+$/);
+  await page.goto(admin + "/settings");
+  await page.getByRole("link", { name: /Enquiries/ }).click();
+  await page.getByRole("radio", { name: /Product enquiry/ }).click();
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Saved")).toBeVisible();
+
+  // Everywhere but Australia is quoted individually. Postcodes keep their commas as typed.
+  await page.goto(admin + "/settings/shipping");
+  await page.getByTestId("zone-0").getByRole("button", { name: /Australia/ }).click();
+  await page.getByTestId("zone-0").getByRole("button", { name: "Add a rate" }).click();
+  await page.getByTestId("zone-0").getByRole("radio", { name: "Local delivery" }).last().click();
+  await page.getByTestId("zone-0").getByLabel("Postcodes you deliver to").fill("6000, 6008");
+  await expect(page.getByTestId("zone-0").getByLabel("Postcodes you deliver to")).toHaveValue("6000, 6008");
+  await page.getByRole("button", { name: "+ Add a zone" }).click();
+  const row = page.getByTestId("zone-1");
+  await row.getByRole("switch", { name: "Quote individually" }).click();
+  await expect(row.getByText("Lands in your Inbox, not Orders.")).toBeVisible();
+  await expect(row.getByText("Rates", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Save shipping" }).click();
+  await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
+
+  await page.goto(demo + "/shop/teal-crystal-bikini");
+  await page.getByRole("button", { name: "Add to cart" }).click();
+  await page.getByRole("link", { name: "Added — view your cart" }).click();
+  await page.getByRole("link", { name: "Checkout" }).click();
+  await page.getByLabel("Country").selectOption("NZ");
+  await expect(page.getByTestId("quote-note")).toContainText("We'll work out delivery to New Zealand and send you a quote.");
+  await expect(page.getByLabel("Discount code")).toHaveCount(0);
+  await page.getByLabel("Name").fill("Kiri Quote");
+  await page.getByLabel("Email").fill("kiri@example.com");
+  await page.getByLabel("Street address").fill("4 Ponsonby Road");
+  await page.getByLabel("Town or suburb").fill("Auckland");
+  await page.getByLabel("Postcode").fill("1011");
+  await page.getByRole("button", { name: "Ask for a quote" }).click();
+  await expect(page.getByTestId("quote-sent")).toContainText("Thanks, Kiri. We'll work out delivery to New Zealand");
+
+  await page.goto(admin + "/inbox");
+  await expect(page.getByTestId("submission").filter({ hasText: "Delivery quote to New Zealand" })).toContainText("Kiri Quote");
+
+  // The bikini becomes enquire only: no cart, the enquiry form with it named.
+  await page.goto(admin + "/products");
+  await page.getByTestId("product-teal-crystal-bikini").click();
+  await page.getByRole("radio", { name: /^Enquire only/ }).click();
+  await expect(page.getByTestId("no-enquiry-form")).toHaveCount(0);
+  await expect(page.getByText("Saved")).toBeVisible();
+  await page.goto(demo + "/shop/teal-crystal-bikini");
+  await expect(page.getByRole("button", { name: "Add to cart" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Enquire about this" }).click();
+  const form = page.getByTestId("enquiry");
+  await form.getByLabel("Your name").fill("Amelia Frost");
+  await form.getByLabel("Email").fill("amelia@example.com");
+  await form.getByLabel("Your message").fill("Could it be in green?");
+  await form.getByRole("button", { name: "Send" }).click();
+  await expect(form.getByRole("status")).toBeVisible();
+
+  await page.goto(admin + "/inbox");
+  await page.getByTestId("submission").filter({ hasText: "Could it be in green?" }).click();
+  await expect(page.getByText("Teal crystal bikini (/shop/teal-crystal-bikini)")).toBeVisible();
+});

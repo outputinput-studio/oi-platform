@@ -36,6 +36,10 @@ export const zoneSchema = z.object({
   countries: z.array(z.string().length(2)).max(250).default([]),
   everywhere: z.boolean().default(false),
   rates: z.array(rateSchema).max(20).default([]),
+  /** Quote individually: no payment at checkout; their details come through as an enquiry so the team can price the postage. */
+  quote: z.boolean().default(false),
+  /** What they read at checkout. Empty: "We'll work out delivery to <country> and send you a quote." */
+  quoteMessage: z.string().trim().max(300).default(""),
 });
 export type Zone = z.infer<typeof zoneSchema>;
 
@@ -64,12 +68,19 @@ export function zoneFor(s: Shipping, country: string): Zone | null {
 export function ratesFor(s: Shipping, where: { country: string; postcode?: string }, subtotal: number): Rate[] {
   if (s.zones.length === 0) return [FREE_DELIVERY];
   const zone = zoneFor(s, where.country);
-  if (!zone) return [];
+  if (!zone || zone.quote) return [];
   const pc = (where.postcode ?? "").trim().toUpperCase();
   return zone.rates
     .filter((r) => (r.minTotal === null || subtotal >= r.minTotal) && (r.maxTotal === null || subtotal < r.maxTotal))
     .filter((r) => r.kind !== "local" || (pc !== "" && r.postcodes.map((x) => x.toUpperCase()).includes(pc)))
     .sort((a, b) => a.price - b.price);
+}
+
+/** When delivery to this country is quoted individually: what the customer reads instead of rates. Null when it isn't. */
+export function quoteFor(s: Shipping, country: string, countryName: string): string | null {
+  const zone = zoneFor(s, country);
+  if (!zone?.quote) return null;
+  return zone.quoteMessage || `We'll work out delivery to ${countryName} and send you a quote.`;
 }
 
 /** "Included" rather than $0, as the design asks. */

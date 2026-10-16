@@ -1,6 +1,7 @@
 import { requireSiteAccess } from "@/modules/auth/access";
 import { siteSearch, siteShipping, siteShop, siteTheme } from "@/modules/sites/server";
 import { paymentsStatus } from "@/modules/payments/server";
+import { listForms } from "@/modules/forms/server";
 import { Label, PageHeader, Row, Rows } from "../../ui";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,8 @@ export const dynamic = "force-dynamic";
  */
 export default async function SettingsPage() {
   const { site, role, user } = await requireSiteAccess();
+  const enquiryId = siteShop(site).enquiryFormId;
+  const enquiryForm = enquiryId ? (await listForms({ actorId: user.id, siteId: site.id })).find((f) => f.id === enquiryId) : undefined;
   return (
     <>
       <PageHeader title="Settings" back="/" />
@@ -31,6 +34,7 @@ export default async function SettingsPage() {
           <Rows>
             <Row title="Payments" detail={paymentsLine(paymentsStatus(site))} href="/settings/payments" />
             <Row title="Shipping" detail={siteShipping(site).zones.length ? `${siteShipping(site).zones.length} zone${siteShipping(site).zones.length === 1 ? "" : "s"} · posted within ${siteShipping(site).dispatchDays} business days` : "Free delivery everywhere until you add a zone"} href="/settings/shipping" />
+            <Row title="Enquiries" detail={enquiryForm ? `Through ${enquiryForm.name}` : "Choose the form people use to ask about a product"} href="/settings/enquiries" />
             <Row title="Tax and currency" detail={`${siteShop(site).currency} · prices ${siteShop(site).pricesIncludeTax ? "include" : "don't include"} ${siteShop(site).taxName}`} href="/settings/shop" />
           </Rows>
         </section>
@@ -46,8 +50,7 @@ export default async function SettingsPage() {
 }
 
 function paymentsLine(s: ReturnType<typeof paymentsStatus>): string {
-  if (s.provider === "test") return "Test payments (no Stripe keys here)";
-  if (s.provider === null) return "Not switched on yet";
-  if (!s.stripeAccountId) return "Connect Stripe to take payments";
+  if (s.provider === "test") return "Test payments until your Stripe keys go in";
+  if (!s.hasKeys) return "Put your Stripe keys in to take payments";
   return s.chargesEnabled ? `Stripe connected${s.livemode ? "" : " · test mode"}` : "Stripe still has questions";
 }

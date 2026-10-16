@@ -16,6 +16,12 @@ export const shopSettingsSchema = z.object({
   taxName: z.string().trim().min(1, "Give the tax a name, like GST.").max(20).default("GST"),
   /** Percent, for working the tax out of a price later. */
   taxRate: z.coerce.number().min(0, "0 to 50.").max(50, "0 to 50.").default(10),
+  /**
+   * The form people use to ask about something: enquire-only and sold
+   * products, and delivery zones that are quoted individually. Null: none
+   * chosen, so those show no button.
+   */
+  enquiryFormId: z.string().uuid().nullable().default(null),
 });
 export type ShopSettings = z.infer<typeof shopSettingsSchema>;
 

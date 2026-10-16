@@ -9,7 +9,9 @@ import { productCategoryBySlug, publishedProductCategories } from "@/modules/pro
 import { productPath, publishedProduct, publishedProducts, type ProductRow } from "@/modules/products/server";
 import { siteShipping, siteShop } from "@/modules/sites/server";
 import { paymentsStatus } from "@/modules/payments/server";
+import { publicForm, type FormWithFields } from "@/modules/forms/server";
 import { AddToCart } from "./add-to-cart";
+import { Enquire } from "./enquire";
 import { Placeholder } from "@/lib/placeholder";
 import { Frame, missing } from "./storefront";
 import { hostAndSite, storefrontMetadata } from "./metadata";
@@ -94,17 +96,20 @@ export async function ShopEntry({ parts }: { parts: string[] }) {
   if (cat) return <Shop category={cat} />;
   const p = await publishedProduct({ siteId: site.id, slug: parts[0] });
   if (!p) return missing(site.id, path, referer);
-  const menus = await siteMenus({ siteId: site.id });
+  const a = effectiveAvailability(p);
+  const enquiryId = siteShop(site).enquiryFormId;
+  const [menus, enquiry] = await Promise.all([siteMenus({ siteId: site.id }), enquiryId && (a === "enquire" || a === "sold") ? publicForm({ siteId: site.id, formId: enquiryId }) : null]);
   return (
     <Frame site={site} menus={menus} current={path}>
-      <ProductPage product={p} site={site} />
+      <ProductPage product={p} site={site} enquiry={enquiry} />
     </Frame>
   );
 }
 
-function ProductPage({ product: p, site }: { product: ProductRow; site: Site }) {
+function ProductPage({ product: p, site, enquiry }: { product: ProductRow; site: Site; enquiry: FormWithFields | null }) {
   const { currency } = siteShop(site);
   const v = customerView(p, currency);
+  const a = effectiveAvailability(p);
   const [main, ...rest] = p.photos;
   return (
     <article className="grid gap-8 pt-6 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] md:gap-12 md:pt-10">
@@ -143,6 +148,9 @@ function ProductPage({ product: p, site }: { product: ProductRow; site: Site }) 
           <p className="mt-1 text-[14px] text-[var(--text-muted)]">Posted within {siteShipping(site).dispatchDays} business days</p>
         )}
         {v.buyable && paymentsStatus(site).ready && <AddToCart productId={p.id} />}
+        {enquiry && (a === "enquire" || a === "sold") && (
+          <Enquire form={{ id: enquiry.id, fields: enquiry.fields, buttonText: enquiry.buttonText, afterMessage: enquiry.afterMessage }} productId={p.id} sold={a === "sold"} />
+        )}
         {p.description && (
           <div className="mt-6 space-y-4 text-[16px] leading-[1.65] text-[var(--text-body)]">
             {p.description

@@ -592,6 +592,10 @@ export const orders = pgTable(
     provider: text("provider").notNull(),
     /** Stripe's checkout session id. */
     providerRef: text("provider_ref").notNull().default(""),
+    /** The cart it came from (a random id in the shopper's cookie), so their own unpaid try never holds stock against them. */
+    cartRef: text("cart_ref").notNull().default(""),
+    /** What has been refunded, in cents. Equal to the total once fully refunded. */
+    refunded: integer("refunded").notNull().default(0),
     contactId: uuid("contact_id"),
     tracking: jsonb("tracking").notNull().$type<Record<string, unknown>>().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

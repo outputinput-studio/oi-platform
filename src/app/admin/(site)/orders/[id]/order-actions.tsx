@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { moveOrderAction } from "@/modules/orders/actions";
+import { moveOrderAction, refundOrderAction } from "@/modules/orders/actions";
+import { parsePrice, type Currency } from "@/modules/sites/shop";
 import type { OrderStatus } from "@/db/schema";
 import { Button, Field, Input, Notice, Sheet, Switch, Textarea } from "../../../ui";
 
@@ -128,5 +129,83 @@ export function CopyAddress({ text }: { text: string }) {
     >
       {done ? "Copied" : "Copy address"}
     </button>
+  );
+}
+
+/**
+ * "Refund this order": all of what's left, or part of it. The money goes
+ * back through the business's own Stripe first; the order only changes
+ * once Stripe has said yes.
+ */
+export function RefundOrder({ orderId, left, leftLabel, full, draft, currency }: { orderId: string; left: string; leftLabel: string; full: boolean; draft: { subject: string; message: string }; currency: Currency }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState(left);
+  const [restock, setRestock] = useState(full);
+  const [send, setSend] = useState(true);
+  const [subject, setSubject] = useState(draft.subject);
+  const [message, setMessage] = useState(draft.message);
+  const [error, setError] = useState("");
+  const [pending, start] = useTransition();
+  const confirm = () =>
+    start(async () => {
+      setError("");
+      let cents: number | null;
+      try {
+        cents = parsePrice(amount);
+      } catch (e) {
+        return setError(e instanceof Error ? e.message : "That isn't an amount.");
+      }
+      const r = await refundOrderAction(orderId, { amount: cents, restock, ...(send ? { email: { subject, message } } : {}) });
+      if (r.error) return setError(r.error);
+      setOpen(false);
+      router.refresh();
+    });
+  return (
+    <>
+      <Button
+        type="button"
+        variant="danger"
+        className="w-full"
+        onClick={() => {
+          // Fresh each time: after a part refund, what's left (and the email about it) has changed.
+          setAmount(left);
+          setRestock(full);
+          setSubject(draft.subject);
+          setMessage(draft.message);
+          setError("");
+          setOpen(true);
+        }}
+      >
+        Refund this order
+      </Button>
+      {open && (
+        <Sheet title="Refund" onClose={() => setOpen(false)}>
+          <div className="space-y-4">
+            <Field label="Amount" htmlFor="refund-amount" hint={`Up to ${leftLabel} (${currency}). It goes back to the card they paid with.`}>
+              <Input id="refund-amount" inputMode="decimal" className="max-w-[180px] font-mono" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            </Field>
+            <div className="space-y-4 rounded-card border border-line bg-surface p-4">
+              <Switch checked={restock} onChange={setRestock} label="Put the stock back" hint="Ready-to-ship products go back into stock; a one-off goes back on sale." />
+              <Switch checked={send} onChange={setSend} label="Email the customer" hint="So they know it's on its way back." />
+            </div>
+            {send && (
+              <>
+                <Field label="Subject" htmlFor="refund-subject">
+                  <Input id="refund-subject" value={subject} maxLength={200} onChange={(e) => setSubject(e.target.value)} />
+                </Field>
+                <Field label="Message" htmlFor="refund-message">
+                  <Textarea id="refund-message" value={message} rows={6} maxLength={5000} onChange={(e) => setMessage(e.target.value)} />
+                </Field>
+              </>
+            )}
+            <Notice error={error} />
+            <Button type="button" variant="danger" className="w-full" disabled={pending} onClick={confirm}>
+              {pending ? "Refunding…" : "Refund it"}
+            </Button>
+          </div>
+        </Sheet>
+      )}
+    </>
   );
 }

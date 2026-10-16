@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { ratesFor, readShipping, zoneFor, type Shipping } from "@/modules/sites/shipping";
+import { quoteFor, ratesFor, readShipping, zoneFor, type Shipping } from "@/modules/sites/shipping";
 
 const rate = (id: string, price: number, extra: object = {}) => ({ id, kind: "post" as const, name: id, price, estimate: "", minTotal: null, maxTotal: null, postcodes: [], ...extra });
 const s: Shipping = readShipping({
@@ -25,6 +25,15 @@ describe("shipping", () => {
     expect(ratesFor(s, { country: "AU" }, 15000).map((r) => r.id)).toEqual(["pickup", "standard", "express"]);
     expect(ratesFor(s, { country: "AU" }, 20000).map((r) => r.id)).toEqual(["free", "pickup", "express"]);
     expect(ratesFor(s, { country: "AU", postcode: "6008" }, 15000).map((r) => r.id)).toEqual(["pickup", "local", "standard", "express"]);
+  });
+  test("a zone quoted individually has no rates at checkout, only its message", () => {
+    const q = readShipping({ zones: [s.zones[0], { ...s.zones[1], quote: true }, { ...s.zones[2], quote: true, quoteMessage: "We'll price it and email you." }] });
+    expect(quoteFor(q, "AU", "Australia")).toBeNull();
+    expect(ratesFor(q, { country: "AU" }, 15000).length).toBeGreaterThan(0);
+    expect(ratesFor(q, { country: "NZ" }, 15000)).toEqual([]);
+    expect(quoteFor(q, "NZ", "New Zealand")).toBe("We'll work out delivery to New Zealand and send you a quote.");
+    expect(quoteFor(q, "TH", "Thailand")).toBe("We'll price it and email you.");
+    expect(readShipping({ zones: [s.zones[0]] }).zones[0]).toMatchObject({ quote: false, quoteMessage: "" });
   });
   test("junk settings fall back rather than break checkout", () => {
     expect(readShipping({ zones: "nope" })).toEqual({ dispatchDays: 2, zones: [] });

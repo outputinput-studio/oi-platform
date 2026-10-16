@@ -1,7 +1,7 @@
 import { and, asc, count, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db, withSite } from "@/db/client";
-import { forms, memberships, submissions, users, type Form, type Submission, type SubmissionStatus } from "@/db/schema";
+import { forms, memberships, products, submissions, users, type Form, type Submission, type SubmissionStatus } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { sendEmail } from "@/lib/email";
 import { upsertFromSubmission } from "@/modules/contacts/server";
@@ -155,10 +155,14 @@ export function fileUrl(key: string): string {
  * answers so the inbox can label them for ever. Then the team is told by
  * email; a failed email never loses the submission.
  *
+ * `about` is a product id, when the form was opened from a product page
+ * ("Enquire about this"). The product is looked up here, never taken from
+ * the browser, and named in an extra "About" answer at the top.
+ *
  * `trap` is a field the page keeps hidden; a bot that fills it in gets a
  * thank-you and nothing is stored.
  */
-export async function submitForm(p: { siteId: string; formId: string; answers: unknown; trap?: string; siteName: string; inboxUrl: string }): Promise<{ ok: true; message: string }> {
+export async function submitForm(p: { siteId: string; formId: string; answers: unknown; about?: string; trap?: string; siteName: string; inboxUrl: string }): Promise<{ ok: true; message: string }> {
   const form = await publicForm({ siteId: p.siteId, formId: p.formId });
   if (!form) throw new AccessError("That form isn't on this site.");
   if (p.trap) return { ok: true, message: form.afterMessage };
@@ -167,13 +171,56 @@ export async function submitForm(p: { siteId: string; formId: string; answers: u
   for (const f of form.fields) {
     if (f.type === "file" && filesIn(answers[f.id]).some((u) => !u.key.startsWith(`${p.siteId}/forms/`))) throw new AccessError("Those files aren't from this site.");
   }
+  const about = p.about && z.string().uuid().safeParse(p.about).success ? await productNamed(p.siteId, p.about) : null;
+  const extra: Field[] = about ? [ABOUT_FIELD] : [];
+  await recordSubmission({ siteId: p.siteId, form, fields: [...extra, ...form.fields], answers: about ? { [ABOUT_FIELD.id]: about, ...answers } : answers, siteName: p.siteName, inboxUrl: p.inboxUrl, autoReply: true });
+  return { ok: true, message: fillIn(form.afterMessage, form.fields, answers) };
+}
 
-  const sender = senderOf(form.fields, answers);
+/**
+ * The "About" answer the site adds itself. A choice, so it is never taken
+ * for the sender's name (the first short text) or their message.
+ */
+export const ABOUT_FIELD: Field = { id: "_about", type: "choice", label: "About", help: "", required: false, options: [] };
+
+/** "Costume — blue feather set (/shop/costume-blue)": a visible product of this site, or null. */
+async function productNamed(siteId: string, productId: string): Promise<string | null> {
+  const [r] = await withSite(siteId, (tx) =>
+    tx
+      .select({ name: products.name, slug: products.slug })
+      .from(products)
+      .where(and(eq(products.id, productId), eq(products.visible, true), isNull(products.deletedAt)))
+      .limit(1),
+  );
+  return r ? `${r.name} (/shop/${r.slug})` : null;
+}
+
+/**
+ * Store a submission and tell the team: the shared second half of a form
+ * being sent. Also how the shop files a delivery-quote request — fields and
+ * answers it writes itself, under the site's enquiry form. `fields` is what
+ * the inbox labels the answers with; `form` decides contacts, who's told
+ * and the auto-reply.
+ */
+export async function recordSubmission(p: {
+  siteId: string;
+  form: FormWithFields;
+  fields: Field[];
+  answers: Record<string, string>;
+  siteName: string;
+  inboxUrl: string;
+  /** Send the form's own auto-reply (when it has one). Off when the answers aren't the form's fields. */
+  autoReply: boolean;
+  /** "Amelia sent Commission enquiry" → "Amelia asked for a delivery quote". */
+  subject?: string;
+}): Promise<Submission> {
+  const { form, fields, answers } = p;
+  const sender = senderOf(fields, answers);
   const row = await withSite(p.siteId, async (tx) => {
     // The person first, so the submission can point at them.
-    const phoneField = form.fields.find((f) => f.type === "phone" && answers[f.id]);
+    const phoneField = fields.find((f) => f.type === "phone" && answers[f.id]);
     const contactId = form.createContact ? await upsertFromSubmission(tx, { siteId: p.siteId, name: sender.name, email: sender.email, phone: phoneField ? answers[phoneField.id] : "" }) : null;
-    const [r] = await tx.insert(submissions).values({ siteId: p.siteId, formId: form.id, answers, fields: form.fields, contactId }).returning();
+    const [r] = await tx.insert(submissions).values({ siteId: p.siteId, formId: form.id, answers, fields, contactId }).returning();
     return r;
   });
 
@@ -181,14 +228,14 @@ export async function submitForm(p: { siteId: string; formId: string; answers: u
     const to = splitEmails(form.notifyEmails);
     const recipients = to.length ? to : await ownerEmails(p.siteId);
     const who = sender.name || sender.email || "Someone";
-    const lines = form.fields
+    const lines = fields
       .map((f) => `${f.label}\n${f.type === "file" ? filesIn(answers[f.id]).map((u) => `${u.name}: ${fileUrl(u.key)}`).join("\n") || "—" : answers[f.id] || "—"}`)
       .join("\n\n");
     await Promise.all(
       recipients.map((email) =>
         sendEmail({
           to: email,
-          subject: `${who} sent ${form.name} on ${p.siteName}`,
+          subject: `${who} ${p.subject ?? `sent ${form.name}`} on ${p.siteName}`,
           text: `${lines}\n\nSee it in your inbox: ${p.inboxUrl}/${row.id}${sender.email ? `\nReply to them: ${sender.email}` : ""}`,
         }),
       ),
@@ -198,18 +245,18 @@ export async function submitForm(p: { siteId: string; formId: string; answers: u
   }
 
   // The reply to them, if the form sends one and they left an address.
-  if (form.autoReply && sender.email) {
+  if (p.autoReply && form.autoReply && sender.email) {
     try {
       await sendEmail({
         to: sender.email,
-        subject: fillIn(form.replySubject, form.fields, answers) || `Thanks for writing to ${p.siteName}`,
-        text: fillIn(form.replyMessage, form.fields, answers) || `We have your message and will be in touch.\n\n${p.siteName}`,
+        subject: fillIn(form.replySubject, fields, answers) || `Thanks for writing to ${p.siteName}`,
+        text: fillIn(form.replyMessage, fields, answers) || `We have your message and will be in touch.\n\n${p.siteName}`,
       });
     } catch (err) {
       console.error("auto-reply failed", err);
     }
   }
-  return { ok: true, message: fillIn(form.afterMessage, form.fields, answers) };
+  return row;
 }
 
 /** Owners' addresses, for a form with no "send to". Platform tables, so outside withSite(). */

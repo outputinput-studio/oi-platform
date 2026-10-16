@@ -1,23 +1,36 @@
 "use server";
 
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
-import { disconnectStripe, startStripeConnect } from "./server";
+import { refreshStripeAccount, removeStripeKeys, saveStripeKeys } from "./server";
 
-/** "Connect Stripe" / "Finish in Stripe": off to Stripe's own onboarding, back to Settings · Payments. */
-export async function connectStripeAction(): Promise<void> {
+export type PaymentsFormState = { ok?: string; error?: string };
+
+/** Settings · Payments: the client's own Stripe keys. */
+export async function saveStripeKeysAction(_prev: PaymentsFormState, form: FormData): Promise<PaymentsFormState> {
   const { user, site } = await requireSiteAccess();
-  const host = (await headers()).get("x-oi-host") ?? "";
-  const back = `https://${host}/settings/payments`;
-  const url = await startStripeConnect({ actorId: user.id, siteId: site.id, returnUrl: `${back}?from=stripe`, refreshUrl: `${back}?from=stripe` });
-  redirect(url);
+  try {
+    const s = await saveStripeKeys({ actorId: user.id, siteId: site.id, secretKey: String(form.get("secretKey") ?? ""), webhookSecret: String(form.get("webhookSecret") ?? "") });
+    revalidatePath("/", "layout");
+    return { ok: s.chargesEnabled ? "Connected. Your shop can take payments." : "Saved — Stripe still has questions for you before it can take money." };
+  } catch (err) {
+    if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "That doesn't look right." };
+    return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+  }
 }
 
-export async function disconnectStripeAction(): Promise<void> {
+export async function refreshStripeAction(): Promise<void> {
   const { user, site } = await requireSiteAccess();
-  await disconnectStripe({ actorId: user.id, siteId: site.id });
+  await refreshStripeAccount({ actorId: user.id, siteId: site.id });
+  revalidatePath("/", "layout");
+  redirect("/settings/payments");
+}
+
+export async function removeStripeKeysAction(): Promise<void> {
+  const { user, site } = await requireSiteAccess();
+  await removeStripeKeys({ actorId: user.id, siteId: site.id });
   revalidatePath("/", "layout");
   redirect("/settings/payments");
 }

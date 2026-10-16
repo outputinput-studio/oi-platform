@@ -26,7 +26,7 @@ type Draft = {
 };
 
 const KIND: Record<Kind, string> = { percent: "Percentage off", amount: "Amount off", freeShipping: "Free postage" };
-const SCOPE: Record<Scope, [string, string]> = { all: ["Everything", "Every piece on your site."], category: ["One category", "Bikinis, costumes, and so on."], products: ["Pieces you pick", "Choose them one by one."] };
+const SCOPE: Record<Scope, [string, string]> = { all: ["Everything", "Every product on your site."], category: ["One category", "Bikinis, costumes, and so on."], products: ["Products you pick", "Choose them one by one."] };
 
 /** A discount code, as in design/admin.html: the code, what it takes off, what it's for, limits, dates, and a preview. */
 export function CodeEditor({
@@ -100,7 +100,7 @@ export function CodeEditor({
               <Input id="code-amt" inputMode="decimal" className="max-w-[160px] font-mono" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </Field>
           )}
-          {d.kind === "freeShipping" && <p className="text-[12.5px] text-muted">Postage comes off the total. The pieces stay full price.</p>}
+          {d.kind === "freeShipping" && <p className="text-[12.5px] text-muted">Postage comes off the total. The products stay full price.</p>}
         </div>
       </div>
 
@@ -179,7 +179,7 @@ export function CodeEditor({
         <Label>What customers see</Label>
         <dl className="space-y-1.5 rounded-card border border-line bg-sunken p-4 font-mono text-[13.5px]">
           <div className="flex justify-between">
-            <dt>Pieces</dt>
+            <dt>Products</dt>
             <dd>{fmt(sample)}</dd>
           </div>
           {d.kind !== "freeShipping" && (
