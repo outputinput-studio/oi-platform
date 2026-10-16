@@ -40,13 +40,14 @@ describe("shipping", () => {
     expect(whyNoRates(readShipping({ zones: [s.zones[0]] }), { country: "TH" }, 1000)).toEqual({ why: "noZone" });
     const capped = readShipping({ zones: [{ id: "au", name: "AU", countries: ["AU"], rates: [rate("std", 1200, { maxTotal: 20000 }), rate("free", 0, { minTotal: 20000, maxTotal: 100000 })] }] });
     expect(whyNoRates(capped, { country: "AU" }, 1252300)).toEqual({ why: "total" });
-    expect(zoneGaps(capped.zones[0])).toEqual({ noRates: false, from: 100000, below: null });
+    expect(zoneGaps(capped.zones[0])).toEqual({ noRates: false, localOnly: false, from: 100000, below: null });
     const local = readShipping({ zones: [{ id: "au", name: "AU", countries: ["AU"], rates: [rate("local", 500, { kind: "local", postcodes: ["6000"] })] }] });
     expect(whyNoRates(local, { country: "AU" }, 1000)).toEqual({ why: "postcode", typed: false });
     expect(whyNoRates(local, { country: "AU", postcode: "2000" }, 1000)).toEqual({ why: "postcode", typed: true });
+    expect(zoneGaps(local.zones[0]).localOnly).toBe(true);
     expect(zoneGaps(readShipping({ zones: [{ id: "x", name: "X", countries: ["NZ"], rates: [] }] }).zones[0]).noRates).toBe(true);
     expect(zoneGaps(readShipping({ zones: [{ id: "x", name: "X", countries: ["NZ"], rates: [rate("free", 0, { minTotal: 20000 })] }] }).zones[0]).below).toBe(20000);
-    expect(zoneGaps(s.zones[0])).toEqual({ noRates: false, from: null, below: null });
+    expect(zoneGaps(s.zones[0])).toEqual({ noRates: false, localOnly: false, from: null, below: null });
   });
   test("junk settings fall back rather than break checkout", () => {
     expect(readShipping({ zones: "nope" })).toEqual({ dispatchDays: 2, zones: [] });

@@ -274,7 +274,7 @@ function RateEditor({ rate: r, canEdit, fmt, onChange, onRemove }: { rate: Rate;
         <Input id={`r-est-${r.id}`} value={r.estimate} maxLength={80} placeholder="3–5 business days" readOnly={!canEdit} onChange={(e) => onChange({ estimate: e.target.value })} />
       </Field>
       {r.kind === "local" && (
-        <Field label="Postcodes you deliver to" htmlFor={`r-pc-${r.id}`} hint="Separated by commas.">
+        <Field label="Postcodes you deliver to" htmlFor={`r-pc-${r.id}`} hint={r.postcodes.length ? "Separated by commas." : "Separated by commas. With none listed, this rate never shows at checkout."}>
           <Textarea
             id={`r-pc-${r.id}`}
             rows={2}
@@ -327,6 +327,7 @@ function ZoneGaps({ zone, fmt }: { zone: Zone; fmt: (c: number) => string }) {
   const g = zoneGaps(zone);
   const lines = [
     g.noRates && "No rates yet, so customers here can't check out.",
+    g.localOnly && "Only local delivery here, so anyone outside your postcodes can't check out. Add a Post or courier rate to cover everyone else.",
     g.below !== null && `Orders under ${fmt(g.below)} have no delivery option here.`,
     g.from !== null && `Orders of ${fmt(g.from)} or more have no delivery option here.`,
   ].filter(Boolean) as string[];
@@ -336,7 +337,7 @@ function ZoneGaps({ zone, fmt }: { zone: Zone; fmt: (c: number) => string }) {
       {lines.map((l) => (
         <p key={l}>{l}</p>
       ))}
-      <p className="text-muted">Add a rate without a limit, or turn a limit off, to cover them.</p>
+      {(g.from !== null || g.below !== null) && <p className="text-muted">Add a rate without a limit, or turn a limit off, to cover them.</p>}
     </div>
   );
 }

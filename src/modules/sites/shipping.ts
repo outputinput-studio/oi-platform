@@ -99,15 +99,15 @@ export function whyNoRates(s: Shipping, where: { country: string; postcode?: str
  * that it has no rates at all. Local delivery depends on the postcode, so
  * it doesn't count as covering everyone.
  */
-export function zoneGaps(z: Zone): { noRates: boolean; from: number | null; below: number | null } {
-  const none = { noRates: false, from: null, below: null };
+export function zoneGaps(z: Zone): { noRates: boolean; localOnly: boolean; from: number | null; below: number | null } {
+  const none = { noRates: false, localOnly: false, from: null, below: null };
   if (z.quote) return none;
   if (z.rates.length === 0) return { ...none, noRates: true };
   const open = z.rates.filter((r) => r.kind !== "local");
-  if (open.length === 0) return none;
+  if (open.length === 0) return { ...none, localOnly: true };
   const from = open.some((r) => r.maxTotal === null) ? null : Math.max(...open.map((r) => r.maxTotal ?? 0));
   const below = open.some((r) => !r.minTotal) ? null : Math.min(...open.map((r) => r.minTotal ?? 0));
-  return { noRates: false, from, below };
+  return { noRates: false, localOnly: false, from, below };
 }
 
 /** When delivery to this country is quoted individually: what the customer reads instead of rates. Null when it isn't. */

@@ -59,6 +59,7 @@ export function ProductEditor({
   seo,
   deleteAction,
   hasEnquiryForm,
+  paymentsReady,
 }: {
   product: ProductDraft & { id: string };
   photoUrls: Record<string, string>;
@@ -72,6 +73,8 @@ export function ProductEditor({
   deleteAction: (f: FormData) => Promise<void>;
   /** Whether Settings · Enquiries has a form, so enquire-only and sold products get a button. */
   hasEnquiryForm: boolean;
+  /** The site can take payments, so Add to cart shows. */
+  paymentsReady: boolean;
 }) {
   const [d, setD] = useState<ProductDraft>(product);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -312,10 +315,15 @@ export function ProductEditor({
             </p>
             <p className="mt-1 text-[13px] text-body">{view.note}</p>
             {(view.buyable || view.quotable) && (
-              <p className="mt-2 flex gap-1.5">
-                {view.buyable && <span className="rounded-[4px] border border-line px-2 py-0.5 text-[12px] text-body">Add to cart</span>}
-                {view.quotable && <span className="rounded-[4px] border border-line px-2 py-0.5 text-[12px] text-body">Email quote</span>}
-              </p>
+              <>
+                {/* Only what will really show; a button that's waiting on a setting is dimmed, with why. */}
+                <p className="mt-2 flex gap-1.5">
+                  {view.buyable && <span className={`rounded-[4px] border border-line px-2 py-0.5 text-[12px] ${paymentsReady ? "text-body" : "text-faint line-through"}`}>Add to cart</span>}
+                  {view.quotable && <span className={`rounded-[4px] border border-line px-2 py-0.5 text-[12px] ${hasEnquiryForm ? "text-body" : "text-faint line-through"}`}>Email quote</span>}
+                </p>
+                {view.buyable && !paymentsReady && <p className="mt-1 text-[12px] text-muted">Add to cart shows once payments are set up.</p>}
+                {view.quotable && !hasEnquiryForm && <p className="mt-1 text-[12px] text-muted">Email quote shows once an enquiry form is chosen.</p>}
+              </>
             )}
             {!d.visible && <p className="mt-1 text-[12px] text-warning">Hidden — only you can see it.</p>}
           </div>
