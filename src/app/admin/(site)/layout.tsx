@@ -2,6 +2,7 @@ import { environmentName } from "@/lib/env";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { signOut } from "@/modules/auth/actions";
 import { newSubmissionCount } from "@/modules/forms/server";
+import { newOrderCount } from "@/modules/orders/admin";
 import { siteSearch } from "@/modules/sites/server";
 import Link from "next/link";
 import { Nav } from "./nav";
@@ -16,10 +17,10 @@ import { Nav } from "./nav";
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const { site, user, role } = await requireSiteAccess();
   const envName = environmentName();
-  const inboxCount = await newSubmissionCount({ siteId: site.id });
+  const [inboxCount, ordersCount] = await Promise.all([newSubmissionCount({ siteId: site.id }), newOrderCount({ siteId: site.id })]);
   return (
     <div className="min-h-screen md:pl-[var(--sidebar)]">
-      <Nav siteName={site.name} userName={user.name || user.email} role={role} envName={envName === "production" ? null : envName} inboxCount={inboxCount} signOut={signOut} />
+      <Nav siteName={site.name} userName={user.name || user.email} role={role} envName={envName === "production" ? null : envName} inboxCount={inboxCount} ordersCount={ordersCount} signOut={signOut} />
       <main className="px-4 pb-28 md:px-6 md:pb-12">
         <div className="mx-auto w-full max-w-[1120px]">
           {siteSearch(site).hideFromSearch && (
