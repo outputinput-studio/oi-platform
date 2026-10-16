@@ -119,7 +119,7 @@ export function ShippingEditor({
           <button
             type="button"
             onClick={addZone}
-            className="mt-2 flex h-12 w-full items-center justify-center rounded-card border border-dashed border-line-strong text-[14.5px] text-body hover:border-accent hover:text-accent-text"
+            className="mt-2 flex h-12 w-full items-center justify-center rounded-card border border-dashed border-accent text-[14.5px] text-text hover:bg-hover"
           >
             + Add a zone
           </button>
