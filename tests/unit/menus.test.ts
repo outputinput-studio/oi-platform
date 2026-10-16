@@ -13,6 +13,8 @@ const targets: LinkTargets = {
   ],
   categories: [{ id: C1, name: "Behind the scenes", path: "/journal/behind-the-scenes" }],
   articles: [],
+  productCategories: [{ id: C1, name: "Bikinis", path: "/shop/bikinis" }],
+  products: [{ id: P2, title: "Teal bikini", path: "/shop/teal-bikini", live: false }],
 };
 const item = (id: string, link: MenuItem["link"], depth: 0 | 1 = 0, label = ""): MenuItem => ({ id, label, link, depth });
 
@@ -22,6 +24,9 @@ describe("menu items", () => {
     expect(itemSummary(describeLink({ type: "page", pageId: GONE }, targets))).toBe("This page no longer exists");
     expect(itemSummary(describeLink({ type: "page", pageId: P2 }, targets))).toMatch(/not live yet/);
     expect(itemSummary(describeLink({ type: "articleCategory", categoryId: C1 }, targets))).toBe("Article category · /journal/behind-the-scenes");
+    expect(itemSummary(describeLink({ type: "productCategory", categoryId: C1 }, targets))).toBe("Product category · /shop/bikinis");
+    expect(itemSummary(describeLink({ type: "product", productId: P2 }, targets))).toMatch(/^Product · \/shop\/teal-bikini · not live yet/);
+    expect(itemSummary(describeLink({ type: "shop" }, targets))).toBe("Shop · /shop");
     expect(describeLink({ type: "url", url: "https://instagram.com/kini/", newTab: true }, targets)).toMatchObject({ external: true, newTab: true, title: "instagram.com/kini" });
   });
 

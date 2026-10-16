@@ -24,10 +24,11 @@ test("the shell has navigation and shows the site", async ({ page }) => {
   await signInAsOwner(page);
   const nav = page.getByRole("navigation", { name: "Main" });
   await expect(nav.getByRole("link", { name: "Content" })).toBeVisible();
-  await expect(nav.getByRole("link", { name: "Images" })).toBeVisible();
-  // On a phone, Team and Settings sit behind More, which opens a sheet.
+  await expect(nav.getByRole("link", { name: "Products" })).toBeVisible();
+  // On a phone, Images, Team and Settings sit behind More, which opens a sheet.
   await nav.getByRole("button", { name: "More" }).click();
   const sheet = page.getByRole("dialog");
+  await expect(sheet.getByRole("link", { name: "Images" })).toBeVisible();
   await expect(sheet.getByRole("link", { name: "Team" })).toBeVisible();
   await expect(sheet.getByRole("link", { name: "Settings" })).toBeVisible();
   await sheet.getByRole("button", { name: "Close" }).click();

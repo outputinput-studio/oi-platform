@@ -4,12 +4,12 @@ import { useState } from "react";
 import { linkSchema, type LinkTargets, type MenuLink } from "@/modules/menus/items";
 import { Button, Input, Pill, Sheet, Switch } from "../../../ui";
 
-type Step = "root" | "page" | "articleCategory" | "article";
+type Step = "root" | "page" | "articleCategory" | "article" | "productCategory" | "product";
 
 /**
  * "Where should it go?", as in design/admin.html: your site, the journal,
- * or somewhere else. Picking a kind lists what there is of it; a web
- * address is typed in place. The shop rows join when the shop does.
+ * the shop, or somewhere else. Picking a kind lists what there is of it;
+ * a web address is typed in place. The cart joins when checkout does.
  */
 export function LinkPicker({ targets, onPick, onClose }: { targets: LinkTargets; onPick: (link: MenuLink, title: string) => void; onClose: () => void }) {
   const [step, setStep] = useState<Step>("root");
@@ -33,6 +33,36 @@ export function LinkPicker({ targets, onPick, onClose }: { targets: LinkTargets;
           <Choices>
             {targets.pages.map((p) => (
               <Choice key={p.id} title={p.title} detail={p.path} badge={p.live ? undefined : "Draft"} onClick={() => onPick({ type: "page", pageId: p.id }, p.title)} />
+            ))}
+          </Choices>
+        )}
+      </Sheet>
+    );
+  if (step === "productCategory")
+    return (
+      <Sheet title="A product category" onClose={onClose}>
+        <Back onClick={() => setStep("root")} />
+        {targets.productCategories.length === 0 ? (
+          <Empty>No categories yet. Add them under Products → Categories.</Empty>
+        ) : (
+          <Choices>
+            {targets.productCategories.map((c) => (
+              <Choice key={c.id} title={c.name} detail={c.path} onClick={() => onPick({ type: "productCategory", categoryId: c.id }, c.name)} />
+            ))}
+          </Choices>
+        )}
+      </Sheet>
+    );
+  if (step === "product")
+    return (
+      <Sheet title="A product" onClose={onClose}>
+        <Back onClick={() => setStep("root")} />
+        {targets.products.length === 0 ? (
+          <Empty>No products yet.</Empty>
+        ) : (
+          <Choices>
+            {targets.products.map((p) => (
+              <Choice key={p.id} title={p.title} detail={p.path} badge={p.live ? undefined : "Hidden"} onClick={() => onPick({ type: "product", productId: p.id }, p.title)} />
             ))}
           </Choices>
         )}
@@ -73,11 +103,16 @@ export function LinkPicker({ targets, onPick, onClose }: { targets: LinkTargets;
     <Sheet title="Where should it go?" onClose={onClose}>
       <Group label="Your site">
         <Choice icon={<PageIcon />} title="A page" detail={capitalise(targets.pages.slice(0, 3).map((p) => p.title.toLowerCase()).join(", ")) || "Home, about, contact"} onClick={() => setStep("page")} more />
+        <Choice icon={<TagIcon />} title="A product category" detail={targets.productCategories.slice(0, 2).map((c) => c.name).join(", ") || "Bikinis, costumes"} onClick={() => setStep("productCategory")} more />
+        <Choice icon={<BagIcon />} title="A product" detail="One piece in particular" onClick={() => setStep("product")} more />
       </Group>
       <Group label="Journal">
         <Choice icon={<BookIcon />} title="The journal" detail="Every article, newest first" onClick={() => onPick({ type: "journal" }, "Journal")} />
         <Choice icon={<TagIcon />} title="An article category" detail={targets.categories.slice(0, 2).map((c) => c.name).join(", ") || "Behind the scenes"} onClick={() => setStep("articleCategory")} more />
         <Choice icon={<DocIcon />} title="An article" detail="A single post" onClick={() => setStep("article")} more />
+      </Group>
+      <Group label="Shopping">
+        <Choice icon={<BagIcon />} title="The shop" detail="Everything for sale" onClick={() => onPick({ type: "shop" }, "Shop")} />
       </Group>
       <Group label="Somewhere else">
         <div className="rounded-card border border-line bg-surface p-4">
@@ -191,6 +226,14 @@ function TagIcon() {
     <svg {...icon}>
       <path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z" />
       <circle cx="7.5" cy="7.5" r="1.5" />
+    </svg>
+  );
+}
+function BagIcon() {
+  return (
+    <svg {...icon}>
+      <path d="M6 7h12l-1 14H7z" />
+      <path d="M9 7a3 3 0 0 1 6 0" />
     </svg>
   );
 }

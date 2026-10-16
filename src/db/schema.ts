@@ -1,5 +1,6 @@
 import { pgTable, uuid, text, timestamp, boolean, index, uniqueIndex, integer, jsonb } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { PRODUCT_AVAILABILITY, PRODUCT_MAKES } from "../modules/products/kinds";
 
 /**
  * Two kinds of table live here.
@@ -26,6 +27,8 @@ export const sites = pgTable("sites", {
   theme: jsonb("theme").notNull().$type<Record<string, unknown>>().default({}),
   /** Search engines: see searchSettingsSchema in modules/sites/search.ts. */
   search: jsonb("search").notNull().$type<Record<string, unknown>>().default({}),
+  /** Selling: currency and tax. See shopSettingsSchema in modules/sites/shop.ts. */
+  shop: jsonb("shop").notNull().$type<Record<string, unknown>>().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -467,3 +470,73 @@ export const menus = pgTable(
   ],
 );
 export type Menu = typeof menus.$inferSelect;
+
+/**
+ * Product categories: how people browse the shop. Each is a page at
+ * /shop/<slug>. Product and category addresses share /shop, so a slug is
+ * unique across both (checked in the products module). Soft delete only.
+ */
+export const productCategories = pgTable(
+  "product_categories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    description: text("description").notNull().default(""),
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("product_categories_site_slug_idx").on(t.siteId, t.slug).where(sql`${t.deletedAt} is null`),
+    index("product_categories_site_id_idx").on(t.siteId),
+  ],
+);
+export type ProductCategory = typeof productCategories.$inferSelect;
+
+export { PRODUCT_AVAILABILITY, PRODUCT_MAKES };
+
+/**
+ * Products. Prices are whole cents in the site's currency. Photos are
+ * library references (the first is the main one). Hidden until the team
+ * turns "Visible on site" on.
+ */
+export const products = pgTable(
+  "products",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    description: text("description").notNull().default(""),
+    /** Whole cents. Null until the team enters one. */
+    price: integer("price"),
+    salePrice: integer("sale_price"),
+    categoryId: uuid("category_id"),
+    digital: boolean("digital").notNull().default(false),
+    make: text("make", { enum: PRODUCT_MAKES }).notNull().default("ready"),
+    /** Ready to ship: how many there are. Null means not counted. */
+    stock: integer("stock"),
+    /** Made to order: how long it takes, in leadUnit. */
+    leadTime: integer("lead_time"),
+    leadUnit: text("lead_unit", { enum: ["weeks", "days"] }).notNull().default("weeks"),
+    availability: text("availability", { enum: PRODUCT_AVAILABILITY }).notNull().default("forSale"),
+    visible: boolean("visible").notNull().default(false),
+    photos: jsonb("photos").notNull().$type<unknown[]>().default([]),
+    code: text("code").notNull().default(""),
+    seo: jsonb("seo").notNull().$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("products_site_slug_idx").on(t.siteId, t.slug).where(sql`${t.deletedAt} is null`),
+    index("products_site_id_idx").on(t.siteId),
+  ],
+);
+export type Product = typeof products.$inferSelect;
