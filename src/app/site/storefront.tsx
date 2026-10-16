@@ -13,6 +13,8 @@ import { HOME_SLUG, publishedPage } from "@/modules/pages/server";
 import { siteMenus, type SiteMenus } from "@/modules/menus/server";
 import type { NavLink } from "@/modules/menus/items";
 import { CartLink } from "./cart-link";
+import { readAccountSettings } from "@/modules/customers/settings";
+import { paymentsStatus } from "@/modules/payments/server";
 import { RenderSections } from "@/modules/pages/render";
 import { Placeholder } from "@/lib/placeholder";
 import type { Site } from "@/db/schema";
@@ -145,6 +147,14 @@ export function Frame({
               </svg>
             </Link>
           )}
+          {!preview && readAccountSettings(site.accounts).enabled && (
+            <Link href="/account" aria-label="Your account" className={`flex flex-none items-center ${current.startsWith("/account") ? "text-[var(--text)]" : "text-[var(--text-muted)] hover:text-[var(--text)]"}`}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4.5 21a7.5 7.5 0 0 1 15 0" />
+              </svg>
+            </Link>
+          )}
           {!preview && <CartLink site={site} />}
           </div>
         </div>
@@ -172,6 +182,11 @@ export function Frame({
           <span>
             © {new Date().getFullYear()} {tradingName(site)}
           </span>
+          {!preview && paymentsStatus(site).ready && (
+            <Link href="/track" className="hover:text-[var(--text)]">
+              Track my order
+            </Link>
+          )}
           {social.length > 0 && (
             <nav aria-label="Social" className="flex flex-wrap gap-x-4 gap-y-1">
               {social.map(([name, href]) => (

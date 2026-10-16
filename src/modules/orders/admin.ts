@@ -101,7 +101,13 @@ export async function moveOrder(p: { actorId: string; siteId: string; orderId: s
   const [updated] = await withSite(p.siteId, (tx) =>
     tx
       .update(orders)
-      .set({ status: c.status, ...(c.tracking ? { tracking: c.tracking } : {}), updatedAt: new Date() })
+      .set({
+        status: c.status,
+        ...(c.tracking ? { tracking: c.tracking } : {}),
+        // When it first reached this stage, for the customer's timeline (Track my order, their account).
+        statusTimes: c.status in (cur.statusTimes ?? {}) ? cur.statusTimes : { ...(cur.statusTimes ?? {}), [c.status]: new Date().toISOString() },
+        updatedAt: new Date(),
+      })
       .where(eq(orders.id, cur.id))
       .returning(),
   );

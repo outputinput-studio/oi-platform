@@ -42,6 +42,10 @@ A refusal about one field throws `FieldError(field, message)`; a lone value is p
   its own `<site_id>/` folder; local disk when R2 isn't configured outside production), rows in `media` (RLS).
   Sections reference an image by storage `key`, never by URL: the public address comes from `R2_PUBLIC_URL` at
   render time, so the bucket's domain can change without touching a page. The browser shrinks photos before upload.
+- `src/modules/customers` — storefront customer accounts and Track my order (design/storefront-accounts.html). Its own
+  small sign-in, not Better Auth: customers belong to one site (RLS), staff don't. Codes are HMAC'd, session tokens
+  SHA-256'd, passwords scrypt'd (node:crypto only); guessing is slowed by `throttles` (5 misses → 2 min, doubling to an
+  hour). Account functions take the customer the session cookie resolved to, never an id from the form.
 - `src/app/site` — the storefront. The site comes from the hostname (`siteFromHost`, via the owner-defined
   `resolve_site(slug)` function, the only way to find a site before one is current); only published pages render.
 - `tests/unit` (pure) · `tests/integration` (real Postgres) · `tests/e2e` (Playwright, Host header per surface)

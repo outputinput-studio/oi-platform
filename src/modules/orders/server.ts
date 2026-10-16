@@ -1,7 +1,7 @@
 import { and, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, withSite, type Tx } from "@/db/client";
-import { memberships, orders, products, sites, users, type Order, type Site } from "@/db/schema";
+import { customerAddresses, memberships, orders, products, sites, users, type Order, type Site } from "@/db/schema";
 import { sendEmail } from "@/lib/email";
 import { COUNTRY_CODES, countryName } from "@/lib/countries";
 import { upsertFromSubmission } from "@/modules/contacts/server";
@@ -186,7 +186,7 @@ export async function priceCart(p: { site: Site; cart: CartLine[]; cartRef?: str
 
 // ───────────────────────── placing an order ─────────────────────────
 
-const addressSchema = z.object({
+export const addressSchema = z.object({
   line1: z.string().trim().min(1, "Which street?").max(200),
   line2: z.string().trim().max(200).default(""),
   city: z.string().trim().min(1, "Which town or suburb?").max(100),
@@ -229,7 +229,8 @@ export type OrderItem = {
 };
 
 /** A pending order from the cart as it stands, priced on the server. Payment comes next. */
-export async function placeOrder(p: { site: Site; cart: CartLine[]; details: unknown; provider: string; cartRef?: string }): Promise<Order> {
+/** `customerId`: the signed-in customer (from their session, never from the form), whose account the order joins. */
+export async function placeOrder(p: { site: Site; cart: CartLine[]; details: unknown; provider: string; cartRef?: string; customerId?: string }): Promise<Order> {
   const priced = await priceCart({ site: p.site, cart: p.cart, cartRef: p.cartRef });
   if (priced.lines.length === 0)
     throw new Error(priced.held.length ? `${priced.held.join(", ")} ${priced.held.length === 1 ? "is" : "are"} in someone else's checkout right now. Try again in half an hour.` : "Your cart is empty — nothing in it can be bought right now.");
@@ -295,8 +296,14 @@ export async function placeOrder(p: { site: Site; cart: CartLine[]; details: unk
         total: t.total,
         provider: p.provider,
         cartRef: p.cartRef ?? "",
+        customerId: p.customerId ?? null,
       })
       .returning();
+    // Their first delivery address becomes the account's, so next time checkout fills itself in.
+    if (p.customerId && details.address) {
+      const [any] = await tx.select({ id: customerAddresses.id }).from(customerAddresses).where(and(eq(customerAddresses.customerId, p.customerId), isNull(customerAddresses.deletedAt))).limit(1);
+      if (!any) await tx.insert(customerAddresses).values({ siteId: p.site.id, customerId: p.customerId, name: details.name, address: details.address, isDefault: true });
+    }
     return o;
   });
 }

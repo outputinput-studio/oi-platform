@@ -28,6 +28,8 @@ export function CheckoutForm({
   currency,
   tax,
   canQuote,
+  prefill,
+  offerSignIn,
 }: {
   needsAddress: boolean;
   countries: { code: string; name: string }[];
@@ -41,6 +43,10 @@ export function CheckoutForm({
   tax: { rate: number; included: boolean; name: string };
   /** The site has an enquiry form for quote requests to go through. */
   canQuote: boolean;
+  /** Signed in: their details and default address, filled in (still theirs to change). */
+  prefill?: { name: string; email: string; phone: string; address?: Record<string, string> };
+  /** Accounts on and not signed in: offer to sign in so the details fill themselves in. */
+  offerSignIn?: boolean;
 }) {
   const [state, act, pending] = useActionState(checkoutAction, {} as CartState);
   const [quoteState, askQuote, quoting] = useActionState(quoteAction, {} as CartState);
@@ -60,8 +66,9 @@ export function CheckoutForm({
       setCodeError(r.error ?? "That code doesn't work.");
     }
   };
-  const [country, setCountry] = useState(defaultCountry);
-  const [postcode, setPostcode] = useState("");
+  const saved = prefill?.address;
+  const [country, setCountry] = useState(saved?.country || defaultCountry);
+  const [postcode, setPostcode] = useState(saved?.postcode ?? "");
   const countryName = countries.find((c) => c.code === country)?.name ?? country;
   const quote = needsAddress ? quoteFor(shipping, country, countryName, parcel) : null;
   const rates = needsAddress ? ratesFor(shipping, { country, postcode }, subtotal, parcel) : [];
@@ -98,9 +105,18 @@ export function CheckoutForm({
     <form action={quote ? askQuote : act} className="space-y-5">
       <fieldset className="space-y-4">
         <legend className="mb-1 text-[18px] font-medium">Your details</legend>
-        <Field label="Name" name="name" autoComplete="name" required />
-        <Field label="Email" name="email" type="email" autoComplete="email" required hint="Your receipt goes here." />
-        <Field label="Phone" name="phone" type="tel" autoComplete="tel" hint="Optional. In case the courier needs you." />
+        {offerSignIn && (
+          <p data-testid="checkout-sign-in" className="text-[14px] text-[var(--text-muted)]">
+            Been here before?{" "}
+            <a href="/account?next=/shop/checkout" className="text-[var(--text)] underline underline-offset-4">
+              Sign in
+            </a>{" "}
+            and your details fill themselves in. Or just carry on.
+          </p>
+        )}
+        <Field label="Name" name="name" autoComplete="name" required defaultValue={prefill?.name} />
+        <Field label="Email" name="email" type="email" autoComplete="email" required hint="Your receipt goes here." defaultValue={prefill?.email} />
+        <Field label="Phone" name="phone" type="tel" autoComplete="tel" hint="Optional. In case the courier needs you." defaultValue={prefill?.phone} />
       </fieldset>
       {needsAddress && (
         <fieldset className="space-y-4">
@@ -119,11 +135,11 @@ export function CheckoutForm({
           </div>
           {!pickup && (
             <>
-              <Field label="Street address" name="line1" autoComplete="address-line1" required />
-              <Field label="Apartment, unit, etc." name="line2" autoComplete="address-line2" />
+              <Field label="Street address" name="line1" autoComplete="address-line1" required defaultValue={saved?.line1} />
+              <Field label="Apartment, unit, etc." name="line2" autoComplete="address-line2" defaultValue={saved?.line2} />
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Town or suburb" name="city" autoComplete="address-level2" required />
-                <Field label="State" name="state" autoComplete="address-level1" />
+                <Field label="Town or suburb" name="city" autoComplete="address-level2" required defaultValue={saved?.city} />
+                <Field label="State" name="state" autoComplete="address-level1" defaultValue={saved?.state} />
               </div>
             </>
           )}
@@ -250,6 +266,7 @@ function Field({
   hint,
   value,
   onChange,
+  defaultValue,
 }: {
   label: string;
   name: string;
@@ -259,6 +276,7 @@ function Field({
   hint?: string;
   value?: string;
   onChange?: (v: string) => void;
+  defaultValue?: string;
 }) {
   return (
     <label className="block">
@@ -269,7 +287,7 @@ function Field({
         autoComplete={autoComplete}
         required={required}
         className={input}
-        {...(onChange ? { value: value ?? "", onChange: (e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value) } : {})}
+        {...(onChange ? { value: value ?? "", onChange: (e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value) } : { defaultValue })}
       />
       {hint && <span className="mt-1 block text-[12.5px] text-[var(--text-muted)]">{hint}</span>}
     </label>

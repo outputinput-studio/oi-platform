@@ -102,8 +102,10 @@ describe("site search", () => {
     expect(await searchPages({ siteId: siteB, words: searchWords("workshop") })).toEqual([]);
   });
 
-  test("/search, /shop and /journal can't be a page's address", async () => {
+  test("/search, /shop, /journal, /account and /track can't be a page's address", async () => {
     await expect(createPage({ actorId: own, siteId: siteA, title: "Search" })).rejects.toThrow(/kept for the site search/);
     await expect(createPage({ actorId: own, siteId: siteA, title: "Anything", slug: "shop" })).rejects.toThrow(/kept for the shop/);
+    await expect(createPage({ actorId: own, siteId: siteA, title: "Account" })).rejects.toThrow(/kept for customer accounts/);
+    await expect(createPage({ actorId: own, siteId: siteA, title: "Track" })).rejects.toThrow(/kept for order tracking/);
   });
 });
