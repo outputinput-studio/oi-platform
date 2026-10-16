@@ -119,3 +119,47 @@ describe("delivery quoted individually", () => {
     await expect(requestQuote({ site: (await siteFromHost("enquiries-a.localhost"))!, cart, details, inboxUrl })).rejects.toThrow(/can't take quote requests/);
   });
 });
+
+describe("Email quote on a product", () => {
+  test("a quote-only product never reaches the cart; its quote request lands in the Inbox", async () => {
+    await setEnquiryForm({ actorId: own, siteId, formId });
+    const site = (await siteFromHost("enquiries-a.localhost"))!;
+    const bath = (await createProduct({ actorId: own, siteId, name: "Ice bath" })).id;
+    await updateProduct({ actorId: own, siteId, productId: bath, edit: { price: 450000, buyWith: "quote", visible: true } });
+    const { priceCart } = await import("@/modules/orders/server");
+    const { requestProductQuote } = await import("@/modules/orders/quote");
+    const priced = await priceCart({ site, cart: [{ id: bath, q: 1 }] });
+    expect(priced.lines).toEqual([]);
+    expect(priced.tidy).toEqual([]);
+
+    const details = { name: "Sam Cold", email: "sam@example.com", country: "TH", city: "Bang Saen", postcode: "20130", qty: "2", note: "Ground floor" };
+    await expect(requestProductQuote({ site, productId: bath, details: { ...details, qty: "0" }, inboxUrl })).rejects.toThrow(/At least one/);
+    await expect(requestProductQuote({ site, productId: costume, details, inboxUrl })).rejects.toThrow(/doesn't take quote requests/); // enquire only
+    const r = await requestProductQuote({ site, productId: bath, details, inboxUrl });
+    expect(r.ok).toBe("Thanks, Sam. We'll email a quote for Ice bath, delivered to Thailand, to sam@example.com.");
+    const s = (await listSubmissions({ actorId: own, siteId })).find((x) => x.answers._request === "Quote for Ice bath")!;
+    expect(s.answers).toMatchObject({ _name: "Sam Cold", _email: "sam@example.com", _address: "Bang Saen 20130\nThailand", _product: "2 × Ice bath (/shop/ice-bath) — listed at $4,500 each", _note: "Ground floor" });
+
+    // Hidden, or switched back to the cart: no quotes.
+    await updateProduct({ actorId: own, siteId, productId: bath, edit: { buyWith: "cart" } });
+    await expect(requestProductQuote({ site, productId: bath, details, inboxUrl })).rejects.toThrow(/doesn't take quote requests/);
+    await updateProduct({ actorId: own, siteId, productId: bath, edit: { buyWith: "both", visible: false } });
+    await expect(requestProductQuote({ site, productId: bath, details, inboxUrl })).rejects.toThrow(/doesn't take quote requests/);
+  });
+
+  test("the cart is kept tidy: gone things out, no more than there is, held things kept", async () => {
+    const site = (await siteFromHost("enquiries-a.localhost"))!;
+    const { priceCart, placeOrder } = await import("@/modules/orders/server");
+    const two = (await createProduct({ actorId: own, siteId, name: "Two left" })).id;
+    await updateProduct({ actorId: own, siteId, productId: two, edit: { price: 1000, stock: 2, visible: true } });
+    const one = (await createProduct({ actorId: own, siteId, name: "One off" })).id;
+    await updateProduct({ actorId: own, siteId, productId: one, edit: { price: 1000, make: "oneOnly", visible: true } });
+    await owner.query(`update sites set shipping = '{}' where id = $1`, [siteId]);
+    await placeOrder({ site, cart: [{ id: one, q: 1 }], cartRef: "someone-else", details: { name: "X", email: "x@example.com", address: { line1: "1 A St", city: "Perth", postcode: "6000", country: "AU" } }, provider: "test" });
+    const p = await priceCart({ site, cart: [{ id: two, q: 5 }, { id: costume, q: 1 }, { id: one, q: 1 }], cartRef: "mine" });
+    expect(p.lines.map((l) => [l.name, l.qty])).toEqual([["Two left", 2]]);
+    expect(p.dropped).toEqual(["Feather set"]);
+    expect(p.held).toEqual(["One off"]);
+    expect(p.tidy).toEqual([{ id: two, q: 2 }, { id: one, q: 1 }]);
+  });
+});

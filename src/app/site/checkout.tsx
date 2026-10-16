@@ -10,12 +10,12 @@ import { CART_COOKIE, CART_REF_COOKIE, readCart } from "@/modules/orders/cart";
 import { confirmStripeReturn } from "@/modules/orders/checkout";
 import { orderForCustomer, priceCart, type OrderItem, type PricedCart } from "@/modules/orders/server";
 import { paymentsStatus } from "@/modules/payments/server";
-import { formatPrice, type Currency } from "@/modules/sites/shop";
+import { formatPrice, homeCountry, type Currency } from "@/modules/sites/shop";
 import { siteShipping, siteShop } from "@/modules/sites/server";
 import { publicForm } from "@/modules/forms/server";
 import { Frame } from "./storefront";
 import { hostAndSite } from "./metadata";
-import { CheckoutForm, ClearCart } from "./checkout-form";
+import { CheckoutForm, ClearCart, TidyCart } from "./checkout-form";
 
 /**
  * The cart, checkout, the test payment page and "thank you", all inside
@@ -139,7 +139,7 @@ export async function CheckoutPage() {
           <CheckoutForm
             needsAddress={cart.needsAddress}
             countries={COUNTRIES}
-            defaultCountry={defaultCountry(cart.currency)}
+            defaultCountry={homeCountry(cart.currency)}
             testMode={pay.provider === "test"}
             shipping={siteShipping(site)}
             subtotal={cart.subtotal}
@@ -272,6 +272,7 @@ function Dropped({ names, held }: { names: string[]; held: string[] }) {
   if (names.length === 0 && held.length === 0) return null;
   return (
     <div className="mt-4 space-y-2">
+      {names.length > 0 && <TidyCart />}
       {names.length > 0 && (
         <p className="rounded-[6px] border border-[var(--border)] px-4 py-3 text-[14px] text-[var(--text-body)]">
           {names.join(", ")} {names.length === 1 ? "is" : "are"} no longer available, so we took {names.length === 1 ? "it" : "them"} out of your cart.
@@ -295,6 +296,3 @@ function Gone({ site, menus }: { site: Site; menus: Awaited<ReturnType<typeof si
 }
 
 /** A sensible first guess for the country box: where the money is. */
-function defaultCountry(currency: Currency): string {
-  return { AUD: "AU", NZD: "NZ", THB: "TH", USD: "US", EUR: "DE", GBP: "GB", SGD: "SG" }[currency];
-}

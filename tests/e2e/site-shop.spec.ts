@@ -351,3 +351,45 @@ test("enquiries: a zone quoted individually, then an enquire-only product", asyn
   await page.getByTestId("submission").filter({ hasText: "Could it be in green?" }).click();
   await expect(page.getByText("Teal crystal bikini (/shop/teal-crystal-bikini)")).toBeVisible();
 });
+
+test("Email quote beside Add to cart, and the cart count only counts what can be bought", async ({ page }) => {
+  await signInAsOwner(page);
+  await page.goto(admin + "/products");
+  await page.getByTestId("product-teal-crystal-bikini").click();
+  await page.getByRole("radio", { name: /^For sale/ }).click();
+  await page.getByRole("radiogroup", { name: "How they buy it" }).getByRole("radio", { name: "Both" }).click();
+  await expect(page.getByTestId("customer-view")).toContainText("Email quote");
+  await expect(page.getByText("✓ Saved")).toBeVisible();
+
+  await page.goto(demo + "/shop/teal-crystal-bikini");
+  await page.getByRole("button", { name: "Add to cart" }).click();
+  await expect(page.getByRole("link", { name: "Added — view your cart" })).toBeVisible();
+  await expect(page.getByTestId("cart-count")).toHaveText("1");
+  await page.getByRole("button", { name: "Email quote" }).click();
+  const form = page.getByTestId("product-quote");
+  await form.getByLabel("Name").fill("Sam Cold");
+  await form.getByLabel("Email").fill("sam@example.com");
+  await form.getByLabel("Country").selectOption("TH");
+  await form.getByLabel("Postcode").fill("20130");
+  await form.getByLabel("How many").fill("2");
+  await form.getByRole("button", { name: "Send for a quote" }).click();
+  await expect(page.getByTestId("product-quote-sent")).toContainText("We'll email a quote for Teal crystal bikini, delivered to Thailand");
+
+  // Quote only: no cart for it, and the count in the header drops it straight away.
+  await page.goto(admin + "/products");
+  await page.getByTestId("product-teal-crystal-bikini").click();
+  await page.getByRole("radiogroup", { name: "How they buy it" }).getByRole("radio", { name: "Email quote" }).click();
+  await expect(page.getByText("✓ Saved")).toBeVisible();
+  await page.goto(demo + "/shop/teal-crystal-bikini");
+  await expect(page.getByRole("button", { name: "Add to cart" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Email quote" })).toBeVisible();
+  await expect(page.getByTestId("cart-count")).toHaveCount(0);
+  await page.goto(demo + "/shop/cart");
+  await expect(page.getByText("Teal crystal bikini is no longer available, so we took it out of your cart.")).toBeVisible();
+  await page.goto(demo + "/shop/cart");
+  await expect(page.getByText("no longer available")).toHaveCount(0); // it really was taken out
+  await expect(page.getByText("Nothing in it yet.")).toBeVisible();
+
+  await page.goto(admin + "/inbox");
+  await expect(page.getByTestId("submission").filter({ hasText: "Quote for Teal crystal bikini" })).toContainText("Sam Cold");
+});

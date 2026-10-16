@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { saveProductAction } from "@/modules/products/actions";
-import { AVAILABILITY_LABEL, customerView } from "@/modules/products/catalogue";
-import type { ProductAvailability, ProductMake } from "@/modules/products/kinds";
+import { AVAILABILITY_LABEL, BUY_WITH_LABEL, customerView } from "@/modules/products/catalogue";
+import { PRODUCT_BUY_WITH, type ProductAvailability, type ProductBuyWith, type ProductMake } from "@/modules/products/kinds";
 import type { ImageRef } from "@/modules/pages/registry";
 import type { Seo } from "@/modules/pages/seo";
 import { slugFromTitle } from "@/modules/pages/slug";
@@ -34,6 +34,7 @@ export type ProductDraft = {
   leadTime: number | null;
   leadUnit: "weeks" | "days";
   availability: ProductAvailability;
+  buyWith: ProductBuyWith;
   visible: boolean;
   photos: ImageRef[];
   code: string;
@@ -286,6 +287,23 @@ export function ProductEditor({
           )}
         </fieldset>
 
+        {d.availability === "forSale" && (
+          <div>
+            <p className="mb-1.5 text-[13.5px] text-body">How they buy it</p>
+            <Segmented label="How they buy it" value={d.buyWith} options={PRODUCT_BUY_WITH.map((b) => [b, BUY_WITH_LABEL[b][0]])} onChange={(v) => change({ buyWith: v as ProductBuyWith })} />
+            <p className="mt-1.5 text-[12.5px] text-muted">{BUY_WITH_LABEL[d.buyWith][1]}</p>
+            {!hasEnquiryForm && d.buyWith !== "cart" && (
+              <p data-testid="quote-needs-form" className="mt-2 text-[12.5px] leading-[1.5] text-warning">
+                Quote requests go through your enquiry form, and none is chosen yet. Choose one in{" "}
+                <Link href="/settings/enquiries" className="underline underline-offset-2">
+                  Settings · Enquiries
+                </Link>
+                .
+              </p>
+            )}
+          </div>
+        )}
+
         <div>
           <Label>What customers see</Label>
           <div data-testid="customer-view" className="rounded-card border border-line bg-sunken px-4 py-3.5">
@@ -293,6 +311,12 @@ export function ProductEditor({
               {view.price ?? <span className="text-muted">No price</span>} {view.was && <s className="text-[14px] text-muted">{view.was}</s>}
             </p>
             <p className="mt-1 text-[13px] text-body">{view.note}</p>
+            {(view.buyable || view.quotable) && (
+              <p className="mt-2 flex gap-1.5">
+                {view.buyable && <span className="rounded-[4px] border border-line px-2 py-0.5 text-[12px] text-body">Add to cart</span>}
+                {view.quotable && <span className="rounded-[4px] border border-line px-2 py-0.5 text-[12px] text-body">Email quote</span>}
+              </p>
+            )}
             {!d.visible && <p className="mt-1 text-[12px] text-warning">Hidden — only you can see it.</p>}
           </div>
         </div>

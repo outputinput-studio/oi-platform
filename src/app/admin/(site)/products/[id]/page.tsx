@@ -36,6 +36,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
         leadTime: p.leadTime,
         leadUnit: p.leadUnit,
         availability: p.availability,
+        buyWith: p.buyWith,
         visible: p.visible,
         photos: p.photos,
         code: p.code,

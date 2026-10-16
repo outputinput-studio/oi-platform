@@ -71,7 +71,7 @@ export async function updateProduct(p: { actorId: string; siteId: string; produc
     const cur = await load(tx, p.productId);
     if (e.slug && e.slug !== cur.slug) await assertShopSlugFree(tx, e.slug, { productId: cur.id });
     const patch: Partial<Product> = { updatedAt: new Date() };
-    for (const k of ["name", "slug", "description", "price", "salePrice", "digital", "make", "stock", "leadTime", "leadUnit", "availability", "visible", "photos", "code"] as const) {
+    for (const k of ["name", "slug", "description", "price", "salePrice", "digital", "make", "stock", "leadTime", "leadUnit", "availability", "buyWith", "visible", "photos", "code"] as const) {
       if (e[k] !== undefined) (patch as Record<string, unknown>)[k] = e[k];
     }
     if (e.seo !== undefined) patch.seo = e.seo as Seo;

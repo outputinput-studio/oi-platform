@@ -20,12 +20,22 @@ describe("catalogue", () => {
   });
 
   test("what a customer sees", () => {
-    expect(customerView({ ...base, make: "madeToOrder", leadTime: 6 }, "AUD")).toEqual({ price: "$420", was: null, note: "Made to order — around 6 weeks", buyable: true });
+    expect(customerView({ ...base, make: "madeToOrder", leadTime: 6 }, "AUD")).toEqual({ price: "$420", was: null, note: "Made to order — around 6 weeks", buyable: true, quotable: false });
     expect(customerView({ ...base, salePrice: 38000 }, "AUD")).toMatchObject({ price: "$380", was: "$420" });
     expect(customerView({ ...base, stock: 0 }, "AUD")).toMatchObject({ note: "Sold out", buyable: false });
     expect(customerView({ ...base, stock: 2 }, "AUD").note).toBe("Ready to ship · 2 left");
     expect(customerView({ ...base, availability: "enquire" }, "AUD")).toMatchObject({ note: "Enquire to order", buyable: false });
     expect(customerView({ ...base, price: null }, "AUD")).toMatchObject({ price: null, buyable: false });
+  });
+
+  test("Add to cart, Email quote, or both", () => {
+    expect(customerView({ ...base, buyWith: "quote" }, "AUD")).toMatchObject({ buyable: false, quotable: true });
+    expect(customerView({ ...base, buyWith: "quote", price: null }, "AUD")).toMatchObject({ price: null, quotable: true }); // the team names the price
+    expect(customerView({ ...base, buyWith: "both" }, "AUD")).toMatchObject({ buyable: true, quotable: true });
+    expect(customerView({ ...base, buyWith: "both", availability: "comingSoon" }, "AUD")).toMatchObject({ buyable: false, quotable: false });
+    expect(customerView({ ...base, buyWith: "both", stock: 0 }, "AUD")).toMatchObject({ buyable: false, quotable: false });
+    expect(adminTag({ ...base, buyWith: "quote" })).toBe("Email quote");
+    expect(adminTag({ ...base, buyWith: "both" })).toBeNull();
   });
 
   test("the admin list's lines", () => {

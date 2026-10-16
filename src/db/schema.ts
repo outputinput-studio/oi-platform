@@ -1,6 +1,6 @@
 import { pgTable, uuid, text, timestamp, boolean, index, uniqueIndex, integer, jsonb } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { PRODUCT_AVAILABILITY, PRODUCT_MAKES } from "../modules/products/kinds";
+import { PRODUCT_AVAILABILITY, PRODUCT_BUY_WITH, PRODUCT_MAKES } from "../modules/products/kinds";
 import { DISCOUNT_KINDS, DISCOUNT_SCOPES } from "../modules/discounts/kinds";
 
 /**
@@ -502,7 +502,7 @@ export const productCategories = pgTable(
 );
 export type ProductCategory = typeof productCategories.$inferSelect;
 
-export { PRODUCT_AVAILABILITY, PRODUCT_MAKES };
+export { PRODUCT_AVAILABILITY, PRODUCT_BUY_WITH, PRODUCT_MAKES };
 
 /**
  * Products. Prices are whole cents in the site's currency. Photos are
@@ -531,6 +531,8 @@ export const products = pgTable(
     leadTime: integer("lead_time"),
     leadUnit: text("lead_unit", { enum: ["weeks", "days"] }).notNull().default("weeks"),
     availability: text("availability", { enum: PRODUCT_AVAILABILITY }).notNull().default("forSale"),
+    /** For sale through the cart, by an emailed quote, or either. */
+    buyWith: text("buy_with", { enum: PRODUCT_BUY_WITH }).notNull().default("cart"),
     visible: boolean("visible").notNull().default(false),
     photos: jsonb("photos").notNull().$type<unknown[]>().default([]),
     code: text("code").notNull().default(""),

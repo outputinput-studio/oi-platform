@@ -8,10 +8,10 @@ import { siteFromHost } from "@/modules/sites/server";
 import { paymentsStatus } from "@/modules/payments/server";
 import { environmentName } from "@/lib/env";
 import { randomUUID } from "node:crypto";
-import { CART_COOKIE, CART_REF_COOKIE, addLine, cartCount, readCart, setLine, writeCart, type CartLine } from "./cart";
+import { CART_COOKIE, CART_REF_COOKIE, addLine, readCart, setLine, writeCart, type CartLine } from "./cart";
 import { markOrderPaid, orderForCustomer, priceCart } from "./server";
 import { startCheckout } from "./checkout";
-import { requestQuote } from "./quote";
+import { requestProductQuote, requestQuote } from "./quote";
 import { moveOrder, refundOrder } from "./admin";
 import { discountFor } from "@/modules/discounts/server";
 import { requireSiteAccess } from "@/modules/auth/access";
@@ -54,10 +54,10 @@ export async function addToCartAction(productId: string): Promise<CartState> {
     const priced = await priceCart({ site, cart: next, cartRef: await cartRef() });
     const line = priced.lines.find((l) => l.productId === id);
     if (!line) return { error: "Sorry, that can't be bought right now." };
-    const capped = next.map((l) => (l.id === id ? { ...l, q: line.qty } : l));
-    await saveCart(capped);
+    // Saved tidy: anything that can't be bought any more goes, quantities no more than there is.
+    await saveCart(priced.tidy);
     revalidatePath("/", "layout");
-    return { ok: "Added", count: cartCount(capped) };
+    return { ok: "Added", count: priced.lines.reduce((t, l) => t + l.qty, 0) };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
   }
@@ -111,6 +111,20 @@ export async function quoteAction(_prev: CartState, form: FormData): Promise<Car
   }
 }
 
+/** Email quote on a product page. No sign-in, like the cart; `website` is the hidden trap a bot fills in. */
+export async function productQuoteAction(productId: string, _prev: CartState, form: FormData): Promise<CartState> {
+  try {
+    const { site, host } = await here();
+    if (String(form.get("website") ?? "")) return { ok: "Thanks. We'll be in touch." };
+    const s = (k: string) => String(form.get(k) ?? "");
+    const details = { name: s("name"), email: s("email"), phone: s("phone"), country: s("country"), city: s("city"), postcode: s("postcode"), qty: s("qty") || "1", note: s("note") };
+    return await requestProductQuote({ site, productId, details, inboxUrl: `https://${host.replace(/^[^.]+\./, "admin.")}/inbox` });
+  } catch (err) {
+    if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "Check the details and try again." };
+    return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+  }
+}
+
 /** The test payment page's Pay button. Only exists where the test provider is in use (never production). */
 export async function testPayAction(form: FormData): Promise<void> {
   const { site, host } = await here();
@@ -121,6 +135,20 @@ export async function testPayAction(form: FormData): Promise<void> {
   await markOrderPaid({ siteId: site.id, orderId, adminUrl: `https://${host.replace(/^[^.]+\./, "admin.")}` });
   (await cookies()).delete(CART_COOKIE);
   redirect(`/shop/checkout/done?order=${orderId}`);
+}
+
+/**
+ * The cart page tidies the cookie when something in it can't be bought
+ * any more (or there's less of it), so the count in the header and the
+ * cart agree on every page after. No revalidate: the page that called
+ * this keeps showing what was taken out, once.
+ */
+export async function tidyCartAction(): Promise<void> {
+  const { site } = await here();
+  const jar = await cookies();
+  const cart = readCart(jar.get(CART_COOKIE)?.value);
+  const { tidy } = await priceCart({ site, cart, cartRef: await cartRef() });
+  if (JSON.stringify(tidy) !== JSON.stringify(cart)) await saveCart(tidy);
 }
 
 /** The done page empties the cart once the order is paid (cookies can only change in an action). */

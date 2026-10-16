@@ -60,6 +60,12 @@ export type PricedCart = {
   dropped: string[];
   /** Things someone else is paying for right now (held for HOLD_MINUTES). */
   held: string[];
+  /**
+   * The cart as it should be kept: what can be bought (no more than there
+   * is) plus what's held for someone else (it may come back). Dropped
+   * things are gone from it.
+   */
+  tidy: CartLine[];
   currency: Currency;
   subtotal: number;
   tax: number;
@@ -89,6 +95,7 @@ export async function priceCart(p: { site: Site; cart: CartLine[]; cartRef?: str
   const lines: PricedLine[] = [];
   const dropped: string[] = [];
   const held: string[] = [];
+  const tidy: CartLine[] = [];
   for (const l of p.cart) {
     const prod = byId.get(l.id);
     if (!prod) {
@@ -104,10 +111,12 @@ export async function priceCart(p: { site: Site; cart: CartLine[]; cartRef?: str
     const max = prod.make === "oneOnly" ? 1 - onHold : prod.make === "ready" && prod.stock !== null ? prod.stock - onHold : 20;
     if (max <= 0) {
       held.push(prod.name);
+      tidy.push(l);
       continue;
     }
     const unit = prod.salePrice !== null && prod.price !== null && prod.salePrice < prod.price ? prod.salePrice : prod.price!;
     const photos = readPhotos(prod.photos);
+    tidy.push({ ...l, q: Math.min(l.q, max) });
     lines.push({ productId: prod.id, name: prod.name, slug: prod.slug, unit, qty: Math.min(l.q, max), max, photo: photos[0]?.key ?? null, note: makeLine(prod), digital: prod.digital, categoryId: prod.categoryId });
   }
   const subtotal = lines.reduce((n, l) => n + l.unit * l.qty, 0);
@@ -116,6 +125,7 @@ export async function priceCart(p: { site: Site; cart: CartLine[]; cartRef?: str
     lines,
     dropped,
     held,
+    tidy,
     currency: shop.currency,
     subtotal,
     tax: t.tax,

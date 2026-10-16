@@ -51,3 +51,8 @@ export function priceInput(cents: number | null): string {
   if (cents === null) return "";
   return cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2);
 }
+
+/** The country a shop most likely sells to first, from its currency: where address forms start. */
+export function homeCountry(currency: Currency): string {
+  return { AUD: "AU", NZD: "NZ", THB: "TH", USD: "US", EUR: "DE", GBP: "GB", SGD: "SG" }[currency];
+}

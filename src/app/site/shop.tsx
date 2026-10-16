@@ -12,6 +12,9 @@ import { paymentsStatus } from "@/modules/payments/server";
 import { publicForm, type FormWithFields } from "@/modules/forms/server";
 import { AddToCart } from "./add-to-cart";
 import { Enquire } from "./enquire";
+import { EmailQuote } from "./email-quote";
+import { COUNTRIES } from "@/lib/countries";
+import { homeCountry } from "@/modules/sites/shop";
 import { Placeholder } from "@/lib/placeholder";
 import { Frame, missing } from "./storefront";
 import { hostAndSite, storefrontMetadata } from "./metadata";
@@ -98,7 +101,8 @@ export async function ShopEntry({ parts }: { parts: string[] }) {
   if (!p) return missing(site.id, path, referer);
   const a = effectiveAvailability(p);
   const enquiryId = siteShop(site).enquiryFormId;
-  const [menus, enquiry] = await Promise.all([siteMenus({ siteId: site.id }), enquiryId && (a === "enquire" || a === "sold") ? publicForm({ siteId: site.id, formId: enquiryId }) : null]);
+  const quotable = customerView(p, siteShop(site).currency).quotable;
+  const [menus, enquiry] = await Promise.all([siteMenus({ siteId: site.id }), enquiryId && (a === "enquire" || a === "sold" || quotable) ? publicForm({ siteId: site.id, formId: enquiryId }) : null]);
   return (
     <Frame site={site} menus={menus} current={path}>
       <ProductPage product={p} site={site} enquiry={enquiry} />
@@ -148,6 +152,7 @@ function ProductPage({ product: p, site, enquiry }: { product: ProductRow; site:
           <p className="mt-1 text-[14px] text-[var(--text-muted)]">Posted within {siteShipping(site).dispatchDays} business days</p>
         )}
         {v.buyable && paymentsStatus(site).ready && <AddToCart productId={p.id} />}
+        {v.quotable && enquiry && <EmailQuote productId={p.id} productName={p.name} alone={!(v.buyable && paymentsStatus(site).ready)} countries={COUNTRIES} defaultCountry={homeCountry(currency)} />}
         {enquiry && (a === "enquire" || a === "sold") && (
           <Enquire form={{ id: enquiry.id, fields: enquiry.fields, buttonText: enquiry.buttonText, afterMessage: enquiry.afterMessage }} productId={p.id} sold={a === "sold"} />
         )}

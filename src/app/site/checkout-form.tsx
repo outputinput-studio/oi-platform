@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { checkoutAction, clearCartAction, previewCodeAction, quoteAction, type CartState } from "@/modules/orders/actions";
+import { checkoutAction, clearCartAction, previewCodeAction, quoteAction, tidyCartAction, type CartState } from "@/modules/orders/actions";
 import { taxOn } from "@/modules/orders/cart";
 import { quoteFor, ratePriceLabel, ratesFor, type Shipping } from "@/modules/sites/shipping";
 import { formatPrice, type Currency } from "@/modules/sites/shop";
@@ -248,6 +248,14 @@ function Field({
 export function ClearCart() {
   useEffect(() => {
     void clearCartAction();
+  }, []);
+  return null;
+}
+
+/** Takes things that can't be bought out of the cart cookie, once the page has said so. */
+export function TidyCart() {
+  useEffect(() => {
+    void tidyCartAction();
   }, []);
   return null;
 }
