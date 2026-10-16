@@ -12,6 +12,7 @@ import { parsePrice, priceInput, type Currency } from "@/modules/sites/shop";
 import { Button, Field, Input, Label, PageHeader, Select, Switch, Textarea } from "../../../ui";
 import { SeoCard } from "../../seo-card";
 import { Photos } from "./photos";
+import { NewCategorySheet } from "../categories/category-forms";
 
 /**
  * The product editor, as in design/admin.html: photos, name, price and
@@ -74,6 +75,8 @@ export function ProductEditor({
   const [priceText, setPriceText] = useState({ price: priceInput(product.price), salePrice: priceInput(product.salePrice) });
   const [priceError, setPriceError] = useState<{ price?: string; salePrice?: string }>({});
   const [wasVisible] = useState(product.visible);
+  const [cats, setCats] = useState(categories);
+  const [addingCategory, setAddingCategory] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<Partial<ProductDraft>>({});
 
@@ -174,17 +177,26 @@ export function ProductEditor({
           <div className="flex gap-2">
             <Select id="p-category" value={d.categoryId ?? ""} onChange={(e) => change({ categoryId: e.target.value || null })}>
               <option value="">None</option>
-              {categories.map((c) => (
+              {cats.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
             </Select>
-            <Link href="/products/categories" className="flex h-11 flex-none items-center rounded-button border border-line px-3.5 text-[13.5px] text-body hover:bg-hover">
+            <button type="button" onClick={() => setAddingCategory(true)} className="flex h-11 flex-none items-center rounded-button border border-line px-3.5 text-[13.5px] text-body hover:bg-hover">
               New category
-            </Link>
+            </button>
           </div>
         </Field>
+        {addingCategory && (
+          <NewCategorySheet
+            onClose={() => setAddingCategory(false)}
+            onCreated={(c) => {
+              setCats((list) => [...list, c]);
+              change({ categoryId: c.id });
+            }}
+          />
+        )}
 
         <div>
           <p className="mb-1.5 text-[13.5px] text-body">Type</p>

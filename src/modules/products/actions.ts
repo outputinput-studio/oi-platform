@@ -8,6 +8,8 @@ import { createProduct, deleteProduct, updateProduct } from "./server";
 import { createProductCategory, deleteProductCategory, reorderProductCategories, updateProductCategory } from "./categories";
 
 export type ProductFormState = { ok?: string; error?: string };
+/** Adding a category also hands back the new one, so the product editor can pick it straight away. */
+export type CategoryFormState = ProductFormState & { category?: { id: string; name: string } };
 
 function message(err: unknown): string {
   if (err instanceof z.ZodError) return err.issues[0]?.message ?? "That doesn't look right.";
@@ -45,12 +47,19 @@ export async function deleteProductAction(form: FormData): Promise<void> {
   redirect("/products");
 }
 
-export async function createProductCategoryAction(_prev: ProductFormState, form: FormData): Promise<ProductFormState> {
+export async function createProductCategoryAction(_prev: CategoryFormState, form: FormData): Promise<CategoryFormState> {
   const { user, site } = await requireSiteAccess();
   try {
-    await createProductCategory({ actorId: user.id, siteId: site.id, name: String(form.get("name") ?? ""), slug: String(form.get("slug") ?? "") });
+    const c = await createProductCategory({
+      actorId: user.id,
+      siteId: site.id,
+      name: String(form.get("name") ?? ""),
+      slug: String(form.get("slug") ?? ""),
+      description: String(form.get("description") ?? ""),
+    });
     revalidatePath("/products/categories");
-    return { ok: "Added" };
+    revalidatePath("/products");
+    return { ok: "Added", category: { id: c.id, name: c.name } };
   } catch (err) {
     return { error: message(err) };
   }

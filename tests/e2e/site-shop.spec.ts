@@ -36,6 +36,7 @@ test("a product from nothing to the shop", async ({ page, request }) => {
   await page.getByRole("button", { name: "Add category" }).click();
   await page.getByLabel("Name").fill("Bikinis");
   await expect(page.getByLabel("Address")).toHaveValue("bikinis");
+  await page.getByLabel("Description").fill("Two pieces, crystals set by hand.");
   await page.getByRole("dialog").getByRole("button", { name: "Add category" }).click();
   await expect(page.getByTestId("category-bikinis")).toContainText("0 products");
 
@@ -47,6 +48,20 @@ test("a product from nothing to the shop", async ({ page, request }) => {
   await page.getByRole("button", { name: "Create product" }).click();
   await expect(page.getByRole("heading", { name: "Edit product" })).toBeVisible();
   await expect(page.getByLabel("Web address")).toHaveValue("teal-crystal-bikini");
+  const editorUrl = page.url();
+
+  // A new category from inside the product: a sheet, picked straight away, still on the product.
+  await page.getByRole("button", { name: "New category" }).click();
+  await page.getByRole("dialog").getByLabel("Name").fill("One-piece");
+  await page.getByRole("dialog").getByLabel("Description").fill("Swimsuits and leotards.");
+  await page.getByRole("dialog").getByRole("button", { name: "Add category" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(page.url()).toBe(editorUrl);
+  await expect(page.getByLabel("Category")).toHaveValue(/[0-9a-f-]{36}/);
+  await expect(page.getByLabel("Category").locator("option:checked")).toHaveText("One-piece");
+  await expect(page.getByTestId("product-save-status")).toHaveText("✓ Saved");
+  // Back to Bikinis for the rest.
+  await page.getByLabel("Category").selectOption({ label: "Bikinis" });
 
   // A photo, uploaded from here, described.
   await page.getByRole("button", { name: "Add photo" }).click();
@@ -80,6 +95,7 @@ test("a product from nothing to the shop", async ({ page, request }) => {
   await expect(page.getByRole("navigation", { name: "Pages" }).getByRole("link", { name: "Shop" })).toHaveAttribute("href", "/shop");
   await page.getByRole("navigation", { name: "Categories" }).getByRole("link", { name: "Bikinis" }).click();
   await expect(page).toHaveURL(demo + "/shop/bikinis");
+  await expect(page.getByText("Two pieces, crystals set by hand.")).toBeVisible();
   await page.getByRole("link", { name: /Teal crystal bikini/ }).click();
   await expect(page).toHaveURL(demo + "/shop/teal-crystal-bikini");
   await expect(page.getByRole("heading", { name: "Teal crystal bikini" })).toBeVisible();

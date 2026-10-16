@@ -29,14 +29,15 @@ export async function listCategories(p: { actorId: string; siteId: string }): Pr
   return withSite(p.siteId, (tx) => categoriesWithCounts(tx));
 }
 
-export async function createCategory(p: { actorId: string; siteId: string; name: string; slug?: string }): Promise<ArticleCategory> {
+export async function createCategory(p: { actorId: string; siteId: string; name: string; slug?: string; description?: string }): Promise<ArticleCategory> {
   await assertAccess(p.actorId, p.siteId);
   const name = nameSchema.parse(p.name);
+  const description = z.string().trim().max(300).parse(p.description ?? "");
   const slug = slugSchema.parse(p.slug?.trim() ? p.slug : slugFromTitle(name));
   return withSite(p.siteId, async (tx) => {
     await assertFree(tx, slug);
     const [{ next }] = await tx.select({ next: sql<number>`coalesce(max(${articleCategories.position}), -1) + 1` }).from(articleCategories).where(isNull(articleCategories.deletedAt));
-    const [c] = await tx.insert(articleCategories).values({ siteId: p.siteId, name, slug, position: Number(next) }).returning();
+    const [c] = await tx.insert(articleCategories).values({ siteId: p.siteId, name, slug, description, position: Number(next) }).returning();
     return c;
   });
 }

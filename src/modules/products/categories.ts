@@ -23,14 +23,15 @@ export async function listProductCategories(p: { actorId: string; siteId: string
   return withSite(p.siteId, (tx) => withCounts(tx, false));
 }
 
-export async function createProductCategory(p: { actorId: string; siteId: string; name: string; slug?: string }): Promise<ProductCategory> {
+export async function createProductCategory(p: { actorId: string; siteId: string; name: string; slug?: string; description?: string }): Promise<ProductCategory> {
   await assertAccess(p.actorId, p.siteId);
   const name = nameSchema.parse(p.name);
+  const description = z.string().trim().max(300).parse(p.description ?? "");
   const slug = productSlugSchema.parse(p.slug?.trim() ? p.slug : slugFromTitle(name));
   return withSite(p.siteId, async (tx) => {
     await assertShopSlugFree(tx, slug);
     const [{ next }] = await tx.select({ next: sql<number>`coalesce(max(${productCategories.position}), -1) + 1` }).from(productCategories).where(isNull(productCategories.deletedAt));
-    const [c] = await tx.insert(productCategories).values({ siteId: p.siteId, name, slug, position: Number(next) }).returning();
+    const [c] = await tx.insert(productCategories).values({ siteId: p.siteId, name, slug, description, position: Number(next) }).returning();
     return c;
   });
 }

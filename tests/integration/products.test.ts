@@ -39,7 +39,9 @@ describe("products", () => {
   let bikini = "";
   let bikinis = "";
   test("a new product is hidden, addressed from its name, and shares /shop with categories", async () => {
-    bikinis = (await createProductCategory({ actorId: ann, siteId: siteA, name: "Bikinis" })).id;
+    const created = await createProductCategory({ actorId: ann, siteId: siteA, name: "Bikinis", description: "Two pieces." });
+    expect(created.description).toBe("Two pieces.");
+    bikinis = created.id;
     const p = await createProduct({ actorId: ann, siteId: siteA, name: "Teal crystal bikini", categoryId: bikinis });
     bikini = p.id;
     expect(p).toMatchObject({ slug: "teal-crystal-bikini", visible: false, availability: "forSale", category: { slug: "bikinis" } });

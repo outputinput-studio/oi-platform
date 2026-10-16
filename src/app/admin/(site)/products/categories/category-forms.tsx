@@ -1,72 +1,83 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { createProductCategoryAction as createCategoryAction, deleteProductCategoryAction as deleteCategoryAction, reorderProductCategoriesAction as reorderCategoriesAction, updateProductCategoryAction as updateCategoryAction, type ProductFormState as FormState } from "@/modules/products/actions";
+import { createProductCategoryAction as createCategoryAction, deleteProductCategoryAction as deleteCategoryAction, reorderProductCategoriesAction as reorderCategoriesAction, updateProductCategoryAction as updateCategoryAction, type ProductFormState as FormState, type CategoryFormState } from "@/modules/products/actions";
 import { slugFromTitle } from "@/modules/pages/slug";
 import { Button, Card, Field, Input, Notice, Sheet, Textarea } from "../../../ui";
 import { SortableItem, SortableList } from "../../../sortable";
 
 export type CategoryCard = { id: string; name: string; slug: string; description: string; productCount: number };
 
-/** "Add category": name, with the address suggested from it. */
+/** "Add category" on the Categories screen. */
 export function AddCategory() {
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [touched, setTouched] = useState(false);
-  const [state, act, pending] = useActionState(async (prev: FormState, form: FormData) => {
-    const r = await createCategoryAction(prev, form);
-    if (r.ok) {
-      setOpen(false);
-      setName("");
-      setSlug("");
-      setTouched(false);
-    }
-    return r;
-  }, {} as FormState);
   return (
     <>
       <Button type="button" size="sm" onClick={() => setOpen(true)}>
         Add category
       </Button>
-      {open && (
-        <Sheet title="Add a category" onClose={() => setOpen(false)}>
-          <form action={act} className="space-y-4">
-            <Field label="Name" htmlFor="c-name">
-              <Input
-                id="c-name"
-                name="name"
-                value={name}
-                required
-                maxLength={80}
-                autoFocus
-                onChange={(e) => {
-                  setName(e.target.value);
-                  if (!touched) setSlug(slugFromTitle(e.target.value));
-                }}
-              />
-            </Field>
-            <Field label="Address" htmlFor="c-slug" hint="/shop/… — lower-case words joined by dashes.">
-              <Input
-                id="c-slug"
-                name="slug"
-                value={slug}
-                maxLength={60}
-                className="font-mono"
-                onChange={(e) => {
-                  setTouched(true);
-                  setSlug(e.target.value);
-                }}
-              />
-            </Field>
-            <Notice error={state.error} />
-            <Button type="submit" disabled={pending} className="w-full">
-              {pending ? "Adding…" : "Add category"}
-            </Button>
-          </form>
-        </Sheet>
-      )}
+      {open && <NewCategorySheet onClose={() => setOpen(false)} />}
     </>
+  );
+}
+
+/**
+ * The sheet that adds a category: name, address (suggested from the
+ * name) and description, all in one go. Used on the Categories screen
+ * and from the product editor, which picks the new one straight away
+ * without leaving the product.
+ */
+export function NewCategorySheet({ onClose, onCreated }: { onClose: () => void; onCreated?: (c: { id: string; name: string }) => void }) {
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [touched, setTouched] = useState(false);
+  const [state, act, pending] = useActionState(async (prev: CategoryFormState, form: FormData) => {
+    const r = await createCategoryAction(prev, form);
+    if (r.ok && r.category) {
+      onCreated?.(r.category);
+      onClose();
+    }
+    return r;
+  }, {} as CategoryFormState);
+  return (
+    <Sheet title="Add a category" onClose={onClose}>
+      <form action={act} className="space-y-4">
+        <Field label="Name" htmlFor="c-name">
+          <Input
+            id="c-name"
+            name="name"
+            value={name}
+            required
+            maxLength={80}
+            autoFocus
+            onChange={(e) => {
+              setName(e.target.value);
+              if (!touched) setSlug(slugFromTitle(e.target.value));
+            }}
+          />
+        </Field>
+        <Field label="Address" htmlFor="c-slug" hint="/shop/… — lower-case words joined by dashes.">
+          <Input
+            id="c-slug"
+            name="slug"
+            value={slug}
+            maxLength={60}
+            className="font-mono"
+            onChange={(e) => {
+              setTouched(true);
+              setSlug(e.target.value);
+            }}
+          />
+        </Field>
+        <Field label="Description" htmlFor="c-desc" hint="A line under the heading on the category's page. Optional.">
+          <Textarea id="c-desc" name="description" rows={2} maxLength={300} />
+        </Field>
+        <Notice error={state.error} />
+        <Button type="submit" disabled={pending} className="w-full">
+          {pending ? "Adding…" : "Add category"}
+        </Button>
+      </form>
+    </Sheet>
   );
 }
 
