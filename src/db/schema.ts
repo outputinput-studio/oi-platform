@@ -543,6 +543,9 @@ export const products = pgTable(
     buyWith: text("buy_with", { enum: PRODUCT_BUY_WITH }).notNull().default("cart"),
     /** Product details rows changed or hidden on this product, by row id. See modules/products/details.ts. */
     details: jsonb("details").notNull().$type<Record<string, unknown>>().default({}),
+    /** Up to two options (Size, Colour) and the combinations they make. See modules/products/options.ts. */
+    options: jsonb("options").notNull().$type<unknown[]>().default([]),
+    variants: jsonb("variants").notNull().$type<unknown[]>().default([]),
     visible: boolean("visible").notNull().default(false),
     photos: jsonb("photos").notNull().$type<unknown[]>().default([]),
     code: text("code").notNull().default(""),

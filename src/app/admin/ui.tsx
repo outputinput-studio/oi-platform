@@ -293,3 +293,23 @@ export function PageHeader({
 }
 
 export { Sheet } from "./sheet";
+
+/** A row of options, one picked: Physical | Digital. */
+export function Segmented({ label, value, options, onChange }: { label: string; value: string; options: [string, string][]; onChange: (v: string) => void }) {
+  return (
+    <div role="radiogroup" aria-label={label} className="flex flex-1 rounded-[6px] border border-line bg-bg p-[3px]">
+      {options.map(([v, text]) => (
+        <button
+          key={v}
+          type="button"
+          role="radio"
+          aria-checked={value === v}
+          onClick={() => onChange(v)}
+          className={`h-[38px] flex-1 rounded-button px-2 text-[14px] ${value === v ? "bg-accent text-text" : "text-muted hover:text-text"}`}
+        >
+          {text}
+        </button>
+      ))}
+    </div>
+  );
+}

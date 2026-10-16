@@ -5,14 +5,15 @@ import { memberships, orders, products, sites, users, type Order, type Site } fr
 import { sendEmail } from "@/lib/email";
 import { COUNTRY_CODES, countryName } from "@/lib/countries";
 import { upsertFromSubmission } from "@/modules/contacts/server";
-import { customerView, makeLine, readPhotos } from "@/modules/products/catalogue";
+import { customerView, makeLine, readPhotos, variantNote } from "@/modules/products/catalogue";
+import { checkAnswers, describeChoice, listOptions, readOptions, readVariants, unitPrice, upsertVariant, variantKey, variantLabel, variantMax, variantsFor, variantState, withChoice, type Choice } from "@/modules/products/options";
 import { readShopSettings, formatPrice, type Currency } from "@/modules/sites/shop";
 import { businessOf, tradingName } from "@/modules/sites/business";
 import { customerMail, readMessages, recipientsFor, templateFor } from "@/modules/sites/messages";
 import { draftFrom, orderVars } from "./emails";
 import { quoteFor, ratesFor, readShipping } from "@/modules/sites/shipping";
 import { countUse, discountFor } from "@/modules/discounts/server";
-import { taxOn, type CartLine } from "./cart";
+import { lineKey, taxOn, type CartLine } from "./cart";
 import { FieldError } from "@/lib/form-error";
 
 /**
@@ -31,7 +32,10 @@ import { FieldError } from "@/lib/form-error";
  */
 export const HOLD_MINUTES = 35;
 
-/** What other shoppers' unpaid checkouts from the last HOLD_MINUTES are holding, by product. */
+/** Held stock is counted per product, and per combination for one with list options. */
+const holdKey = (productId: string, variant?: string | null) => `${productId}~${variant ?? ""}`;
+
+/** What other shoppers' unpaid checkouts from the last HOLD_MINUTES are holding, by product (and combination). */
 async function heldQuantities(tx: Tx, exceptCartRef?: string): Promise<Map<string, number>> {
   const since = new Date(Date.now() - HOLD_MINUTES * 60_000);
   const rows = await tx
@@ -39,12 +43,18 @@ async function heldQuantities(tx: Tx, exceptCartRef?: string): Promise<Map<strin
     .from(orders)
     .where(and(eq(orders.paymentStatus, "pending"), gt(orders.createdAt, since), exceptCartRef ? ne(orders.cartRef, exceptCartRef) : undefined));
   const held = new Map<string, number>();
-  for (const r of rows) for (const it of r.items as OrderItem[]) held.set(it.productId, (held.get(it.productId) ?? 0) + it.qty);
+  for (const r of rows) for (const it of r.items as OrderItem[]) held.set(holdKey(it.productId, it.variant), (held.get(holdKey(it.productId, it.variant)) ?? 0) + it.qty);
   return held;
 }
 
 export type PricedLine = {
+  /** The cart line it came from (see lineKey), for changing its quantity. */
+  key: string;
   productId: string;
+  /** The combination's key, for a product with list options. */
+  variant: string | null;
+  /** What was chosen and filled in: Size 8, Colour Print, Made to size 10. */
+  choices: Choice[];
   name: string;
   slug: string;
   /** What one costs now (the sale price when there is one). */
@@ -106,22 +116,45 @@ export async function priceCart(p: { site: Site; cart: CartLine[]; cartRef?: str
       dropped.push("Something in your cart");
       continue;
     }
+    // The combination and answers must still make sense for the product as it is now.
+    const opts = readOptions(prod.options);
+    const variant = listOptions(opts).length ? (variantsFor(opts, readVariants(prod.variants), prod.make).find((x) => variantKey(x.values) === l.v) ?? null) : null;
+    const answers = checkAnswers(opts, l.f);
+    const title = variant ? `${prod.name} (${variantLabel(variant.values)})` : prod.name;
     const v = customerView(prod, shop.currency);
-    if (!v.buyable) {
-      dropped.push(prod.name);
+    if (!v.buyable || (listOptions(opts).length > 0) !== !!variant || (!variant && l.v) || !answers.ok || (variant && variantState(variant) !== "available")) {
+      dropped.push(title);
       continue;
     }
-    const onHold = holds.get(prod.id) ?? 0;
-    const max = prod.make === "oneOnly" ? 1 - onHold : prod.make === "ready" && prod.stock !== null ? prod.stock - onHold : 20;
+    const unit = unitPrice(prod, variant);
+    if (unit === null) {
+      dropped.push(title);
+      continue;
+    }
+    const onHold = holds.get(holdKey(prod.id, variant ? variantKey(variant.values) : null)) ?? 0;
+    const max = variant ? variantMax(variant, onHold) : prod.make === "oneOnly" ? 1 - onHold : prod.make === "ready" && prod.stock !== null ? prod.stock - onHold : 20;
     if (max <= 0) {
-      held.push(prod.name);
+      held.push(title);
       tidy.push(l);
       continue;
     }
-    const unit = prod.salePrice !== null && prod.price !== null && prod.salePrice < prod.price ? prod.salePrice : prod.price!;
     const photos = readPhotos(prod.photos);
     tidy.push({ ...l, q: Math.min(l.q, max) });
-    lines.push({ productId: prod.id, name: prod.name, slug: prod.slug, unit, qty: Math.min(l.q, max), max, photo: photos[0]?.key ?? null, note: makeLine(prod), digital: prod.digital, categoryId: prod.categoryId });
+    lines.push({
+      key: lineKey(l),
+      productId: prod.id,
+      variant: variant ? variantKey(variant.values) : null,
+      choices: describeChoice(opts, variant?.values, answers.answers),
+      name: prod.name,
+      slug: prod.slug,
+      unit,
+      qty: Math.min(l.q, max),
+      max,
+      photo: photos[0]?.key ?? null,
+      note: variant ? variantNote(variant, prod) : makeLine(prod),
+      digital: prod.digital,
+      categoryId: prod.categoryId,
+    });
   }
   const subtotal = lines.reduce((n, l) => n + l.unit * l.qty, 0);
   const t = taxOn(subtotal, shop.taxRate, shop.pricesIncludeTax);
@@ -170,7 +203,20 @@ export const checkoutSchema = z.object({
 });
 export type CheckoutDetails = z.infer<typeof checkoutSchema>;
 
-export type OrderItem = { productId: string; name: string; slug: string; unit: number; qty: number; photo: string | null; note: string; digital: boolean };
+export type OrderItem = {
+  productId: string;
+  name: string;
+  slug: string;
+  unit: number;
+  qty: number;
+  photo: string | null;
+  note: string;
+  digital: boolean;
+  /** The combination's key, when the product has list options: its stock is the one that comes down. */
+  variant?: string | null;
+  /** What was chosen and filled in, for the order screen and the emails. */
+  choices?: Choice[];
+};
 
 /** A pending order from the cart as it stands, priced on the server. Payment comes next. */
 export async function placeOrder(p: { site: Site; cart: CartLine[]; details: unknown; provider: string; cartRef?: string }): Promise<Order> {
@@ -211,7 +257,7 @@ export async function placeOrder(p: { site: Site; cart: CartLine[]; details: unk
     if (applied.freeShipping) shippingPrice = 0;
   }
   const t = taxOn(priced.subtotal - off + shippingPrice, priced.taxRate, priced.pricesIncludeTax);
-  const items: OrderItem[] = priced.lines.map((l) => ({ productId: l.productId, name: l.name, slug: l.slug, unit: l.unit, qty: l.qty, photo: l.photo, note: l.note, digital: l.digital }));
+  const items: OrderItem[] = priced.lines.map((l) => ({ productId: l.productId, name: l.name, slug: l.slug, unit: l.unit, qty: l.qty, photo: l.photo, note: l.note, digital: l.digital, variant: l.variant, choices: l.choices }));
   return withSite(p.site.id, async (tx) => {
     // Their earlier unpaid try (back from Stripe, changed something) stops holding stock: this one replaces it.
     if (p.cartRef) await tx.update(orders).set({ paymentStatus: "failed", updatedAt: new Date() }).where(and(eq(orders.cartRef, p.cartRef), eq(orders.paymentStatus, "pending")));
@@ -278,25 +324,24 @@ export async function markOrderPaid(p: { siteId: string; orderId: string; adminU
     if (!o) throw new Error("That order doesn't exist.");
     if (o.paymentStatus === "paid") return { order: o, first: false };
     const items = o.items as OrderItem[];
-    for (const it of items) {
-      await tx
-        .update(products)
-        .set({
-          stock: sql`case when ${products.make} = 'ready' and ${products.stock} is not null then greatest(${products.stock} - ${it.qty}, 0) else ${products.stock} end`,
-          availability: sql`case when ${products.make} = 'oneOnly' then 'sold' else ${products.availability} end`,
-          updatedAt: new Date(),
-        })
-        .where(eq(products.id, it.productId));
-    }
+    for (const it of items) await adjustStock(tx, it, -1);
     await countUse(tx, o.discountCode);
     const contactId = await upsertFromSubmission(tx, { siteId: p.siteId, name: o.name, email: o.email, phone: o.phone });
     const [paid] = await tx.update(orders).set({ paymentStatus: "paid", paidAt: new Date(), contactId, updatedAt: new Date() }).where(eq(orders.id, o.id)).returning();
     const [site] = await tx.select().from(sites).limit(1);
-    // Counted stock that this order brought down to its last one or two (or none).
-    const low = await tx
-      .select({ name: products.name, stock: products.stock })
+    // Counted stock that this order brought down to its last one or two (or none), the product's own or a combination's.
+    const touched = await tx
+      .select({ id: products.id, name: products.name, make: products.make, stock: products.stock, options: products.options, variants: products.variants })
       .from(products)
-      .where(and(inArray(products.id, items.map((it) => it.productId)), eq(products.make, "ready"), sql`${products.stock} is not null and ${products.stock} <= ${LOW_STOCK}`));
+      .where(inArray(products.id, items.map((it) => it.productId)));
+    const low = touched.flatMap((t) => {
+      const mine = items.filter((it) => it.productId === t.id);
+      const own = mine.some((it) => !it.variant) && t.make === "ready" && t.stock !== null && t.stock <= LOW_STOCK ? [{ name: t.name, stock: t.stock }] : [];
+      const combos = variantsFor(readOptions(t.options), readVariants(t.variants), t.make)
+        .filter((v) => mine.some((it) => it.variant === variantKey(v.values)) && v.make === "ready" && v.stock !== null && v.stock <= LOW_STOCK)
+        .map((v) => ({ name: `${t.name} (${variantLabel(v.values)})`, stock: v.stock as number }));
+      return [...own, ...combos];
+    });
     return { order: paid, first: true, site, low };
   });
   if (result.first && "site" in result && result.site) {
@@ -304,6 +349,43 @@ export async function markOrderPaid(p: { siteId: string; orderId: string; adminU
     if (result.low.length) await notifyLowStock(result.site, result.low as { name: string; stock: number }[], p.adminUrl).catch((err) => console.error("low stock email failed", err));
   }
   return { order: result.order, first: result.first };
+}
+
+/**
+ * A sale (-1) or a refund's restock (+1) of one order line: its
+ * combination's stock for a product with list options, otherwise the
+ * product's own. One only: sold, or back on sale. The product row is
+ * locked while its combinations are rewritten.
+ */
+export async function adjustStock(tx: Tx, it: Pick<OrderItem, "productId" | "variant" | "qty">, dir: -1 | 1): Promise<void> {
+  if (it.variant) {
+    const [prod] = await tx.select({ options: products.options, variants: products.variants, make: products.make }).from(products).where(eq(products.id, it.productId)).for("update").limit(1);
+    if (!prod) return;
+    const opts = readOptions(prod.options);
+    const stored = readVariants(prod.variants);
+    // Options changed since the order and the combination's gone: nothing to count.
+    const v = variantsFor(opts, stored, prod.make).find((x) => variantKey(x.values) === it.variant);
+    if (!v) return;
+    const next = v.make === "ready" && v.stock !== null ? { ...v, stock: Math.max(v.stock + dir * it.qty, 0) } : v.make === "oneOnly" ? { ...v, stock: dir < 0 ? 0 : null } : null;
+    if (next) await tx.update(products).set({ variants: upsertVariant(stored, next, opts), updatedAt: new Date() }).where(eq(products.id, it.productId));
+    return;
+  }
+  await tx
+    .update(products)
+    .set(
+      dir < 0
+        ? {
+            stock: sql`case when ${products.make} = 'ready' and ${products.stock} is not null then greatest(${products.stock} - ${it.qty}, 0) else ${products.stock} end`,
+            availability: sql`case when ${products.make} = 'oneOnly' then 'sold' else ${products.availability} end`,
+            updatedAt: new Date(),
+          }
+        : {
+            stock: sql`case when ${products.make} = 'ready' and ${products.stock} is not null then ${products.stock} + ${it.qty} else ${products.stock} end`,
+            availability: sql`case when ${products.make} = 'oneOnly' and ${products.availability} = 'sold' then 'forSale' else ${products.availability} end`,
+            updatedAt: new Date(),
+          },
+    )
+    .where(eq(products.id, it.productId));
 }
 
 /** "Running low" is the last one or two. */
@@ -346,7 +428,7 @@ async function notifyLowStock(site: Site, low: { name: string; stock: number }[]
 
 export function orderLines(o: Order): string {
   const cur = o.currency as Currency;
-  const items = (o.items as OrderItem[]).map((it) => `${it.qty} × ${it.name} — ${formatPrice(it.unit * it.qty, cur)}`);
+  const items = (o.items as OrderItem[]).map((it) => `${it.qty} × ${withChoice(it.name, it.choices)} — ${formatPrice(it.unit * it.qty, cur)}`);
   const addr = o.address as Partial<Address>;
   const where = addr.line1 ? [addr.line1, addr.line2, [addr.city, addr.state, addr.postcode].filter(Boolean).join(" "), addr.country ? countryName(addr.country) : ""].filter(Boolean).join("\n") : "";
   return [

@@ -1,10 +1,10 @@
-import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { withSite } from "@/db/client";
-import { ORDER_STATUSES, orders, products, sites, type Order, type OrderStatus } from "@/db/schema";
+import { ORDER_STATUSES, orders, sites, type Order, type OrderStatus } from "@/db/schema";
 import { sendEmail } from "@/lib/email";
 import { AccessError, assertAccess } from "@/modules/auth/access";
-import type { OrderItem } from "./server";
+import { adjustStock, type OrderItem } from "./server";
 import { siteStripe } from "@/modules/payments/server";
 import { formatPrice, type Currency } from "@/modules/sites/shop";
 import { senderFor, tradingName } from "@/modules/sites/business";
@@ -192,16 +192,7 @@ export async function refundOrder(p: { actorId: string; siteId: string; orderId:
 
   const updated = await withSite(p.siteId, async (tx) => {
     if (r.restock) {
-      for (const it of o.items as OrderItem[]) {
-        await tx
-          .update(products)
-          .set({
-            stock: sql`case when ${products.make} = 'ready' and ${products.stock} is not null then ${products.stock} + ${it.qty} else ${products.stock} end`,
-            availability: sql`case when ${products.make} = 'oneOnly' and ${products.availability} = 'sold' then 'forSale' else ${products.availability} end`,
-            updatedAt: new Date(),
-          })
-          .where(eq(products.id, it.productId));
-      }
+      for (const it of o.items as OrderItem[]) await adjustStock(tx, it, 1);
     }
     const refunded = o.refunded + amount;
     const [row] = await tx

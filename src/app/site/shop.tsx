@@ -4,7 +4,9 @@ import type { Metadata } from "next";
 import type { ProductCategory, Site } from "@/db/schema";
 import { mediaUrl } from "@/modules/media/server";
 import { siteMenus } from "@/modules/menus/server";
-import { customerView, effectiveAvailability } from "@/modules/products/catalogue";
+import { customerView, effectiveAvailability, liveVariants, variantNote } from "@/modules/products/catalogue";
+import { readOptions, unitPrice, variantKey, variantState } from "@/modules/products/options";
+import { ProductBuy, type BuyVariant } from "./product-buy";
 import { productCategoryBySlug, publishedProductCategories } from "@/modules/products/categories";
 import { productPath, publishedProduct, publishedProducts, type ProductRow } from "@/modules/products/server";
 import { siteShipping, siteShop } from "@/modules/sites/server";
@@ -14,7 +16,7 @@ import { AddToCart } from "./add-to-cart";
 import { Enquire } from "./enquire";
 import { EmailQuote } from "./email-quote";
 import { COUNTRIES } from "@/lib/countries";
-import { homeCountry } from "@/modules/sites/shop";
+import { formatPrice, homeCountry } from "@/modules/sites/shop";
 import { deliveryText, readProductDetails, resolveDetails } from "@/modules/products/details";
 import { Placeholder } from "@/lib/placeholder";
 import { Frame, missing } from "./storefront";
@@ -116,6 +118,14 @@ function ProductPage({ product: p, site, enquiry }: { product: ProductRow; site:
   const v = customerView(p, currency);
   const a = effectiveAvailability(p);
   const [main, ...rest] = p.photos;
+  // Options: each combination priced and described here, so the page can follow what's picked.
+  const options = readOptions(p.options);
+  const fmt = (c: number) => formatPrice(c, currency);
+  const onSale = p.salePrice !== null && p.price !== null && p.salePrice < p.price;
+  const buyVariants: BuyVariant[] = liveVariants(p).map((x) => {
+    const unit = unitPrice(p, x);
+    return { key: variantKey(x.values), values: x.values, state: variantState(x), price: unit === null ? null : fmt(unit), was: x.price === null && onSale ? fmt(p.price!) : null, note: variantNote(x, p) };
+  });
   return (
     <article className="grid gap-8 pt-6 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] md:gap-12 md:pt-10">
       <ProductSchema product={p} site={site} />
@@ -142,18 +152,32 @@ function ProductPage({ product: p, site, enquiry }: { product: ProductRow; site:
           </Link>
         )}
         <h1 className="mt-2 text-[28px] font-semibold leading-[1.15] tracking-[-0.5px] md:text-[34px]">{p.name}</h1>
-        <p data-testid="product-price" className="mt-3 text-[20px]">
-          {v.price}
-          {v.was && <s className="ml-2 text-[16px] text-[var(--text-muted)]">{v.was}</s>}
-        </p>
-        <p data-testid="product-note" className="mt-1 text-[14px] text-[var(--text-muted)]">
-          {v.note}
-        </p>
-        {v.buyable && p.make === "ready" && !p.digital && siteShipping(site).dispatchDays > 0 && (
-          <p className="mt-1 text-[14px] text-[var(--text-muted)]">Posted within {siteShipping(site).dispatchDays} business days</p>
+        {options.length > 0 ? (
+          <ProductBuy
+            productId={p.id}
+            productName={p.name}
+            options={options}
+            variants={buyVariants}
+            base={{ price: v.price, was: v.was, note: v.note }}
+            canCart={v.buyable && paymentsStatus(site).ready}
+            quote={v.quotable && enquiry ? { alone: !(v.buyable && paymentsStatus(site).ready), countries: COUNTRIES, defaultCountry: homeCountry(currency) } : null}
+          />
+        ) : (
+          <>
+            <p data-testid="product-price" className="mt-3 text-[20px]">
+              {v.price}
+              {v.was && <s className="ml-2 text-[16px] text-[var(--text-muted)]">{v.was}</s>}
+            </p>
+            <p data-testid="product-note" className="mt-1 text-[14px] text-[var(--text-muted)]">
+              {v.note}
+            </p>
+            {v.buyable && p.make === "ready" && !p.digital && siteShipping(site).dispatchDays > 0 && (
+              <p className="mt-1 text-[14px] text-[var(--text-muted)]">Posted within {siteShipping(site).dispatchDays} business days</p>
+            )}
+            {v.buyable && paymentsStatus(site).ready && <AddToCart productId={p.id} />}
+            {v.quotable && enquiry && <EmailQuote productId={p.id} productName={p.name} alone={!(v.buyable && paymentsStatus(site).ready)} countries={COUNTRIES} defaultCountry={homeCountry(currency)} />}
+          </>
         )}
-        {v.buyable && paymentsStatus(site).ready && <AddToCart productId={p.id} />}
-        {v.quotable && enquiry && <EmailQuote productId={p.id} productName={p.name} alone={!(v.buyable && paymentsStatus(site).ready)} countries={COUNTRIES} defaultCountry={homeCountry(currency)} />}
         {enquiry && (a === "enquire" || a === "sold") && (
           <Enquire form={{ id: enquiry.id, fields: enquiry.fields, buttonText: enquiry.buttonText, afterMessage: enquiry.afterMessage }} productId={p.id} sold={a === "sold"} />
         )}
@@ -214,7 +238,19 @@ function ProductSchema({ product: p, site }: { product: ProductRow; site: Site }
   const a = effectiveAvailability(p);
   const availability =
     a === "sold" || a === "soldOut" ? "SoldOut" : a === "comingSoon" ? "PreOrder" : a === "enquire" ? null : p.make === "madeToOrder" ? "MadeToOrder" : "InStock";
-  const price = p.salePrice ?? p.price;
+  // With combinations, Google is told the range: lowest to highest.
+  const prices = liveVariants(p)
+    .filter((x) => variantState(x) === "available")
+    .map((x) => unitPrice(p, x))
+    .filter((x): x is number => x !== null);
+  const price = prices.length ? Math.min(...prices) : (p.salePrice ?? p.price);
+  const high = prices.length ? Math.max(...prices) : null;
+  const offer =
+    price !== null && availability
+      ? high !== null && high > price
+        ? { "@type": "AggregateOffer", lowPrice: (price / 100).toFixed(2), highPrice: (high / 100).toFixed(2), offerCount: prices.length, priceCurrency: currency, availability: `https://schema.org/${availability}` }
+        : { "@type": "Offer", price: (price / 100).toFixed(2), priceCurrency: currency, availability: `https://schema.org/${availability}` }
+      : null;
   const data: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -223,9 +259,7 @@ function ProductSchema({ product: p, site }: { product: ProductRow; site: Site }
     ...(p.photos.length ? { image: p.photos.map((ph) => mediaUrl(ph.key)) } : {}),
     ...(p.code ? { sku: p.code } : {}),
     brand: { "@type": "Brand", name: site.name },
-    ...(price !== null && availability
-      ? { offers: { "@type": "Offer", price: (price / 100).toFixed(2), priceCurrency: currency, availability: `https://schema.org/${availability}` } }
-      : {}),
+    ...(offer ? { offers: offer } : {}),
   };
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data).replace(/</g, "\\u003c") }} />;
 }

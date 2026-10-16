@@ -12,7 +12,22 @@ const input = `block h-12 w-full rounded-[6px] border border-[var(--border)] bg-
  * Add to cart (a quieter one). Opens a short form in place — who, where
  * it's going, how many — and the team emails a price. Nothing is charged.
  */
-export function EmailQuote({ productId, productName, alone, countries, defaultCountry }: { productId: string; productName: string; alone: boolean; countries: { code: string; name: string }[]; defaultCountry: string }) {
+export function EmailQuote({
+  productId,
+  productName,
+  alone,
+  countries,
+  defaultCountry,
+  choice = "",
+}: {
+  productId: string;
+  productName: string;
+  alone: boolean;
+  countries: { code: string; name: string }[];
+  defaultCountry: string;
+  /** What's picked on the page ("Size: 8, Colour: Print"), sent along with the request. */
+  choice?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [state, act, pending] = useActionState(productQuoteAction.bind(null, productId), {} as CartState);
 
@@ -68,6 +83,8 @@ export function EmailQuote({ productId, productName, alone, countries, defaultCo
         <span className="mb-1.5 block text-[14px]">Anything we should know?</span>
         <textarea name="note" rows={3} maxLength={1000} className={`${input} h-auto py-3`} />
       </label>
+      <input type="hidden" name="choice" value={choice} />
+      {choice && <p className="text-[14px] text-[var(--text-muted)]">For {choice}.</p>}
       {/* The trap: people never see it, bots fill it in. */}
       <div className="absolute -left-[9999px] top-auto h-px w-px overflow-hidden" aria-hidden>
         <label htmlFor={`website_quote_${productId}`}>Website</label>

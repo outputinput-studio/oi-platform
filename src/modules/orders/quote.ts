@@ -10,6 +10,7 @@ import { quoteFor, readShipping } from "@/modules/sites/shipping";
 import { customerView } from "@/modules/products/catalogue";
 import { formatPrice, readShopSettings } from "@/modules/sites/shop";
 import type { CartLine } from "./cart";
+import { withChoice } from "@/modules/products/options";
 import { checkoutSchema, priceCart } from "./server";
 
 /**
@@ -42,7 +43,7 @@ export async function requestQuote(p: { site: Site; cart: CartLine[]; cartRef?: 
     _email: details.email,
     _phone: details.phone,
     _address: [address.line1, address.line2, [address.city, address.state, address.postcode].filter(Boolean).join(" "), where].filter(Boolean).join("\n"),
-    _cart: [...priced.lines.map((l) => `${l.qty} × ${l.name} — ${fmt(l.unit * l.qty)}`), `Subtotal ${fmt(priced.subtotal)} before delivery`].join("\n"),
+    _cart: [...priced.lines.map((l) => `${l.qty} × ${withChoice(l.name, l.choices)} — ${fmt(l.unit * l.qty)}`), `Subtotal ${fmt(priced.subtotal)} before delivery`].join("\n"),
     _note: details.note,
   };
   await recordSubmission({ siteId: p.site.id, form, fields, answers, siteName: p.site.name, inboxUrl: p.inboxUrl, autoReply: false, subject: "asked for a delivery quote" });
@@ -64,6 +65,8 @@ export const productQuoteSchema = z.object({
   postcode: z.string().trim().min(2, "What's the postcode?").max(20),
   qty: z.coerce.number().int().min(1, "At least one.").max(999, "Up to 999 — get in touch for more."),
   note: z.string().trim().max(1000).default(""),
+  /** What they'd picked on the page: "Size: 8, Colour: Print". Read as their words, nothing more. */
+  choice: z.string().trim().max(300).default(""),
 });
 
 /**
@@ -97,7 +100,7 @@ export async function requestProductQuote(p: { site: Site; productId: string; de
     _email: d.email,
     _phone: d.phone,
     _address: [[d.city, d.postcode].filter(Boolean).join(" "), where].join("\n"),
-    _product: `${d.qty} × ${prod.name} (/shop/${prod.slug})${v.price ? ` — listed at ${v.price} each` : ""}`,
+    _product: `${d.qty} × ${prod.name}${d.choice ? ` — ${d.choice}` : ""} (/shop/${prod.slug})${v.price ? ` — listed at ${v.price} each` : ""}`,
     _note: d.note,
   };
   await recordSubmission({ siteId: p.site.id, form, fields, answers, siteName: p.site.name, inboxUrl: p.inboxUrl, autoReply: false, subject: `asked for a quote for ${prod.name}` });

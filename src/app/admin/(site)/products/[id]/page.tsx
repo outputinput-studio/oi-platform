@@ -7,6 +7,7 @@ import { mediaAvailable, mediaUrl } from "@/modules/media/server";
 import { readSeo } from "@/modules/pages/seo";
 import { siteShipping, siteShop } from "@/modules/sites/server";
 import { readProductDetails } from "@/modules/products/details";
+import { readOptions, readVariants } from "@/modules/products/options";
 import { publicForm } from "@/modules/forms/server";
 import { paymentsStatus } from "@/modules/payments/server";
 import { ProductEditor } from "./product-editor";
@@ -43,6 +44,8 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
         photos: p.photos,
         code: p.code,
         details: readProductDetails(p.details),
+        options: readOptions(p.options),
+        variants: readVariants(p.variants),
       }}
       photoUrls={Object.fromEntries(p.photos.map((ph) => [ph.key, mediaUrl(ph.key)]))}
       categories={cats.map((c) => ({ id: c.id, name: c.name }))}
