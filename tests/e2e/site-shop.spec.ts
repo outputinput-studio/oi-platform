@@ -524,3 +524,77 @@ test("product details: rows written once, changed or hidden on one product, open
   await page.getByLabel("Sale price").fill("380");
   await expect(page.getByTestId("product-save-status")).toHaveText("✓ Saved");
 });
+
+test("options: sizes with their own price and stock, a box they fill in, through to the order", async ({ page }) => {
+  await signInAsOwner(page);
+  await page.goto(admin + "/products");
+  await page.getByRole("button", { name: "Add product" }).click();
+  await page.getByLabel("Product name").fill("Linen robe");
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page.getByRole("heading", { name: "Edit product" })).toBeVisible();
+  await page.getByLabel("Price", { exact: true }).fill("120");
+
+  // Option 1, a list: Size. Option 2, a box: Monogram.
+  const options = page.getByTestId("product-options");
+  await options.getByRole("switch", { name: /This product has options/ }).click();
+  await expect(options.getByLabel("Name")).toHaveValue("Size");
+  await options.getByLabel("Values").fill("S, M, L");
+  await options.getByRole("button", { name: "+ Add an option" }).click();
+  const second = options.getByTestId("option-1");
+  await second.getByRole("radio", { name: "Customer fills in" }).click();
+  await second.getByLabel("What you ask for").fill("Monogram");
+  await expect(second).toContainText("On the order it reads: Monogram — what they type");
+  await expect(options).toContainText("3 combinations");
+  await expect(page.getByTestId("product-save-status")).toHaveText("✓ Saved");
+
+  // L costs more and there's one; S isn't offered.
+  await options.getByTestId("combo-L").click();
+  const sheet = page.getByRole("dialog", { name: "L" });
+  await sheet.getByLabel("Price").fill("140");
+  await sheet.getByRole("radio", { name: "In stock" }).click();
+  await sheet.getByLabel("How many do you have?").fill("1");
+  await sheet.getByRole("button", { name: "Save combination" }).click();
+  await expect(sheet).toHaveCount(0);
+  await expect(options.getByTestId("combo-L")).toContainText("$140 · 1 left");
+  await options.getByTestId("combo-S").click();
+  await page.getByRole("dialog", { name: "S" }).getByRole("switch", { name: /Offer this combination/ }).click();
+  await page.getByRole("dialog", { name: "S" }).getByRole("button", { name: "Save combination" }).click();
+  await expect(options.getByTestId("combo-S")).toContainText("not offered");
+  await expect(page.getByTestId("customer-view")).toContainText("From $120");
+  await page.getByRole("switch", { name: /Visible on site/ }).click();
+  await expect(page.getByTestId("product-save-status")).toHaveText("✓ Saved");
+
+  // The shop: nothing picked yet, so Add to cart says what's missing and points at it.
+  await page.goto(demo + "/shop/linen-robe");
+  await expect(page.getByTestId("product-price")).toHaveText("From $120");
+  await page.getByRole("button", { name: "Add to cart" }).click();
+  await expect(page.getByText("Choose a size first.")).toBeVisible();
+  await expect(page.getByTestId("option-Size")).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByRole("radio", { name: "S, not available" })).toBeVisible();
+  await page.getByRole("radio", { name: "L", exact: true }).click();
+  await expect(page.getByTestId("product-price")).toHaveText("$140");
+  await expect(page.getByTestId("product-note")).toHaveText("Ready to ship · 1 left");
+  await page.getByRole("button", { name: "Add to cart" }).click();
+  await expect(page.getByText("Monogram: fill this in.")).toBeVisible();
+  await expect(page.getByLabel("Monogram")).toBeFocused();
+  await page.getByLabel("Monogram").fill("CN");
+  await page.getByRole("button", { name: "Add to cart" }).click();
+  await page.getByRole("link", { name: "Added — view your cart" }).click();
+  await expect(page.getByTestId("cart-line-linen-robe")).toContainText("Size: L, Monogram: CN");
+  await expect(page.getByTestId("cart-line-linen-robe")).toContainText("$140");
+
+  // Paid; the team sees what to make; the last L is gone.
+  await page.getByRole("link", { name: "Checkout" }).click();
+  await page.getByLabel("Name").fill("Cat Neal");
+  await page.getByLabel("Email").fill("cat@example.com");
+  await page.getByRole("button", { name: "Continue to test payment" }).click();
+  await page.getByRole("button", { name: "Pay $140 (test)" }).click();
+  await expect(page.getByTestId("done-heading")).toHaveText("Thank you, Cat");
+  await expect(page.getByText("1 × Linen robe (Size: L, Monogram: CN)")).toBeVisible();
+  await page.goto(demo + "/shop/linen-robe");
+  await expect(page.getByRole("radio", { name: "L, not available" })).toBeVisible();
+
+  await page.goto(admin + "/orders");
+  await page.getByTestId(/^order-\d+$/).filter({ hasText: "Cat Neal" }).click();
+  await expect(page.getByTestId("item-choice")).toHaveText(["Size: L", "Monogram: CN"]);
+});

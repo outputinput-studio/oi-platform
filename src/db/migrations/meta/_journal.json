@@ -169,6 +169,13 @@
       "when": 1792140281209,
       "tag": "0023_product_details",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792143412523,
+      "tag": "0024_product_options",
+      "breakpoints": true
     }
   ]
 }

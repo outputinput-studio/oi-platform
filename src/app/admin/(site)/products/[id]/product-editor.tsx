@@ -9,10 +9,12 @@ import type { ImageRef } from "@/modules/pages/registry";
 import type { Seo } from "@/modules/pages/seo";
 import { slugFromTitle } from "@/modules/pages/slug";
 import { parsePrice, priceInput, type Currency } from "@/modules/sites/shop";
-import { Button, Field, Input, Label, PageHeader, Select, Switch, Textarea } from "../../../ui";
+import { Button, Field, Input, Label, PageHeader, Segmented, Select, Switch, Textarea } from "../../../ui";
 import { SeoCard } from "../../seo-card";
 import { Photos } from "./photos";
 import { DetailRows } from "./detail-rows";
+import { OptionsEditor } from "./options-editor";
+import { listOptions, upsertVariant, type ProductOption, type Variant } from "@/modules/products/options";
 import { FieldErrors } from "@/lib/field-errors";
 import { deliveryText, type ProductDetails } from "@/modules/products/details";
 import type { DetailRow } from "@/modules/sites/shop";
@@ -44,6 +46,9 @@ export type ProductDraft = {
   photos: ImageRef[];
   code: string;
   details: ProductDetails;
+  options: ProductOption[];
+  /** Stored combination settings (see options.ts); saved one at a time from their sheet. */
+  variants: Variant[];
 };
 
 const AVAILABILITY_HINT: Record<ProductAvailability, string> = {
@@ -138,6 +143,7 @@ export function ProductEditor({
   const [slugTouched, setSlugTouched] = useState(product.slug !== slugFromTitle(product.name));
   const path = `/shop/${d.slug || "…"}`;
   const view = customerView(d, currency);
+  const hasCombos = listOptions(d.options).length > 0;
 
   return (
     <>
@@ -236,6 +242,19 @@ export function ProductEditor({
           <p className="mt-1.5 text-[12.5px] text-muted">{d.digital ? "Nothing to post: a download or a voucher." : "Something that gets posted or picked up."}</p>
         </div>
 
+        <OptionsEditor
+          options={d.options}
+          variants={d.variants}
+          product={d}
+          currency={currency}
+          onOptions={(options) => change({ options })}
+          onVariant={async (v) => {
+            const r = await saveProductAction(product.id, { variant: v }).catch(() => ({ error: "Couldn't reach the server. Try again.", fields: undefined }));
+            if (!r.error) setD((cur) => ({ ...cur, variants: upsertVariant(cur.variants, v, cur.options) }));
+            return r;
+          }}
+        />
+
         <div>
           <p className="mb-1.5 text-[13.5px] text-body">How it&apos;s made</p>
           <Segmented
@@ -248,8 +267,9 @@ export function ProductEditor({
             ]}
             onChange={(v) => change({ make: v as ProductMake })}
           />
+          {hasCombos && <p className="mt-1.5 text-[12.5px] text-muted">Each combination follows this until you change it there. Stock is counted on each combination.</p>}
           <div className="mt-3">
-            {d.make === "ready" && (
+            {d.make === "ready" && !hasCombos && (
               <Field label="How many do you have?" htmlFor="p-stock" hint="Comes off sale on its own when it runs out. Leave empty to not count.">
                 <Input id="p-stock" data-field="stock" inputMode="numeric" className="max-w-[160px] font-mono" value={d.stock ?? ""} onChange={(e) => change({ stock: wholeOrNull(e.target.value) })} />
               </Field>
@@ -408,24 +428,4 @@ export function ProductEditor({
 function wholeOrNull(s: string): number | null {
   const t = s.replace(/[^\d]/g, "");
   return t === "" ? null : Math.min(Number(t), 1_000_000);
-}
-
-/** A row of options, one picked: Physical | Digital. */
-function Segmented({ label, value, options, onChange }: { label: string; value: string; options: [string, string][]; onChange: (v: string) => void }) {
-  return (
-    <div role="radiogroup" aria-label={label} className="flex flex-1 rounded-[6px] border border-line bg-bg p-[3px]">
-      {options.map(([v, text]) => (
-        <button
-          key={v}
-          type="button"
-          role="radio"
-          aria-checked={value === v}
-          onClick={() => onChange(v)}
-          className={`h-[38px] flex-1 rounded-button px-2 text-[14px] ${value === v ? "bg-accent text-text" : "text-muted hover:text-text"}`}
-        >
-          {text}
-        </button>
-      ))}
-    </div>
-  );
 }

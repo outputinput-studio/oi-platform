@@ -2,6 +2,7 @@ import type { Site } from "@/db/schema";
 import { paymentsStatus, siteStripe } from "@/modules/payments/server";
 import { mediaUrl } from "@/modules/media/server";
 import type { CartLine } from "./cart";
+import { withChoice } from "@/modules/products/options";
 import { HOLD_MINUTES, markOrderPaid, orderForCustomer, placeOrder, setProviderRef, type OrderItem } from "./server";
 
 /**
@@ -21,7 +22,7 @@ export async function startCheckout(p: { site: Site; host: string; cart: CartLin
   const currency = order.currency.toLowerCase();
   const line_items = items.map((it) => ({
     quantity: it.qty,
-    price_data: { currency, unit_amount: it.unit, product_data: { name: it.name, ...(it.photo ? { images: [mediaUrl(it.photo)] } : {}) } },
+    price_data: { currency, unit_amount: it.unit, product_data: { name: withChoice(it.name, it.choices).slice(0, 250), ...(it.photo ? { images: [mediaUrl(it.photo)] } : {}) } },
   }));
   if (order.shippingPrice > 0) line_items.push({ quantity: 1, price_data: { currency, unit_amount: order.shippingPrice, product_data: { name: `Delivery — ${String((order.shipping as { name?: string } | null)?.name ?? "")}`.replace(/ — $/, "") } } });
   // Prices that don't include tax get it added as its own line, so the total matches the order.

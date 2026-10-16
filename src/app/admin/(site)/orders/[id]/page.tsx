@@ -52,8 +52,8 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         </div>
 
         <ul className="divide-y divide-line-soft rounded-card border border-line bg-surface">
-          {items.map((it) => (
-            <li key={it.productId} className="flex gap-3 p-[14px]">
+          {items.map((it, i) => (
+            <li key={i} className="flex gap-3 p-[14px]">
               {it.photo ? (
                 // eslint-disable-next-line @next/next/no-img-element -- served straight from the bucket
                 <img src={mediaUrl(it.photo)} alt="" className="h-14 w-14 flex-none rounded object-cover" />
@@ -62,6 +62,12 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               )}
               <span className="min-w-0 flex-1">
                 <span className="block text-[14.5px] font-medium">{it.name}</span>
+                {/* What they picked and filled in: what to make, or which one to send. */}
+                {it.choices?.map((c) => (
+                  <span key={c.name} data-testid="item-choice" className="block text-[13.5px] text-text">
+                    {c.name}: {c.value}
+                  </span>
+                ))}
                 <span className="block text-[12.5px] text-muted">{it.note}</span>
               </span>
               <span className="flex-none text-right font-mono text-[13.5px]">

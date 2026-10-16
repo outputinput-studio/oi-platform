@@ -11,6 +11,7 @@ import { confirmStripeReturn } from "@/modules/orders/checkout";
 import { orderForCustomer, priceCart, type OrderItem, type PricedCart } from "@/modules/orders/server";
 import { paymentsStatus } from "@/modules/payments/server";
 import { formatPrice, homeCountry, type Currency } from "@/modules/sites/shop";
+import { choiceText, withChoice } from "@/modules/products/options";
 import { siteShipping, siteShop } from "@/modules/sites/server";
 import { publicForm } from "@/modules/forms/server";
 import { businessOf } from "@/modules/sites/business";
@@ -52,7 +53,7 @@ export async function CartPage() {
         <div className="grid gap-10 pt-6 md:grid-cols-[minmax(0,1fr)_340px]">
           <ul className="divide-y divide-[var(--border-soft)] border-y border-[var(--border-soft)]">
             {cart.lines.map((l) => (
-              <li key={l.productId} data-testid={`cart-line-${l.slug}`} className="flex gap-4 py-4">
+              <li key={l.key} data-testid={`cart-line-${l.slug}`} className="flex gap-4 py-4">
                 <Link href={`/shop/${l.slug}`} className="flex-none">
                   {l.photo ? (
                     // eslint-disable-next-line @next/next/no-img-element -- served straight from the bucket
@@ -65,15 +66,16 @@ export async function CartPage() {
                   <Link href={`/shop/${l.slug}`} className="text-[15px] hover:underline hover:underline-offset-4">
                     {l.name}
                   </Link>
+                  {l.choices.length > 0 && <p className="mt-0.5 text-[13.5px] text-[var(--text-body)]">{choiceText(l.choices)}</p>}
                   <p className="mt-0.5 text-[13px] text-[var(--text-muted)]">{l.note}</p>
                   <div className="mt-3 flex items-center gap-3">
                     <form action={setCartQtyAction} className="flex items-center gap-2">
-                      <input type="hidden" name="productId" value={l.productId} />
-                      <label className="sr-only" htmlFor={`qty-${l.productId}`}>
+                      <input type="hidden" name="line" value={l.key} />
+                      <label className="sr-only" htmlFor={`qty-${l.key}`}>
                         How many
                       </label>
                       <select
-                        id={`qty-${l.productId}`}
+                        id={`qty-${l.key}`}
                         name="qty"
                         defaultValue={l.qty}
                         className="h-9 rounded-[6px] border border-[var(--border)] bg-transparent px-2 text-[14px]"
@@ -89,7 +91,7 @@ export async function CartPage() {
                       </button>
                     </form>
                     <form action={setCartQtyAction}>
-                      <input type="hidden" name="productId" value={l.productId} />
+                      <input type="hidden" name="line" value={l.key} />
                       <input type="hidden" name="qty" value="0" />
                       <button type="submit" className="text-[13px] text-[var(--text-muted)] underline underline-offset-4">
                         Remove
@@ -151,9 +153,9 @@ export async function CheckoutPage() {
           <aside>
             <ul className="space-y-2 border-b border-[var(--border-soft)] pb-4 text-[14px]">
               {cart.lines.map((l) => (
-                <li key={l.productId} className="flex justify-between gap-3">
+                <li key={l.key} className="flex justify-between gap-3">
                   <span>
-                    {l.qty} × {l.name}
+                    {l.qty} × {withChoice(l.name, l.choices)}
                   </span>
                   <span>{formatPrice(l.unit * l.qty, cart.currency)}</span>
                 </li>
@@ -223,10 +225,10 @@ export async function DonePage({ orderId, sessionId }: { orderId: string; sessio
           {paid ? `A receipt is on its way to ${order.email}.` : "This can take a minute. Refresh this page shortly; nothing more to do."}
         </p>
         <ul className="mt-6 space-y-2 border-y border-[var(--border-soft)] py-4 text-[14px]">
-          {(order.items as OrderItem[]).map((it) => (
-            <li key={it.productId} className="flex justify-between gap-3">
+          {(order.items as OrderItem[]).map((it, i) => (
+            <li key={i} className="flex justify-between gap-3">
               <span>
-                {it.qty} × {it.name}
+                {it.qty} × {withChoice(it.name, it.choices)}
               </span>
               <span>{formatPrice(it.unit * it.qty, cur)}</span>
             </li>

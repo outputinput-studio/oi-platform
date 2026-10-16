@@ -12,6 +12,7 @@ import { readProductDetails } from "./details";
 import { productEditSchema, productNameSchema, readPhotos } from "./catalogue";
 import { assertShopSlugFree, freeShopSlug } from "./slugs";
 import { FieldError, named } from "@/lib/form-error";
+import { readOptions, readVariants, upsertVariant, variantKey, variantsFor } from "./options";
 
 /**
  * Products: the pieces a site sells. The team side authorises first;
@@ -70,13 +71,25 @@ export async function updateProduct(p: { actorId: string; siteId: string; produc
   await assertAccess(p.actorId, p.siteId);
   const e = productEditSchema.parse(p.edit);
   return withSite(p.siteId, async (tx) => {
-    const cur = await load(tx, p.productId);
+    // Locked: a sale bringing a combination's stock down waits for this, and the other way round.
+    const cur = await load(tx, p.productId, true);
     if (e.slug && e.slug !== cur.slug) await assertShopSlugFree(tx, e.slug, { productId: cur.id });
     const patch: Partial<Product> = { updatedAt: new Date() };
     for (const k of ["name", "slug", "description", "price", "salePrice", "digital", "make", "stock", "leadTime", "leadUnit", "availability", "buyWith", "visible", "photos", "code", "details"] as const) {
       if (e[k] !== undefined) (patch as Record<string, unknown>)[k] = e[k];
     }
     if (e.seo !== undefined) patch.seo = e.seo as Seo;
+    // Options, whole; the combinations follow them (see variantsFor).
+    const opts = e.options ?? readOptions(cur.options);
+    if (e.options !== undefined) patch.options = e.options;
+    // One combination's sheet: only what changed on it, so a sale's stock change on another isn't undone.
+    if (e.variant !== undefined) {
+      const { values, ...changes } = e.variant;
+      const stored = readVariants(cur.variants);
+      const v = variantsFor(opts, stored, e.make ?? cur.make).find((x) => variantKey(x.values) === variantKey(values));
+      if (!v) throw new Error("That combination isn't on this product any more. Reload and try again.");
+      patch.variants = upsertVariant(stored, { ...v, ...Object.fromEntries(Object.entries(changes).filter(([, x]) => x !== undefined)) }, opts);
+    }
     if (e.categoryId !== undefined) patch.categoryId = e.categoryId ? (await liveCategory(tx, e.categoryId)).id : null;
     const price = patch.price !== undefined ? patch.price : cur.price;
     const sale = patch.salePrice !== undefined ? patch.salePrice : cur.salePrice;
@@ -145,13 +158,14 @@ async function liveCategory(tx: Tx, id: string) {
   return c;
 }
 
-async function load(tx: Tx, id: string): Promise<Product> {
+async function load(tx: Tx, id: string, lock = false): Promise<Product> {
   if (!z.string().uuid().safeParse(id).success) throw new AccessError("That product doesn't exist.");
-  const [x] = await tx
+  const q = tx
     .select()
     .from(products)
     .where(and(eq(products.id, id), isNull(products.deletedAt)))
     .limit(1);
+  const [x] = lock ? await q.for("update") : await q;
   if (!x) throw new AccessError("That product doesn't exist.");
   return x;
 }

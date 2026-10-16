@@ -7,7 +7,8 @@ import { z } from "zod";
 import { siteFromHost } from "@/modules/sites/server";
 import { paymentsStatus } from "@/modules/payments/server";
 import { randomUUID } from "node:crypto";
-import { CART_COOKIE, CART_REF_COOKIE, addLine, readCart, setLine, writeCart, type CartLine } from "./cart";
+import { CART_COOKIE, CART_REF_COOKIE, MAX_CART_CHARS, addLine, lineKey, readCart, setLine, writeCart, type CartLine } from "./cart";
+import { MAX_ANSWER } from "@/modules/products/options";
 import { markOrderPaid, orderForCustomer, priceCart } from "./server";
 import { startCheckout } from "./checkout";
 import { cartCookieOptions } from "./cookies";
@@ -44,16 +45,26 @@ async function cartRef(): Promise<string | undefined> {
   return v && /^[0-9a-f-]{36}$/.test(v) ? v : undefined;
 }
 
-export async function addToCartAction(productId: string): Promise<CartState> {
+const choiceSchema = z.object({
+  /** The combination's key, for a product with list options. */
+  v: z.string().max(90).optional(),
+  /** Fill-in answers, by option id. */
+  f: z.record(z.string().max(40), z.string().trim().max(MAX_ANSWER)).optional(),
+});
+
+export async function addToCartAction(productId: string, choice?: unknown): Promise<CartState> {
   try {
     const { site } = await here();
     if (!paymentsStatus(site).ready) return { error: "This shop isn't taking orders online yet." };
     const id = z.string().uuid().parse(productId);
+    const c = choiceSchema.parse(choice ?? {});
+    const item = { id, ...(c.v ? { v: c.v } : {}), ...(c.f && Object.values(c.f).some(Boolean) ? { f: Object.fromEntries(Object.entries(c.f).filter(([, x]) => x)) } : {}) };
     const jar = await cookies();
-    const next = addLine(readCart(jar.get(CART_COOKIE)?.value), id, 1);
+    const next = addLine(readCart(jar.get(CART_COOKIE)?.value), item, 1);
+    if (writeCart(next).length > MAX_CART_CHARS) return { error: "Your cart is full. Check out what's in it first." };
     // Check it can be bought, and don't let the cart hold more than there is.
     const priced = await priceCart({ site, cart: next, cartRef: await cartRef() });
-    const line = priced.lines.find((l) => l.productId === id);
+    const line = priced.lines.find((l) => l.key === lineKey(item));
     if (!line) return { error: "Sorry, that can't be bought right now." };
     // Saved tidy: anything that can't be bought any more goes, quantities no more than there is.
     await saveCart(priced.tidy);
@@ -65,10 +76,10 @@ export async function addToCartAction(productId: string): Promise<CartState> {
 }
 
 export async function setCartQtyAction(form: FormData): Promise<void> {
-  const id = z.string().uuid().parse(form.get("productId"));
+  const key = z.string().max(400).parse(form.get("line"));
   const q = z.coerce.number().int().min(0).max(99).parse(form.get("qty"));
   const jar = await cookies();
-  await saveCart(setLine(readCart(jar.get(CART_COOKIE)?.value), id, q));
+  await saveCart(setLine(readCart(jar.get(CART_COOKIE)?.value), key, q));
   revalidatePath("/", "layout");
 }
 
@@ -122,7 +133,7 @@ export async function productQuoteAction(productId: string, _prev: CartState, fo
     const { site, host } = await here();
     if (String(form.get("website") ?? "")) return { ok: "Thanks. We'll be in touch." };
     const s = (k: string) => String(form.get(k) ?? "");
-    const details = { name: s("name"), email: s("email"), phone: s("phone"), country: s("country"), city: s("city"), postcode: s("postcode"), qty: s("qty") || "1", note: s("note") };
+    const details = { name: s("name"), email: s("email"), phone: s("phone"), country: s("country"), city: s("city"), postcode: s("postcode"), qty: s("qty") || "1", note: s("note"), choice: s("choice") };
     return await requestProductQuote({ site, productId, details, inboxUrl: `https://${host.replace(/^[^.]+\./, "admin.")}/inbox` });
   } catch (err) {
     return formError(err, { fallback: "Check the details and try again." });

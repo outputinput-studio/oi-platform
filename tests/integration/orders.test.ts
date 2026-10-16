@@ -213,3 +213,79 @@ describe("holding stock and refunds", () => {
     expect(calls).toEqual([1000]);
   });
 });
+
+describe("options and combinations", () => {
+  test("each combination has its own price and stock; what was filled in rides along to the order", async () => {
+    const site = (await siteFromHost("orders-a.localhost"))!;
+    const { refundOrder } = await import("@/modules/orders/admin");
+    const bikini = (await createProduct({ actorId: ann, siteId: site.id, name: "Crystal bikini" })).id;
+    const options = [
+      { id: "size", name: "Size", kind: "list", values: ["8", "10"] },
+      { id: "colour", name: "Colour", kind: "list", values: ["Print", "Black"] },
+    ];
+    await updateProduct({ actorId: ann, siteId: site.id, productId: bikini, edit: { price: 42000, visible: true, options } });
+    await updateProduct({ actorId: ann, siteId: site.id, productId: bikini, edit: { variant: { values: ["10", "Print"], price: 44000, stock: 3, code: "CB-10P" } } });
+    await updateProduct({ actorId: ann, siteId: site.id, productId: bikini, edit: { variant: { values: ["8", "Black"], on: false } } });
+    await expect(updateProduct({ actorId: ann, siteId: site.id, productId: bikini, edit: { variant: { values: ["12", "Print"], price: 1 } } })).rejects.toThrow(/isn't on this product/);
+    await expect(updateProduct({ actorId: ann, siteId: site.id, productId: bikini, edit: { options: [...options, { id: "x", name: "Fit", values: ["Slim"] }] } })).rejects.toThrow(/Two options/);
+
+    const priced = await priceCart({
+      site,
+      cart: [
+        { id: bikini, q: 5, v: "10 / Print" },
+        { id: bikini, q: 1, v: "8 / Print" },
+        { id: bikini, q: 1, v: "8 / Black" }, // not offered
+        { id: bikini, q: 1 }, // no combination picked
+        { id: bikini, q: 1, v: "12 / Print" }, // not a combination
+      ],
+    });
+    expect(priced.lines.map((l) => [l.variant, l.unit, l.qty, l.choices.map((c) => c.value).join(" ")])).toEqual([
+      ["10 / Print", 44000, 3, "10 Print"], // its own price; no more than its 3
+      ["8 / Print", 42000, 1, "8 Print"], // the product's price
+    ]);
+    expect(priced.dropped).toEqual(["Crystal bikini (8 · Black)", "Crystal bikini", "Crystal bikini"]);
+
+    // Held per combination: someone paying for 10 · Print doesn't hold 8 · Print.
+    const o = await placeOrder({ site, cart: [{ id: bikini, q: 3, v: "10 / Print" }], cartRef: "cart-v1", details: { name: "Mia", email: "mia@example.com", address, rate: "std" }, provider: "test" });
+    expect((await priceCart({ site, cart: [{ id: bikini, q: 1, v: "10 / Print" }], cartRef: "cart-v2" })).held).toEqual(["Crystal bikini (10 · Print)"]);
+    expect((await priceCart({ site, cart: [{ id: bikini, q: 1, v: "8 / Print" }], cartRef: "cart-v2" })).lines).toHaveLength(1);
+
+    // Paid: that combination's stock comes down, and it's sold out; the others are untouched.
+    await markOrderPaid({ siteId: site.id, orderId: o.id });
+    const after = await getProduct({ actorId: ann, siteId: site.id, productId: bikini });
+    const stored = after.variants as { values: string[]; stock: number | null; code: string }[];
+    expect(stored.find((x) => x.values.join() === "10,Print")).toMatchObject({ stock: 0, code: "CB-10P" });
+    expect((await priceCart({ site, cart: [{ id: bikini, q: 1, v: "10 / Print" }] })).dropped).toEqual(["Crystal bikini (10 · Print)"]);
+    const paid = (await orderForCustomer({ siteId: site.id, orderId: o.id }))!;
+    expect(paid.items).toEqual([expect.objectContaining({ variant: "10 / Print", choices: [{ name: "Size", value: "10" }, { name: "Colour", value: "Print" }] })]);
+
+    // Refunded with the stock put back: three again.
+    await refundOrder({ actorId: ann, siteId: site.id, orderId: o.id, refund: { restock: true } });
+    const back = (await getProduct({ actorId: ann, siteId: site.id, productId: bikini })).variants as { values: string[]; stock: number | null }[];
+    expect(back.find((x) => x.values.join() === "10,Print")?.stock).toBe(3);
+  });
+
+  test("a box they fill in: required, checked, and on the order", async () => {
+    const site = (await siteFromHost("orders-a.localhost"))!;
+    const suit = (await createProduct({ actorId: ann, siteId: site.id, name: "Made-to-measure suit" })).id;
+    await updateProduct({
+      actorId: ann,
+      siteId: site.id,
+      productId: suit,
+      edit: { price: 90000, make: "madeToOrder", visible: true, options: [{ id: "chest", name: "Chest (cm)", kind: "fill", answer: "number" }] },
+    });
+    const priced = await priceCart({
+      site,
+      cart: [
+        { id: suit, q: 1, f: { chest: "96" } },
+        { id: suit, q: 1, f: { chest: "big" } },
+        { id: suit, q: 1 },
+      ],
+    });
+    expect(priced.lines.map((l) => l.choices)).toEqual([[{ name: "Chest (cm)", value: "96" }]]);
+    expect(priced.dropped).toHaveLength(2);
+    const o = await placeOrder({ site, cart: [{ id: suit, q: 1, f: { chest: "96" } }], details: { name: "Tom", email: "tom@example.com", address, rate: "std" }, provider: "test" });
+    const { orderLines } = await import("@/modules/orders/server");
+    expect(orderLines(o)).toContain("1 × Made-to-measure suit (Chest (cm): 96)");
+  });
+});
