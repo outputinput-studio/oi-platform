@@ -111,3 +111,25 @@ describe("orders for the team", () => {
     await expect(moveOrder({ actorId: ann, siteId: siteA.id, orderId: o.id, change: { status: "done", email: { subject: "", message: "Hi" } } })).rejects.toThrow(/subject/);
   });
 });
+
+describe("delivery", () => {
+  test("the rate is checked on the server, added to the total, and a pickup needs no address", async () => {
+    const shipping = {
+      zones: [
+        { id: "au", name: "Australia", countries: ["AU"], rates: [{ id: "std", kind: "post", name: "Standard", price: 1200, estimate: "3–5 days" }, { id: "pick", kind: "pickup", name: "Pick up from the studio", price: 0 }] },
+      ],
+    };
+    await owner.query(`update sites set shipping = $1 where id = $2`, [JSON.stringify(shipping), siteA.id]);
+    await updateProduct({ actorId: ann, siteId: siteA.id, productId: shelf, edit: { stock: 10 } });
+    const site = (await siteFromHost("orders-a.localhost"))!;
+    const cart = [{ id: shelf, q: 1 }];
+    const who = { name: "Tara", email: "tara@example.com" };
+
+    await expect(placeOrder({ site, cart, details: { ...who, address: { ...address, country: "NZ" }, rate: "std" }, provider: "test" })).rejects.toThrow(/don't send to that country/);
+    await expect(placeOrder({ site, cart, details: { ...who, address, rate: "made-up" }, provider: "test" })).rejects.toThrow(/delivered/);
+    const posted = await placeOrder({ site, cart, details: { ...who, address, rate: "std" }, provider: "test" });
+    expect(posted).toMatchObject({ subtotal: 8000, shippingPrice: 1200, total: 9200, tax: 836, shipping: { name: "Standard", kind: "post" } });
+    const picked = await placeOrder({ site, cart, details: { ...who, address: { country: "AU", line1: "", city: "", postcode: "" }, rate: "pick" }, provider: "test" });
+    expect(picked).toMatchObject({ shippingPrice: 0, total: 8000, address: { country: "AU" }, shipping: { kind: "pickup" } });
+  });
+});

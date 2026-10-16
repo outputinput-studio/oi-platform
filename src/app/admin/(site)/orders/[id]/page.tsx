@@ -29,6 +29,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const track = trackingUrl(tracking);
   const next = ORDER_STATUSES[ORDER_STATUSES.indexOf(o.status) + 1];
   const included = o.total === o.subtotal + o.shippingPrice;
+  const ship = o.shipping as { name?: string; kind?: string; estimate?: string } | null;
   return (
     <>
       <PageHeader title={`Order ${o.number}`} back="/orders" />
@@ -92,6 +93,14 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
 
+        {ship?.kind === "pickup" && (
+          <div>
+            <Label>Delivery</Label>
+            <p data-testid="deliver-to" className="rounded-card border border-line bg-surface p-4 text-[14px]">
+              Picking up — {ship.name}
+            </p>
+          </div>
+        )}
         {addressLines.length > 0 && (
           <div>
             <Label>Deliver to</Label>
@@ -122,9 +131,9 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         <div>
           <Label>Payment</Label>
           <Rows variant="static">
-            <Row title={items.length === 1 ? "Item" : "Items"} right={<span className="font-mono text-[13.5px]">{formatPrice(included ? o.subtotal - o.tax : o.subtotal, cur)}</span>} />
-            {o.tax > 0 && <Row title={`${o.taxName} ${o.taxRate}%`} right={<span className="font-mono text-[13.5px]">{formatPrice(o.tax, cur)}</span>} />}
-            <Row title="Delivery" right={<span className="font-mono text-[13.5px]">{o.shippingPrice ? formatPrice(o.shippingPrice, cur) : addressLines.length ? "Free" : "—"}</span>} />
+            <Row title={items.length === 1 ? "Item" : "Items"} right={<span className="font-mono text-[13.5px]">{formatPrice(o.subtotal, cur)}</span>} />
+            {o.tax > 0 && <Row title={included ? `Includes ${o.taxName} ${o.taxRate}%` : `${o.taxName} ${o.taxRate}%`} right={<span className="font-mono text-[13.5px]">{formatPrice(o.tax, cur)}</span>} />}
+            <Row title={ship?.name ? `Delivery · ${ship.name}` : "Delivery"} right={<span className="font-mono text-[13.5px]">{o.shippingPrice ? formatPrice(o.shippingPrice, cur) : ship ? "Free" : "—"}</span>} />
             <Row title="Total paid" right={<span className="font-mono text-[14px] font-medium">{formatPrice(o.total, cur)}</span>} />
           </Rows>
           <p className="mt-2 text-[12.5px] text-muted">{o.provider === "stripe" ? "Paid by card · Stripe. Refunds are done in your Stripe dashboard for now." : "Test payment — no real money moved."}</p>

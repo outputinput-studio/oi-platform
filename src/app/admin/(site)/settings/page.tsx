@@ -1,5 +1,5 @@
 import { requireSiteAccess } from "@/modules/auth/access";
-import { siteSearch, siteShop, siteTheme } from "@/modules/sites/server";
+import { siteSearch, siteShipping, siteShop, siteTheme } from "@/modules/sites/server";
 import { paymentsStatus } from "@/modules/payments/server";
 import { Label, PageHeader, Row, Rows } from "../../ui";
 
@@ -30,6 +30,7 @@ export default async function SettingsPage() {
           <Label>Selling</Label>
           <Rows>
             <Row title="Payments" detail={paymentsLine(paymentsStatus(site))} href="/settings/payments" />
+            <Row title="Shipping" detail={siteShipping(site).zones.length ? `${siteShipping(site).zones.length} zone${siteShipping(site).zones.length === 1 ? "" : "s"} · posted within ${siteShipping(site).dispatchDays} business days` : "Free delivery everywhere until you add a zone"} href="/settings/shipping" />
             <Row title="Tax and currency" detail={`${siteShop(site).currency} · prices ${siteShop(site).pricesIncludeTax ? "include" : "don't include"} ${siteShop(site).taxName}`} href="/settings/shop" />
           </Rows>
         </section>

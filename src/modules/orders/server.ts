@@ -7,6 +7,7 @@ import { COUNTRY_CODES, countryName } from "@/lib/countries";
 import { upsertFromSubmission } from "@/modules/contacts/server";
 import { customerView, makeLine, readPhotos } from "@/modules/products/catalogue";
 import { readShopSettings, formatPrice, type Currency } from "@/modules/sites/shop";
+import { ratesFor, readShipping } from "@/modules/sites/shipping";
 import { taxOn, type CartLine } from "./cart";
 
 /**
@@ -115,6 +116,8 @@ export const checkoutSchema = z.object({
   phone: z.string().trim().max(40).default(""),
   note: z.string().trim().max(1000).default(""),
   address: addressSchema.optional(),
+  /** The delivery rate they picked (an id from Settings · Shipping). */
+  rate: z.string().max(40).default(""),
 });
 export type CheckoutDetails = z.infer<typeof checkoutSchema>;
 
@@ -122,10 +125,29 @@ export type OrderItem = { productId: string; name: string; slug: string; unit: n
 
 /** A pending order from the cart as it stands, priced on the server. Payment comes next. */
 export async function placeOrder(p: { site: Site; cart: CartLine[]; details: unknown; provider: string }): Promise<Order> {
-  const details = checkoutSchema.parse(p.details);
   const priced = await priceCart({ site: p.site, cart: p.cart });
   if (priced.lines.length === 0) throw new Error("Your cart is empty — nothing in it can be bought right now.");
-  if (priced.needsAddress && !details.address) throw new Error("Where should it go? Fill in the address.");
+
+  // Delivery: the rate they picked must be one this address and total can have. A pickup needs no street address.
+  const raw = (p.details ?? {}) as { address?: { country?: string; postcode?: string }; rate?: string };
+  let shipping: { name: string; kind: string; estimate: string } | null = null;
+  let shippingPrice = 0;
+  let pickupCountry = "";
+  if (priced.needsAddress) {
+    const rates = ratesFor(readShipping(p.site.shipping), { country: raw.address?.country ?? "", postcode: raw.address?.postcode }, priced.subtotal);
+    if (rates.length === 0) throw new Error("Sorry, we don't send to that country yet. Get in touch and we'll sort something out.");
+    const rate = rates.find((r) => r.id === raw.rate) ?? (rates.length === 1 ? rates[0] : undefined);
+    if (!rate) throw new Error("Pick how you'd like it delivered.");
+    shipping = { name: rate.name, kind: rate.kind, estimate: rate.estimate };
+    shippingPrice = rate.price;
+    if (rate.kind === "pickup") {
+      pickupCountry = raw.address?.country ?? "";
+      p = { ...p, details: { ...(p.details as object), address: undefined } };
+    }
+  }
+  const details = checkoutSchema.parse(p.details);
+  if (priced.needsAddress && !details.address && shipping?.kind !== "pickup") throw new Error("Where should it go? Fill in the address.");
+  const t = taxOn(priced.subtotal + shippingPrice, priced.taxRate, priced.pricesIncludeTax);
   const items: OrderItem[] = priced.lines.map((l) => ({ productId: l.productId, name: l.name, slug: l.slug, unit: l.unit, qty: l.qty, photo: l.photo, note: l.note, digital: l.digital }));
   return withSite(p.site.id, async (tx) => {
     const number = await nextNumber(tx);
@@ -137,15 +159,17 @@ export async function placeOrder(p: { site: Site; cart: CartLine[]; details: unk
         name: details.name,
         email: details.email,
         phone: details.phone,
-        address: priced.needsAddress && details.address ? details.address : {},
+        address: priced.needsAddress && details.address ? details.address : pickupCountry ? { country: pickupCountry } : {},
         note: details.note,
         items,
         currency: priced.currency,
         subtotal: priced.subtotal,
-        tax: priced.tax,
+        shipping,
+        shippingPrice,
+        tax: t.tax,
         taxName: priced.taxName,
         taxRate: Math.round(priced.taxRate),
-        total: priced.total,
+        total: t.total,
         provider: p.provider,
       })
       .returning();
@@ -214,9 +238,9 @@ export function orderLines(o: Order): string {
   const where = addr.line1 ? [addr.line1, addr.line2, [addr.city, addr.state, addr.postcode].filter(Boolean).join(" "), addr.country ? countryName(addr.country) : ""].filter(Boolean).join("\n") : "";
   return [
     ...items,
-    o.shippingPrice ? `Delivery — ${formatPrice(o.shippingPrice, cur)}` : "",
+    o.shipping ? `${String((o.shipping as { name?: string }).name ?? "Delivery")} — ${o.shippingPrice ? formatPrice(o.shippingPrice, cur) : "included"}` : "",
     `Total — ${formatPrice(o.total, cur)}${o.tax ? ` (includes ${o.taxName} ${formatPrice(o.tax, cur)})` : ""}`,
-    where ? `\nDeliver to:\n${o.name}\n${where}` : "",
+    where ? `\nDeliver to:\n${o.name}\n${where}` : (o.shipping as { kind?: string } | null)?.kind === "pickup" ? "\nPicking up." : "",
   ]
     .filter(Boolean)
     .join("\n");

@@ -182,3 +182,47 @@ test("the order reaches the team, and moves along", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Track this parcel" })).toHaveAttribute("href", "https://auspost.com.au/mypost/track/details/33ANJ482019");
   await expect(page.getByTestId("orders-badge")).toHaveCount(0);
 });
+
+test("shipping: a zone with postage and a pickup, chosen at checkout", async ({ page }) => {
+  await signInAsOwner(page);
+  await page.goto(admin + "/settings/shipping");
+  await page.getByRole("button", { name: "+ Add a zone" }).click();
+  const zone = page.getByTestId("zone-0");
+  await expect(zone.getByLabel("Zone name")).toHaveValue("Australia");
+  await zone.getByLabel("Price").fill("12");
+  await zone.getByLabel("Delivery estimate").fill("3–5 business days");
+  await zone.getByRole("button", { name: "Add a rate" }).click();
+  await zone.getByRole("radio", { name: "Pick up" }).last().click();
+  await zone.getByLabel("Name they see").last().fill("Pick up from the studio");
+  await page.getByRole("button", { name: "Save shipping" }).click();
+  await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
+
+  await page.goto(demo + "/shop/teal-crystal-bikini");
+  await page.getByRole("button", { name: "Add to cart" }).click();
+  await page.getByRole("link", { name: "Added — view your cart" }).click();
+  await page.getByRole("link", { name: "Checkout" }).click();
+
+  // Cheapest first: the pickup, which needs no street address.
+  const options = page.getByRole("radiogroup", { name: "How it gets to you" });
+  await expect(options.getByRole("radio")).toHaveCount(2);
+  await expect(options.getByText("Pick up from the studio")).toBeVisible();
+  await expect(page.getByLabel("Street address")).toHaveCount(0);
+  await expect(page.getByTestId("checkout-total")).toHaveText("$380");
+
+  // Somewhere we don't send.
+  await page.getByLabel("Country").selectOption("NZ");
+  await expect(page.getByTestId("no-rates")).toContainText("New Zealand");
+  await page.getByLabel("Country").selectOption("AU");
+
+  // Posted instead.
+  await options.getByText("Standard").click();
+  await expect(page.getByTestId("checkout-total")).toHaveText("$392");
+  await page.getByLabel("Name").fill("Sam Post");
+  await page.getByLabel("Email").fill("sam@example.com");
+  await page.getByLabel("Street address").fill("1 Hay Street");
+  await page.getByLabel("Town or suburb").fill("Perth");
+  await page.getByLabel("Postcode").fill("6000");
+  await page.getByRole("button", { name: "Continue to test payment" }).click();
+  await page.getByRole("button", { name: "Pay $392 (test)" }).click();
+  await expect(page.getByTestId("done-heading")).toHaveText("Thank you, Sam");
+});

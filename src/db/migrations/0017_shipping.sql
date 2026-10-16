@@ -1,0 +1,1 @@
+ALTER TABLE "sites" ADD COLUMN "shipping" jsonb DEFAULT '{}'::jsonb NOT NULL;
