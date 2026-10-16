@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { saveShippingAction } from "@/modules/sites/actions";
-import { RATE_KINDS, zoneGaps, type Rate, type RateKind, type Shipping, type Zone } from "@/modules/sites/shipping";
+import { RATE_KINDS, formatWeight, parseWeight, zoneGaps, type Rate, type RateKind, type Shipping, type Zone } from "@/modules/sites/shipping";
 import { formatPrice, parsePrice, priceInput, type Currency } from "@/modules/sites/shop";
 import { Button, Field, Input, Label, Notice, Switch, Textarea } from "../../../ui";
 
@@ -51,7 +51,7 @@ export function ShippingEditor({
       return { ...cur, zones };
     });
   const addZone = () => {
-    const z: Zone = { id: id(), name: s.zones.length === 0 ? countries[0]?.name ?? "Home" : "Rest of world", countries: s.zones.length === 0 && countries[0] ? [countries[0].code] : [], everywhere: s.zones.length > 0, rates: [{ id: id(), kind: "post", name: "Standard", price: 0, estimate: "", minTotal: null, maxTotal: null, postcodes: [] }], quote: false, quoteMessage: "" };
+    const z: Zone = { id: id(), name: s.zones.length === 0 ? countries[0]?.name ?? "Home" : "Rest of world", countries: s.zones.length === 0 && countries[0] ? [countries[0].code] : [], everywhere: s.zones.length > 0, rates: [{ id: id(), kind: "post", name: "Standard", price: 0, estimate: "", minTotal: null, maxTotal: null, postcodes: [], minWeight: null, maxWeight: null, oversized: false }], quote: false, quoteMessage: "" };
     setS((cur) => ({ ...cur, zones: [...cur.zones, z] }));
     setOpen(z.id);
   };
@@ -128,7 +128,7 @@ export function ShippingEditor({
             + Add a zone
           </button>
         )}
-        <p className="mt-2 text-[12.5px] text-muted">Digital products skip shipping and never ask for an address.</p>
+        <p className="mt-2 text-[12.5px] text-muted">A single piece can override all of this — Ships free or Oversized sit in its own Details section. Digital products skip shipping and never ask for an address.</p>
       </div>
 
       {canEdit ? (
@@ -228,7 +228,7 @@ function ZoneEditor({
         </div>
         <p className="mt-1.5 text-[12.5px] text-muted">The customer picks one of these at checkout, cheapest first.</p>
         {canEdit && (
-          <Button type="button" variant="quiet" size="sm" className="mt-2" onClick={() => onChange({ rates: [...z.rates, { id: id(), kind: "post", name: "Express", price: 0, estimate: "", minTotal: null, maxTotal: null, postcodes: [] }] })}>
+          <Button type="button" variant="quiet" size="sm" className="mt-2" onClick={() => onChange({ rates: [...z.rates, { id: id(), kind: "post", name: "Express", price: 0, estimate: "", minTotal: null, maxTotal: null, postcodes: [], minWeight: null, maxWeight: null, oversized: false }] })}>
             Add a rate
           </Button>
         )}
@@ -248,6 +248,27 @@ function RateEditor({ path, rate: r, canEdit, fmt, onChange, onRemove }: { path:
   const [min, setMin] = useState(priceInput(r.minTotal));
   const [max, setMax] = useState(priceInput(r.maxTotal));
   const [pcText, setPcText] = useState(r.postcodes.join(", "));
+  const [minW, setMinW] = useState(r.minWeight === null ? "" : formatWeight(r.minWeight));
+  const [maxW, setMaxW] = useState(r.maxWeight === null ? "" : formatWeight(r.maxWeight));
+  const [wErr, setWErr] = useState("");
+  const weight = (text: string, set: (s: string) => void, apply: (g: number | null) => void) => {
+    set(text);
+    try {
+      apply(parseWeight(text));
+      setWErr("");
+    } catch (e) {
+      setWErr(e instanceof Error ? e.message : "That isn't a weight.");
+    }
+  };
+  const badWeight = (text: string) => {
+    try {
+      parseWeight(text);
+      return false;
+    } catch {
+      return true;
+    }
+  };
+  const byWeight = r.minWeight !== null || r.maxWeight !== null;
   const [err, setErr] = useState("");
   const money = (text: string, set: (s: string) => void, apply: (c: number | null) => void) => {
     set(text);
@@ -331,6 +352,31 @@ function RateEditor({ path, rate: r, canEdit, fmt, onChange, onRemove }: { path:
         </div>
       )}
       {err && <p className="text-[12.5px] text-alert">{err}</p>}
+      <Switch
+        checked={byWeight}
+        disabled={!canEdit}
+        onChange={(on) => {
+          setMinW(on ? "0 g" : "");
+          setMaxW("");
+          onChange(on ? { minWeight: 0 } : { minWeight: null, maxWeight: null });
+        }}
+        label="Only for some weights"
+        hint="Uses the weight on each product. Products without a weight count as nothing."
+      />
+      {byWeight && (
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="From" htmlFor={`r-minw-${r.id}`}>
+            <Input id={`r-minw-${r.id}`} data-field={`${path}.minWeight`} aria-invalid={badWeight(minW) || undefined} className="font-mono" value={minW} placeholder="0 g" readOnly={!canEdit} onChange={(e) => weight(e.target.value, setMinW, (g) => onChange({ minWeight: g }))} />
+          </Field>
+          <Field label="Up to (not including)" htmlFor={`r-maxw-${r.id}`}>
+            <Input id={`r-maxw-${r.id}`} data-field={`${path}.maxWeight`} aria-invalid={badWeight(maxW) || undefined} className="font-mono" value={maxW} placeholder="No limit" readOnly={!canEdit} onChange={(e) => weight(e.target.value, setMaxW, (g) => onChange({ maxWeight: g }))} />
+          </Field>
+        </div>
+      )}
+      {wErr && <p className="text-[12.5px] text-alert">{wErr}</p>}
+      {r.kind !== "pickup" && (
+        <Switch checked={r.oversized} disabled={!canEdit} onChange={(oversized) => onChange({ oversized })} label="Takes oversized items" hint="Anything marked oversized is only offered rates with this on." />
+      )}
       {canEdit && (
         <button type="button" onClick={onRemove} className="text-[13px] text-alert hover:underline">
           Remove this rate

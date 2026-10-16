@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { checkoutAction, clearCartAction, previewCodeAction, quoteAction, type CartState } from "@/modules/orders/actions";
 import { taxOn } from "@/modules/orders/cart";
-import { quoteFor, ratePriceLabel, ratesFor, whyNoRates, type Shipping } from "@/modules/sites/shipping";
+import { quoteFor, ratePriceLabel, ratesFor, whyNoRates, type Shipping, formatWeight, type Parcel } from "@/modules/sites/shipping";
 import { formatPrice, type Currency } from "@/modules/sites/shop";
 import { FieldErrors } from "@/lib/field-errors";
 import { INVALID } from "./storefront-form";
@@ -24,6 +24,7 @@ export function CheckoutForm({
   testMode,
   shipping,
   subtotal,
+  parcel,
   currency,
   tax,
   canQuote,
@@ -34,6 +35,8 @@ export function CheckoutForm({
   testMode: boolean;
   shipping: Shipping;
   subtotal: number;
+  /** What's being sent: its weight, anything oversized, or all of it shipping free. */
+  parcel: Parcel;
   currency: Currency;
   tax: { rate: number; included: boolean; name: string };
   /** The site has an enquiry form for quote requests to go through. */
@@ -60,10 +63,10 @@ export function CheckoutForm({
   const [country, setCountry] = useState(defaultCountry);
   const [postcode, setPostcode] = useState("");
   const countryName = countries.find((c) => c.code === country)?.name ?? country;
-  const quote = needsAddress ? quoteFor(shipping, country, countryName) : null;
-  const rates = needsAddress ? ratesFor(shipping, { country, postcode }, subtotal) : [];
+  const quote = needsAddress ? quoteFor(shipping, country, countryName, parcel) : null;
+  const rates = needsAddress ? ratesFor(shipping, { country, postcode }, subtotal, parcel) : [];
   const fmtMoney = (c: number) => formatPrice(c, currency);
-  const none = needsAddress && !quote ? whyNoRates(shipping, { country, postcode }, subtotal) : null;
+  const none = needsAddress && !quote ? whyNoRates(shipping, { country, postcode }, subtotal, parcel) : null;
   const noneText = !none
     ? ""
     : none.why === "postcode"
@@ -72,7 +75,11 @@ export function CheckoutForm({
         : "We deliver here ourselves, to some postcodes. Enter your postcode to see if you're covered."
       : none.why === "total"
         ? `Sorry, none of our delivery options cover an order of ${fmtMoney(subtotal)}. Get in touch and we'll sort something out.`
-        : `Sorry, we don't send to ${countryName} yet. Get in touch and we'll sort something out.`;
+        : none.why === "weight"
+          ? `Sorry, none of our delivery options take a parcel of ${formatWeight(parcel.weight)} to ${countryName}. Get in touch and we'll sort something out.`
+          : none.why === "oversized"
+            ? `Sorry, something in your cart is too big for our couriers to ${countryName}. Get in touch and we'll sort something out.`
+            : `Sorry, we don't send to ${countryName} yet. Get in touch and we'll sort something out.`;
   const [picked, setPicked] = useState("");
   const rate = rates.find((r) => r.id === picked) ?? rates[0];
   const pickup = rate?.kind === "pickup";

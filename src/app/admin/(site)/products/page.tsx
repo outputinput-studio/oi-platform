@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { listProducts } from "@/modules/products/server";
+import { waitingCounts } from "@/modules/waiting/server";
 import { listProductCategories } from "@/modules/products/categories";
 import { adminTag, makeLine } from "@/modules/products/catalogue";
 import { mediaUrl } from "@/modules/media/server";
@@ -22,7 +23,12 @@ export const dynamic = "force-dynamic";
 export default async function ProductsPage({ searchParams }: { searchParams: Promise<{ category?: string }> }) {
   const { category } = await searchParams;
   const { user, site } = await requireSiteAccess();
-  const [all, cats, codes] = await Promise.all([listProducts({ actorId: user.id, siteId: site.id }), listProductCategories({ actorId: user.id, siteId: site.id }), listCodes({ actorId: user.id, siteId: site.id })]);
+  const [all, cats, codes, waiting] = await Promise.all([
+    listProducts({ actorId: user.id, siteId: site.id }),
+    listProductCategories({ actorId: user.id, siteId: site.id }),
+    listCodes({ actorId: user.id, siteId: site.id }),
+    waitingCounts({ actorId: user.id, siteId: site.id }),
+  ]);
   const activeCodes = codes.filter((c) => codeState(c) === "active").length;
   const { currency } = siteShop(site);
   const current = cats.find((c) => c.slug === category);
@@ -112,7 +118,10 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
                             formatPrice(p.price, currency)
                           )}
                         </span>
-                        <span className="mt-0.5 block text-[12px] text-muted">{makeLine(p)}</span>
+                        <span className="mt-0.5 block text-[12px] text-muted">
+                          {makeLine(p)}
+                          {waiting.get(p.id) ? ` · ${waiting.get(p.id)} waiting` : ""}
+                        </span>
                       </span>
                     </Card>
                   </Link>

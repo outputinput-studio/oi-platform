@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
@@ -8,6 +9,7 @@ import { createProduct, deleteProduct, updateProduct } from "./server";
 import { deleteCode, saveCode } from "@/modules/discounts/server";
 import { createProductCategory, deleteProductCategory, reorderProductCategories, updateProductCategory } from "./categories";
 import { formError } from "@/lib/form-error";
+import { notifyBackInStock } from "@/modules/waiting/server";
 
 export type ProductFormState = { ok?: string; error?: string; fields?: string[] };
 /** Adding a category also hands back the new one, so the product editor can pick it straight away. */
@@ -31,10 +33,17 @@ export async function saveProductAction(productId: string, edit: unknown): Promi
   try {
     await updateProduct({ actorId: user.id, siteId: site.id, productId, edit });
     revalidatePath("/products");
-    return { ok: "Saved" };
   } catch (err) {
     return formError(err);
   }
+  // Back for sale: whoever asked hears about it. A mail problem never undoes the save.
+  try {
+    const host = ((await headers()).get("x-oi-host") ?? "").replace(/^admin\./, `${site.slug}.`);
+    await notifyBackInStock({ siteId: site.id, productId, shopOrigin: `https://${host}` });
+  } catch (err) {
+    console.error("back in stock check failed", err);
+  }
+  return { ok: "Saved" };
 }
 
 export async function deleteProductAction(form: FormData): Promise<void> {

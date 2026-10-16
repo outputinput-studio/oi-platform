@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { quoteFor, ratesFor, readShipping, whyNoRates, zoneFor, zoneGaps, type Shipping } from "@/modules/sites/shipping";
+import { formatWeight, parcelOf, parseWeight, quoteFor, ratesFor, readShipping, whyNoRates, zoneFor, zoneGaps, type Shipping } from "@/modules/sites/shipping";
 
 const rate = (id: string, price: number, extra: object = {}) => ({ id, kind: "post" as const, name: id, price, estimate: "", minTotal: null, maxTotal: null, postcodes: [], ...extra });
 const s: Shipping = readShipping({
@@ -51,5 +51,53 @@ describe("shipping", () => {
   });
   test("junk settings fall back rather than break checkout", () => {
     expect(readShipping({ zones: "nope" })).toEqual({ dispatchDays: 2, zones: [] });
+  });
+});
+
+describe("weight, oversized and pieces that ship free", () => {
+  const rate = (id: string, price: number, extra: object = {}) => ({ id, kind: "post" as const, name: id, price, estimate: "", minTotal: null, maxTotal: null, postcodes: [], ...extra });
+  const s: Shipping = readShipping({
+    zones: [
+      { id: "au", name: "AU", countries: ["AU"], rates: [rate("small", 900, { maxWeight: 1000 }), rate("heavy", 2400, { minWeight: 1000 }), rate("freight", 15000, { oversized: true }), rate("pickup", 0, { kind: "pickup" })] },
+      { id: "row", name: "Rest", everywhere: true, quote: true, rates: [] },
+    ],
+  });
+  const line = (extra: object) => ({ digital: false, qty: 1, weight: null, shipsFree: false, oversized: false, ...extra });
+
+  test("the parcel: weights add up, free pieces and digital ones don't count", () => {
+    expect(parcelOf([line({ weight: 180, qty: 3 }), line({ weight: 5000, shipsFree: true }), line({ digital: true, weight: 99 })])).toEqual({ weight: 540, oversized: false, allFree: false });
+    expect(parcelOf([line({ shipsFree: true, oversized: true }), line({ digital: true })])).toEqual({ weight: 0, oversized: false, allFree: true });
+    expect(parcelOf([line({ digital: true })]).allFree).toBe(false); // nothing to send at all
+  });
+
+  test("weight bands pick the rate; something oversized only gets the rates that take it, and pickup", () => {
+    expect(ratesFor(s, { country: "AU" }, 10000, { weight: 400, oversized: false, allFree: false }).map((r) => r.id)).toEqual(["pickup", "small", "freight"]);
+    expect(ratesFor(s, { country: "AU" }, 10000, { weight: 1000, oversized: false, allFree: false }).map((r) => r.id)).toEqual(["pickup", "heavy", "freight"]);
+    expect(ratesFor(s, { country: "AU" }, 10000, { weight: 400, oversized: true, allFree: false }).map((r) => r.id)).toEqual(["pickup", "freight"]);
+  });
+
+  test("everything shipping free: free delivery wherever a zone reaches, quoted zones too", () => {
+    const free = { weight: 0, oversized: false, allFree: true };
+    expect(ratesFor(s, { country: "AU" }, 10000, free)).toEqual([expect.objectContaining({ name: "Free delivery", price: 0 })]);
+    expect(quoteFor(s, "TH", "Thailand", free)).toBeNull();
+    expect(ratesFor(s, { country: "TH" }, 10000, free)).toHaveLength(1);
+    expect(ratesFor(readShipping({ zones: [s.zones[0]] }), { country: "TH" }, 10000, free)).toEqual([]); // still nowhere it doesn't go
+  });
+
+  test("why nothing fits: too big, too heavy", () => {
+    const only = readShipping({ zones: [{ id: "au", name: "AU", countries: ["AU"], rates: [rate("small", 900, { maxWeight: 1000 })] }] });
+    expect(whyNoRates(only, { country: "AU" }, 100, { weight: 5000, oversized: false, allFree: false })).toEqual({ why: "weight" });
+    expect(whyNoRates(only, { country: "AU" }, 100, { weight: 10, oversized: true, allFree: false })).toEqual({ why: "oversized" });
+  });
+
+  test("weights read and write the way people type them", () => {
+    expect(parseWeight("180")).toBe(180);
+    expect(parseWeight("180 g")).toBe(180);
+    expect(parseWeight("1.2kg")).toBe(1200);
+    expect(parseWeight("1,500 g")).toBe(1500);
+    expect(parseWeight(" ")).toBeNull();
+    expect(() => parseWeight("heavy")).toThrow(/180 g/);
+    expect(formatWeight(180)).toBe("180 g");
+    expect(formatWeight(1250)).toBe("1.25 kg");
   });
 });

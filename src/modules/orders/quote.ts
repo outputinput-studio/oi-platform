@@ -28,7 +28,7 @@ export async function requestQuote(p: { site: Site; cart: CartLine[]; cartRef?: 
   const address = details.address;
   if (!address) throw new Error("Where should it go? Fill in the address.");
   const where = countryName(address.country);
-  if (!priced.needsAddress || quoteFor(readShipping(p.site.shipping), address.country, where) === null) throw new Error("Delivery there has a price at checkout. Go back and pick how it gets to you.");
+  if (!priced.needsAddress || quoteFor(readShipping(p.site.shipping), address.country, where, priced.parcel) === null) throw new Error("Delivery there has a price at checkout. Go back and pick how it gets to you.");
 
   const formId = readShopSettings(p.site.shop).enquiryFormId;
   const form = formId ? await publicForm({ siteId: p.site.id, formId }) : null;

@@ -47,6 +47,12 @@ export const productEditSchema = z.object({
   seo: seoSchema.optional(),
   /** Product details rows changed or hidden here, by row id. */
   details: productDetailsSchema.optional(),
+  /** Grams, for weight-based rates. Null: not weighed. */
+  weight: z.number().int().min(0, "A weight can't be below zero.").max(100_000_000).nullable().optional(),
+  /** The team covers postage: zone rates don't apply. */
+  shipsFree: z.boolean().optional(),
+  /** Only rates that take oversized items are offered. */
+  oversized: z.boolean().optional(),
   /** Its options, whole: the combinations follow (see options.ts). */
   options: optionsSchema.optional(),
   /** One combination's sheet: which one, and what changed on it. */

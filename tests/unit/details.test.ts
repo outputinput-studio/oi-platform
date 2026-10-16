@@ -37,6 +37,14 @@ describe("the delivery row", () => {
     expect(deliveryText(readShipping({ dispatchDays: 0 }), "AUD", ready)).toBe("Delivery is included.");
   });
 
+  test("a piece that ships free says so; an oversized one only lists the rates that take it", () => {
+    expect(deliveryText(shipping, "AUD", { ...ready, shipsFree: true })).toBe("Posted within 2 business days.\n\nDelivery is free.");
+    const big = readShipping({ dispatchDays: 0, zones: [{ id: "au", name: "Aus", countries: ["AU"], rates: [rate("Courier", 2500), rate("Freight", 15000, { oversized: true }), rate("Pick up", 0, { kind: "pickup" })] }] });
+    expect(deliveryText(big, "AUD", { ...ready, oversized: true })).toBe("Australia: Freight, $150; Pick up, free.");
+    const banded = readShipping({ dispatchDays: 0, zones: [{ id: "au", name: "Aus", countries: ["AU"], rates: [rate("Small", 900, { maxWeight: 1000 }), rate("Heavy", 2400, { minWeight: 1000 })] }] });
+    expect(deliveryText(banded, "AUD", ready)).toBe("Australia: Small, $9 under 1 kg; Heavy, $24 from 1 kg.");
+  });
+
   test("one zone for everywhere is just Everywhere", () => {
     expect(deliveryText(readShipping({ dispatchDays: 0, zones: [{ id: "all", name: "World", everywhere: true, rates: [rate("Tracked", 2500)] }] }), "AUD", ready)).toBe("Everywhere: Tracked, $25.");
   });

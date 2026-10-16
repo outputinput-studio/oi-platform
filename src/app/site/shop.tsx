@@ -7,6 +7,7 @@ import { siteMenus } from "@/modules/menus/server";
 import { customerView, effectiveAvailability, liveVariants, variantNote } from "@/modules/products/catalogue";
 import { readOptions, unitPrice, variantKey, variantState } from "@/modules/products/options";
 import { ProductBuy, type BuyVariant } from "./product-buy";
+import { WaitingForm } from "./waiting-form";
 import { productCategoryBySlug, publishedProductCategories } from "@/modules/products/categories";
 import { productPath, publishedProduct, publishedProducts, type ProductRow } from "@/modules/products/server";
 import { siteShipping, siteShop } from "@/modules/sites/server";
@@ -160,6 +161,8 @@ function ProductPage({ product: p, site, enquiry }: { product: ProductRow; site:
             variants={buyVariants}
             base={{ price: v.price, was: v.was, note: v.note }}
             canCart={v.buyable && paymentsStatus(site).ready}
+            canWait={p.availability === "forSale"}
+            soldOut={a === "soldOut"}
             quote={v.quotable && enquiry ? { alone: !(v.buyable && paymentsStatus(site).ready), countries: COUNTRIES, defaultCountry: homeCountry(currency) } : null}
           />
         ) : (
@@ -175,6 +178,7 @@ function ProductPage({ product: p, site, enquiry }: { product: ProductRow; site:
               <p className="mt-1 text-[14px] text-[var(--text-muted)]">Posted within {siteShipping(site).dispatchDays} business days</p>
             )}
             {v.buyable && paymentsStatus(site).ready && <AddToCart productId={p.id} />}
+            {a === "soldOut" && <WaitingForm productId={p.id} what={p.name} />}
             {v.quotable && enquiry && <EmailQuote productId={p.id} productName={p.name} alone={!(v.buyable && paymentsStatus(site).ready)} countries={COUNTRIES} defaultCountry={homeCountry(currency)} />}
           </>
         )}
