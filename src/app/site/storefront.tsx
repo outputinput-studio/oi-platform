@@ -8,6 +8,8 @@ import { hasPublishedArticles } from "@/modules/articles/server";
 import { RenderSections } from "@/modules/pages/render";
 import { Placeholder } from "@/lib/placeholder";
 import type { Site } from "@/db/schema";
+import type { Metadata } from "next";
+import { fallbacksFromSections, hostAndSite, storefrontMetadata } from "./metadata";
 
 /**
  * A storefront page: the site comes from the hostname, the page from the
@@ -33,6 +35,16 @@ export async function Storefront({ slug }: { slug: string }) {
       <RenderSections sections={page.sections} />
     </Frame>
   );
+}
+
+/** <head> for a storefront page: the client's words, or ones from the sections. Nothing for a page that isn't live. */
+export async function pageMetadata(slug: string): Promise<Metadata> {
+  const { host, site } = await hostAndSite();
+  if (!site) return { title: "output/input" };
+  const page = await publishedPage({ siteId: site.id, slug });
+  if (!page) return { title: site.name, robots: { index: false, follow: false } };
+  const fb = fallbacksFromSections(page.sections);
+  return storefrontMetadata({ site, seo: page.seo, title: slug === HOME_SLUG ? site.name : page.title, fallbackDescription: fb.description, fallbackImage: fb.image, path: slug === HOME_SLUG ? "/" : `/${slug}`, host });
 }
 
 /** The menu: every live page, then Journal when there's an article to read. */

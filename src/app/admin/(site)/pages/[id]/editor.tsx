@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { reorderSectionsAction, savePageTitleAction } from "@/modules/pages/actions";
+import { reorderSectionsAction, savePageSeoAction, savePageTitleAction } from "@/modules/pages/actions";
+import type { Seo } from "@/modules/pages/seo";
+import { SeoCard } from "../../seo-card";
 import { SortableItem, SortableList } from "../../../sortable";
 import { sectionSummary, sectionTypes, type SectionType } from "@/modules/pages/registry";
 import { Button, Input, Label, PageHeader } from "../../../ui";
@@ -28,6 +30,7 @@ export function Editor({
   mediaAvailable,
   forms,
   siteUrl,
+  seo,
   actions,
 }: {
   page: { id: string; title: string; slug: string };
@@ -39,6 +42,7 @@ export function Editor({
   forms: FormOption[];
   /** The page's public address, shown in the preview's chrome. */
   siteUrl: string;
+  seo: { initial: Seo; imageUrl?: string; fallback: { title: string; description: string; imageUrl?: string }; host: string; path: string };
   actions: {
     setStatus: (form: FormData) => Promise<void>;
     addSection: (form: FormData) => Promise<void>;
@@ -171,6 +175,18 @@ export function Editor({
           </SortableList>
           <AddSection pageId={page.id} action={actions.addSection} />
         </section>
+
+        <div className="mt-6">
+          <SeoCard
+            initial={seo.initial}
+            imageUrl={seo.imageUrl}
+            fallback={seo.fallback}
+            host={seo.host}
+            path={seo.path}
+            mediaAvailable={mediaAvailable}
+            onSave={(s) => savePageSeoAction(page.id, s)}
+          />
+        </div>
 
         <Label className="mt-9">Page settings</Label>
         <div className="space-y-5 rounded-card border border-line bg-surface p-4">

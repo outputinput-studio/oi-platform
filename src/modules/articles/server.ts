@@ -5,6 +5,7 @@ import { articles, type Article } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { imageRef, type ImageRef } from "@/modules/pages/registry";
 import { slugFromTitle } from "@/modules/pages/slug";
+import { seoSchema, type Seo } from "@/modules/pages/seo";
 
 /**
  * Articles: the site's journal. Same shape as pages — soft delete,
@@ -35,6 +36,7 @@ export const articleEditSchema = z.object({
     .trim()
     .regex(/^(\d{4}-\d{2}-\d{2})?$/, "Pick a date.")
     .optional(),
+  seo: seoSchema.optional(),
 });
 export type ArticleEdit = z.infer<typeof articleEditSchema>;
 
@@ -81,6 +83,7 @@ export async function updateArticle(p: { actorId: string; siteId: string; articl
     if (e.body !== undefined) patch.body = e.body;
     if (e.cover !== undefined) patch.cover = e.cover;
     if (e.author !== undefined) patch.author = e.author;
+    if (e.seo !== undefined) patch.seo = e.seo as Seo;
     if (e.publishedOn !== undefined) patch.publishedAt = e.publishedOn ? new Date(`${e.publishedOn}T12:00:00Z`) : a.publishedAt;
     const [updated] = await tx.update(articles).set(patch).where(eq(articles.id, a.id)).returning();
     return row(updated);

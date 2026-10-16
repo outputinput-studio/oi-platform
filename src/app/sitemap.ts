@@ -1,0 +1,37 @@
+import type { MetadataRoute } from "next";
+import { headers } from "next/headers";
+import { resolveSurface } from "@/lib/surface";
+import { siteFromHost } from "@/modules/sites/server";
+import { HOME_SLUG, publishedPages, publishedPage } from "@/modules/pages/server";
+import { publishedArticles } from "@/modules/articles/server";
+import { readSeo } from "@/modules/pages/seo";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * /sitemap.xml for a storefront: every live page and article the client
+ * hasn't hidden from search. The admin and ops hosts get an empty one.
+ * Lives at the app root because the proxy leaves dotted paths alone.
+ */
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const h = await headers();
+  const hostHeader = h.get("x-forwarded-host") ?? h.get("host") ?? "";
+  const { surface, host } = resolveSurface(hostHeader);
+  if (surface !== "site") return [];
+  const site = await siteFromHost(host);
+  if (!site) return [];
+  const base = `https://${host}`;
+  const [pages, articles] = await Promise.all([publishedPages({ siteId: site.id }), publishedArticles({ siteId: site.id })]);
+  const out: MetadataRoute.Sitemap = [];
+  for (const p of pages) {
+    const full = await publishedPage({ siteId: site.id, slug: p.slug });
+    if (!full || readSeo(full.seo).noindex) continue;
+    out.push({ url: p.slug === HOME_SLUG ? `${base}/` : `${base}/${p.slug}`, lastModified: full.updatedAt });
+  }
+  if (articles.length) out.push({ url: `${base}/journal`, lastModified: articles[0].updatedAt });
+  for (const a of articles) {
+    if (readSeo(a.seo).noindex) continue;
+    out.push({ url: `${base}/journal/${a.slug}`, lastModified: a.updatedAt });
+  }
+  return out;
+}

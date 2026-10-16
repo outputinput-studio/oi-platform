@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { saveArticleAction } from "@/modules/articles/actions";
 import type { ImageRef } from "@/modules/pages/registry";
 import { slugFromTitle } from "@/modules/pages/slug";
+import type { Seo } from "@/modules/pages/seo";
 import { Button, Field, Input, Label, PageHeader, Textarea } from "../../../ui";
+import { SeoCard } from "../../seo-card";
 import { ImagePicker } from "../../pages/[id]/image-picker";
 
 /**
@@ -29,9 +31,11 @@ export function ArticleEditor({
   siteName,
   siteHost,
   mediaAvailable,
+  seo,
   actions,
 }: {
   article: Draft & { id: string; coverUrl?: string; live: boolean };
+  seo: { initial: Seo; imageUrl?: string; fallback: { title: string; description: string; imageUrl?: string } };
   siteName: string;
   siteHost: string;
   mediaAvailable: boolean;
@@ -154,6 +158,18 @@ export function ArticleEditor({
               />
             </Field>
             {article.live && <p className="mt-2 text-[12.5px] text-warning">It&apos;s live: changing the address breaks any link already shared.</p>}
+          </div>
+
+          <div className="mt-6">
+            <SeoCard
+              initial={seo.initial}
+              imageUrl={seo.imageUrl}
+              fallback={seo.fallback}
+              host={siteHost}
+              path={`/journal/${d.slug}`}
+              mediaAvailable={mediaAvailable}
+              onSave={(s) => saveArticleAction(article.id, { seo: s })}
+            />
           </div>
 
           <Label className="mt-9">Article settings</Label>
