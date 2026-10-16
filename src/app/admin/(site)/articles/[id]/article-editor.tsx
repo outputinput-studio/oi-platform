@@ -9,6 +9,7 @@ import type { Seo } from "@/modules/pages/seo";
 import Link from "next/link";
 import { Button, Field, Input, Label, PageHeader, Select, Textarea } from "../../../ui";
 import { SeoCard } from "../../seo-card";
+import { DateField } from "../../../date-picker";
 import { ImagePicker } from "../../pages/[id]/image-picker";
 
 /**
@@ -145,7 +146,7 @@ export function ArticleEditor({
             <Textarea id="a-excerpt" value={d.excerpt} rows={2} maxLength={300} onChange={(e) => change({ excerpt: e.target.value })} />
           </Field>
           <Field label="Publish date" htmlFor="a-date" hint="Shown on the article and sets its place in the journal. Set for you when it first goes live.">
-            <Input id="a-date" type="date" value={d.publishedOn} onChange={(e) => change({ publishedOn: e.target.value })} />
+            <DateField id="a-date" value={d.publishedOn} onChange={(v) => change({ publishedOn: v })} />
           </Field>
           <Field label="Written by" htmlFor="a-author" hint={`Shows under the title. ${siteName} unless you put a person here.`}>
             <Input id="a-author" value={d.author} maxLength={80} placeholder={siteName} onChange={(e) => change({ author: e.target.value })} />

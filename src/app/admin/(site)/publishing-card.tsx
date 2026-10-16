@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button, Input, Label, Notice } from "../ui";
+import { DateField, toIso } from "../date-picker";
 
 /**
  * "Publishing", as in design/admin.html: Draft / Live / Scheduled, and
@@ -24,7 +25,7 @@ export function PublishingCard({
   const [open, setOpen] = useState(status === "scheduled");
   const [picked, setPicked] = useState<PublishStatus>(status);
   const initial = scheduledAt ? new Date(scheduledAt) : defaultTime();
-  const [date, setDate] = useState(toDateInput(initial));
+  const [date, setDate] = useState(toIso(initial));
   const [time, setTime] = useState(toTimeInput(initial));
   const [state, setState] = useState<{ ok?: string; error?: string }>({});
   const [busy, setBusy] = useState(false);
@@ -94,8 +95,8 @@ export function PublishingCard({
           {picked === "scheduled" && (
             <div>
               <Label>Publish on</Label>
-              <div className="grid grid-cols-[1fr_120px] gap-2">
-                <Input type="date" aria-label="Date" value={date} min={toDateInput(new Date())} onChange={(e) => setDate(e.target.value)} />
+              <div className="grid grid-cols-[1fr_150px] gap-2">
+                <DateField label="Date" value={date} min={toIso(new Date())} onChange={setDate} />
                 <Input type="time" aria-label="Time" value={time} onChange={(e) => setTime(e.target.value)} />
               </div>
               <p className="mt-2 text-[12.5px] text-muted">This is also the date shown on it. Your own time zone.</p>
@@ -119,9 +120,6 @@ function defaultTime(): Date {
 }
 function pad(n: number) {
   return String(n).padStart(2, "0");
-}
-function toDateInput(d: Date) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 function toTimeInput(d: Date) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;

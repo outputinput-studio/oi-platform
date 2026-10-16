@@ -130,9 +130,16 @@ test("a page can be scheduled, and waits", async ({ page, request }) => {
   await page.getByTestId("page-about-us").click();
   await page.getByRole("button", { name: "Publishing" }).click();
   await page.getByRole("radio", { name: "Scheduled" }).click();
+  // Type a date the Australian way, then pick one from the calendar instead.
   const tomorrow = new Date(Date.now() + 86_400_000);
-  await page.getByLabel("Date").fill(tomorrow.toISOString().slice(0, 10));
+  await page.getByRole("textbox", { name: "Date" }).fill(tomorrow.toISOString().slice(0, 10));
   await page.getByLabel("Time").fill("09:00");
+  await expect(page.getByRole("textbox", { name: "Date" })).toHaveValue(/^\d{2}\/\d{2}\/\d{4}$/);
+  await page.getByRole("button", { name: "Pick a date" }).click();
+  await page.getByRole("button", { name: "Next month" }).click();
+  await page.getByTestId("calendar").getByRole("button", { name: /^Monday|^Tuesday|^Wednesday|^Thursday|^Friday|^Saturday|^Sunday/ }).filter({ hasText: /^15$/ }).click();
+  await expect(page.getByTestId("calendar")).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Date" })).toHaveValue(/^15\//);
   await page.getByRole("button", { name: "Schedule it" }).click();
   await expect(page.getByTestId("publish-summary")).toContainText("Goes live");
   await expect(page.getByTestId("page-status")).toHaveText("Scheduled");
