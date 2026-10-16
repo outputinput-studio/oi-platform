@@ -64,6 +64,6 @@ describe("business profile and sending", () => {
     expect(r.text).toContain("Pick up from:\nUnit 4, 88 Guildford Road\nMount Lawley WA 6050\nTue–Sat");
     expect(r.text).toContain("Tax invoice · Kini Kouture · ABN 48 219 774 301\nOrder 1001 · 16 October 2026");
     expect(r.text).toContain("Total — $380 (includes GST $34.55)");
-    expect(r.text.trim().endsWith("Kini Kouture\n0413 220 118")).toBe(true);
+    expect(r.text.endsWith("Kini Kouture\n\nTax invoice · Kini Kouture · ABN 48 219 774 301\nOrder 1001 · 16 October 2026\n0413 220 118")).toBe(true);
   });
 });

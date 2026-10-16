@@ -7,7 +7,9 @@ import { AccessError, assertAccess } from "@/modules/auth/access";
 import type { OrderItem } from "./server";
 import { siteStripe } from "@/modules/payments/server";
 import { formatPrice, type Currency } from "@/modules/sites/shop";
-import { senderFor } from "@/modules/sites/business";
+import { senderFor, tradingName } from "@/modules/sites/business";
+import { DEFAULT_TEMPLATES, TEMPLATE_KEYS, customerMail, readMessages, templateFor } from "@/modules/sites/messages";
+import { draftFrom, orderVars, trackingText, trackingUrl } from "./emails";
 
 /**
  * Orders for the team: the queue (New → In progress → Sent → Done), one
@@ -102,42 +104,44 @@ export async function moveOrder(p: { actorId: string; siteId: string; orderId: s
       .where(eq(orders.id, cur.id))
       .returning(),
   );
-  if (c.email) await sendEmail({ to: updated.email, subject: c.email.subject, text: c.email.message, ...senderFor(await siteFor(p.siteId)) });
+  if (c.email) await sendEmail({ to: updated.email, subject: c.email.subject, text: c.email.message, ...customerMail(await siteFor(p.siteId)) });
   return updated;
 }
 
-/** The email that goes with a move, ready for the team to edit before it's sent. */
-export function draftEmail(o: Order, status: OrderStatus, siteName: string, tracking?: Tracking): { subject: string; message: string } {
-  const first = o.name.split(" ")[0];
-  const items = o.items as OrderItem[];
-  const what = items.length === 1 ? items[0].name : `order ${o.number}`;
-  const sign = `\n\n${siteName}`;
-  if (status === "inProgress")
-    return { subject: `I've started on your ${what}`, message: `Hi ${first},\n\nJust letting you know I've started on your ${what}. I'll be in touch when it's on its way.${sign}` };
-  if (status === "sent") {
-    const t = tracking?.number ? `\n\n${tracking.carrier ? `${tracking.carrier} tracking` : "Tracking"}: ${tracking.number}${trackingUrl(tracking) ? `\n${trackingUrl(tracking)}` : ""}` : "";
-    return { subject: `Your ${what} is on its way`, message: `Hi ${first},\n\nYour ${what} went out today.${t}${sign}` };
-  }
-  if (status === "done") return { subject: `Thanks again, ${first}`, message: `Hi ${first},\n\nThanks again for your order. I hope you love it.${sign}` };
-  return { subject: `Order ${o.number}`, message: `Hi ${first},${sign}` };
+/**
+ * The email that goes with a move, from the site's own wording (Settings ·
+ * Customer emails), ready for the team to edit before it's sent.
+ */
+export function draftEmail(o: Order, status: OrderStatus, site: SiteLike, tracking?: Tracking): { subject: string; message: string } {
+  if (status === "new") return { subject: `Order ${o.number}`, message: "" };
+  return draftFrom(templateFor(readMessages(site.messages), status), { ...orderVars(o, tradingName(site)), tracking: trackingText(tracking) });
 }
 
-/** A link to follow a parcel, for the carriers we know. */
-export function trackingUrl(t: Partial<Tracking>): string | null {
-  const n = encodeURIComponent((t.number ?? "").trim());
-  if (!n) return null;
-  const c = (t.carrier ?? "").toLowerCase();
-  if (c.includes("australia post") || c === "auspost") return `https://auspost.com.au/mypost/track/details/${n}`;
-  if (c.includes("thailand post")) return `https://track.thailandpost.co.th/?trackNumber=${n}`;
-  if (c.includes("dhl")) return `https://www.dhl.com/global-en/home/tracking.html?tracking-id=${n}`;
-  if (c.includes("fedex")) return `https://www.fedex.com/fedextrack/?trknbr=${n}`;
-  if (c.includes("ups")) return `https://www.ups.com/track?tracknum=${n}`;
-  if (c.includes("nz post")) return `https://www.nzpost.co.nz/tools/tracking?trackid=${n}`;
-  return null;
+export { trackingUrl };
+
+/**
+ * "Send me a test" on Settings · Customer emails: the wording as it stands
+ * in the editor (saved or not), filled in with a sample order, to the
+ * person asking — never to anyone else.
+ */
+export async function sendTemplateTest(p: { actorId: string; siteId: string; to: string; key: unknown; template: unknown }): Promise<{ delivered: boolean }> {
+  await assertAccess(p.actorId, p.siteId);
+  const key = z.enum(TEMPLATE_KEYS).parse(p.key);
+  const t = z.object({ subject: z.string().trim().max(200), body: z.string().trim().max(5000) }).parse(p.template);
+  const site = await siteFor(p.siteId);
+  const vars = {
+    ...orderVars({ name: "Sam Sample", number: 1001, items: [{ name: "Sample product" }] }, tradingName(site)),
+    tracking: trackingText({ carrier: "Australia Post", number: "33ANJ482019" }),
+    receipt: "1 × Sample product — $120\nTotal — $120",
+  };
+  const d = draftFrom({ subject: t.subject || DEFAULT_TEMPLATES[key].subject, body: t.body || DEFAULT_TEMPLATES[key].body }, vars);
+  return sendEmail({ to: p.to, subject: `Test: ${d.subject}`, text: d.message, ...senderFor(site) });
 }
 
 /** The site's row, for how its emails are sent (Settings · Sending). */
-async function siteFor(siteId: string): Promise<{ name: string; business: unknown; messages: unknown; search: unknown }> {
+type SiteLike = { name: string; business: unknown; messages: unknown; search?: unknown };
+
+async function siteFor(siteId: string): Promise<SiteLike> {
   const [s] = await withSite(siteId, (tx) => tx.select({ name: sites.name, business: sites.business, messages: sites.messages, search: sites.search }).from(sites).limit(1));
   return s ?? { name: "", business: {}, messages: {}, search: {} };
 }
@@ -206,6 +210,6 @@ export async function refundOrder(p: { actorId: string; siteId: string; orderId:
       .returning();
     return row;
   });
-  if (r.email) await sendEmail({ to: o.email, subject: r.email.subject, text: r.email.message, ...senderFor(await siteFor(p.siteId)) }).catch((err) => console.error("refund email failed", err));
+  if (r.email) await sendEmail({ to: o.email, subject: r.email.subject, text: r.email.message, ...customerMail(await siteFor(p.siteId)) }).catch((err) => console.error("refund email failed", err));
   return updated;
 }

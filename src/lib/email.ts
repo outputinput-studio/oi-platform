@@ -12,13 +12,16 @@ import { env } from "@/lib/env";
  * screen outside production).
  */
 export type Email = {
-  to: string;
+  /** One address, or several on the same email (they see each other). */
+  to: string | string[];
   subject: string;
   text: string;
   /** Shown as who it's from, in front of the platform's sending address. Header-safe (see senderFor). */
   fromName?: string;
   /** Where a reply goes: the business, or the customer on a note to the team. */
   replyTo?: string;
+  /** Copied in, visibly. */
+  cc?: string[];
   /** Blind copies, e.g. the business keeping a copy of what customers get. */
   bcc?: string[];
 };
@@ -39,8 +42,8 @@ export function emailDelivery(): "resend" | "console" {
 export async function sendEmail(message: Email): Promise<{ delivered: boolean }> {
   const e = env();
   if (emailDelivery() === "console") {
-    const meta = [message.fromName && `from ${message.fromName}`, message.replyTo && `reply-to ${message.replyTo}`, message.bcc?.length && `bcc ${message.bcc.join(", ")}`].filter(Boolean).join(" · ");
-    console.log(`[email → ${message.to}${meta ? ` · ${meta}` : ""}] ${message.subject}\n${message.text}`);
+    const meta = [message.fromName && `from ${message.fromName}`, message.replyTo && `reply-to ${message.replyTo}`, message.cc?.length && `cc ${message.cc.join(", ")}`, message.bcc?.length && `bcc ${message.bcc.join(", ")}`].filter(Boolean).join(" · ");
+    console.log(`[email → ${[message.to].flat().join(", ")}${meta ? ` · ${meta}` : ""}] ${message.subject}\n${message.text}`);
     return { delivered: false };
   }
   const res = await fetch("https://api.resend.com/emails", {
@@ -48,10 +51,11 @@ export async function sendEmail(message: Email): Promise<{ delivered: boolean }>
     headers: { authorization: `Bearer ${e.RESEND_API_KEY}`, "content-type": "application/json" },
     body: JSON.stringify({
       from: fromLine(e.EMAIL_FROM!, message.fromName),
-      to: [message.to],
+      to: [message.to].flat(),
       subject: message.subject,
       text: message.text,
       ...(message.replyTo ? { reply_to: message.replyTo } : {}),
+      ...(message.cc?.length ? { cc: message.cc } : {}),
       ...(message.bcc?.length ? { bcc: message.bcc } : {}),
     }),
   });

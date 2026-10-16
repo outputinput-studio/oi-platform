@@ -103,11 +103,11 @@ describe("orders for the team", () => {
     // Unpaid checkouts hold stock for half an hour, so make room for one more.
     await updateProduct({ actorId: ann, siteId: siteA.id, productId: shelf, edit: { stock: 10 } });
     await expect(getOrder({ actorId: ann, siteId: siteA.id, orderId: (await placeOrder({ site: siteA, cart: [{ id: shelf, q: 1 }], details: { name: "X", email: "x@example.com", address }, provider: "test" })).id })).rejects.toThrow(/doesn't exist/);
-    await moveOrder({ actorId: ann, siteId: siteA.id, orderId: o.id, change: { status: "inProgress", email: draftEmail(o, "inProgress", "Orders A") } });
+    await moveOrder({ actorId: ann, siteId: siteA.id, orderId: o.id, change: { status: "inProgress", email: draftEmail(o, "inProgress", { name: "Orders A", business: {}, messages: {} }) } });
     const sent = await moveOrder({ actorId: ann, siteId: siteA.id, orderId: o.id, change: { status: "sent", tracking: { carrier: "Australia Post", number: "33ANJ482019" } } });
     expect(sent).toMatchObject({ status: "sent", tracking: { carrier: "Australia Post", number: "33ANJ482019" } });
     expect(trackingUrl(sent.tracking as { carrier: string; number: string })).toBe("https://auspost.com.au/mypost/track/details/33ANJ482019");
-    expect(draftEmail(sent, "sent", "Orders A", { carrier: "Australia Post", number: "33ANJ482019" }).message).toContain("Australia Post tracking: 33ANJ482019");
+    expect(draftEmail(sent, "sent", { name: "Orders A", business: {}, messages: {} }, { carrier: "Australia Post", number: "33ANJ482019" }).message).toContain("Australia Post tracking: 33ANJ482019");
     expect(await newOrderCount({ siteId: siteA.id })).toBe(0);
     await expect(moveOrder({ actorId: ann, siteId: siteA.id, orderId: o.id, change: { status: "lost" } })).rejects.toThrow();
     await expect(moveOrder({ actorId: ann, siteId: siteA.id, orderId: o.id, change: { status: "done", email: { subject: "", message: "Hi" } } })).rejects.toThrow(/subject/);

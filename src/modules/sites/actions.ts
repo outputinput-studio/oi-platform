@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
-import { renameSite, setEnquiryForm, updateBusiness, updateSearchSettings, updateSending, updateShipping, updateShopSettings, updateStatusNames, updateTheme } from "./server";
+import { renameSite, setEnquiryForm, updateBusiness, updateMessages, updateSearchSettings, updateSending, updateShipping, updateShopSettings, updateStatusNames, updateTheme } from "./server";
 
 export type SettingsFormState = { ok?: string; error?: string };
 
@@ -125,6 +125,30 @@ export async function updateStatusNamesAction(_prev: SettingsFormState, form: Fo
     await updateStatusNames({ actorId: user.id, siteId: site.id, names: { new: s("new"), inProgress: s("inProgress"), sent: s("sent"), done: s("done") } });
     revalidatePath("/", "layout");
     return { ok: "Saved" };
+  } catch (err) {
+    return failed(err);
+  }
+}
+
+/** Settings · Customer emails and Settings · Who gets notified: one save each. */
+export async function saveMessagesAction(patch: { keepCopy?: boolean; templates?: unknown; notify?: unknown; forms?: { id: string; on: boolean; to: string; cc: string; bcc: string }[] }): Promise<SettingsFormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await updateMessages({ actorId: user.id, siteId: site.id, ...patch });
+    revalidatePath("/", "layout");
+    return { ok: "Saved" };
+  } catch (err) {
+    return failed(err);
+  }
+}
+
+/** "Send me a test": to the signed-in person's own address. */
+export async function sendTestEmailAction(key: string, template: { subject: string; body: string }): Promise<SettingsFormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    const { sendTemplateTest } = await import("@/modules/orders/admin");
+    const r = await sendTemplateTest({ actorId: user.id, siteId: site.id, to: user.email, key, template });
+    return { ok: r.delivered ? `Sent to ${user.email}` : "Email isn't set up here, so it was written to the server log instead." };
   } catch (err) {
     return failed(err);
   }

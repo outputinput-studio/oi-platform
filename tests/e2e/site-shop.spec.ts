@@ -419,3 +419,41 @@ test("order stages renamed, and how emails are sent", async ({ page }) => {
   await page.goto(admin + "/settings");
   await expect(page.getByRole("link", { name: /Sending/ })).toContainText("From Demo Studio · replies to hello@demo.example");
 });
+
+test("customer emails in your own words, a test to yourself, and who hears about new orders", async ({ page }) => {
+  await signInAsOwner(page);
+  await page.goto(admin + "/settings");
+  await page.getByRole("link", { name: /Customer emails/ }).click();
+  const card = page.getByTestId("template-inProgress");
+  await expect(card).toContainText("Making it"); // the stage's own name, from Order statuses
+  await card.getByLabel("Subject").fill("Started: {product}");
+  await card.getByRole("button", { name: "Send me a test" }).click();
+  await expect(card.getByRole("status")).toContainText("written to the server log"); // no email provider here
+  await page.getByRole("switch", { name: "Keep a copy of these" }).click();
+  await page.getByRole("button", { name: "Save emails" }).click();
+  await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
+
+  // The order screen drafts from it.
+  await page.goto(admin + "/orders");
+  await page.getByTestId(/^order-\d+$/).filter({ hasText: "Sam Post" }).click();
+  await page.getByRole("button", { name: "Mark as making it" }).click();
+  await expect(page.getByRole("dialog").getByLabel("Subject")).toHaveValue("Started: Teal crystal bikini");
+
+  // Back to the default wording.
+  await page.goto(admin + "/settings/emails");
+  await page.getByTestId("template-inProgress").getByRole("button", { name: "Back to the default" }).click();
+  await expect(page.getByTestId("template-inProgress").getByLabel("Subject")).toHaveValue("I've started on your {product}");
+
+  await page.goto(admin + "/settings/notify");
+  const orders = page.getByTestId("notify-newOrder");
+  await orders.getByLabel("Goes to").fill("orders@demo.example");
+  await orders.getByRole("button", { name: "Copy someone else in" }).click();
+  await orders.getByLabel("CC", { exact: true }).fill("not an address");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("One of the addresses doesn't look right.")).toBeVisible();
+  await orders.getByLabel("CC", { exact: true }).fill("michelle@demo.example");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
+  await page.goto(admin + "/settings");
+  await expect(page.getByRole("link", { name: /Who gets notified/ })).toContainText("New orders to orders@demo.example · with copies");
+});
