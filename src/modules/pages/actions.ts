@@ -15,14 +15,10 @@ import {
   updatePage,
   updateSection,
 } from "./server";
+import { formError } from "@/lib/form-error";
 
-export type FormState = { ok?: string; error?: string };
+export type FormState = { ok?: string; error?: string; fields?: string[] };
 
-function message(err: unknown): string {
-  if (err instanceof z.ZodError) return err.issues[0]?.message ?? "That doesn't look right.";
-  if (err instanceof Error) return err.message;
-  return "Something went wrong. Try again.";
-}
 
 export async function createPageAction(_prev: FormState, form: FormData): Promise<FormState> {
   const { user, site } = await requireSiteAccess();
@@ -36,7 +32,7 @@ export async function createPageAction(_prev: FormState, form: FormData): Promis
     });
     id = page.id;
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
   redirect(`/pages/${id}`);
 }
@@ -55,7 +51,7 @@ export async function updatePageAction(_prev: FormState, form: FormData): Promis
     revalidatePath("/pages");
     return { ok: "Saved" };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 
@@ -112,7 +108,7 @@ export async function reorderSectionsAction(pageId: string, order: string[]): Pr
     revalidatePath(`/pages/${pageId}`);
     return { ok: "Saved" };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 
@@ -132,7 +128,7 @@ export async function publishPageAction(pageId: string, status: "draft" | "publi
     revalidatePath("/pages");
     return { ok: "Saved" };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 
@@ -142,7 +138,7 @@ export async function savePageSeoAction(pageId: string, seo: unknown): Promise<F
     await updatePage({ actorId: user.id, siteId: site.id, pageId, seo });
     return { ok: "Saved" };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 
@@ -154,7 +150,7 @@ export async function savePageTitleAction(pageId: string, title: string): Promis
     revalidatePath("/pages");
     return { ok: "Saved" };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 
@@ -168,6 +164,6 @@ export async function saveSectionAction(sectionId: string, data: unknown): Promi
     await updateSection({ actorId: user.id, siteId: site.id, sectionId, data });
     return { ok: "Saved" };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }

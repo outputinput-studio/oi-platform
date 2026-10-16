@@ -6,6 +6,7 @@ import { saveSearchSettingsAction } from "@/modules/sites/actions";
 import { pageTitle, type Business, type SearchSettings } from "@/modules/sites/search";
 import { Button, Card, Field, Input, Label, Notice, Switch, Textarea } from "../../../ui";
 import { ImagePicker } from "../../pages/[id]/image-picker";
+import { FieldErrors } from "@/lib/field-errors";
 
 /**
  * Settings · Search engines: the sitemap address, how titles read, the
@@ -31,6 +32,7 @@ export function SearchForm({
   const [s, setS] = useState(initial);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState("");
+  const [fields, setFields] = useState<string[]>();
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sitemap = `https://${siteHost}/sitemap.xml`;
@@ -40,6 +42,7 @@ export function SearchForm({
     const r = await saveSearchSettingsAction(snapshot).catch(() => ({ error: "couldn't reach the server" }));
     if (r.error) {
       setError(r.error);
+      setFields("fields" in r ? r.fields : undefined);
       setStatus("error");
     } else setStatus("saved");
   };
@@ -89,7 +92,7 @@ export function SearchForm({
       <section className="space-y-5">
         <Label>In Google</Label>
         <Field label="How page titles read" htmlFor="s-pattern" hint={`[Page name] and [Site name] are swapped in. Right now an About page reads "${pageTitle(s.titlePattern, "About", siteName)}".`}>
-          <Input id="s-pattern" value={s.titlePattern} maxLength={120} readOnly={ro} onChange={(e) => change({ titlePattern: e.target.value })} />
+          <Input id="s-pattern" data-field="titlePattern" value={s.titlePattern} maxLength={120} readOnly={ro} onChange={(e) => change({ titlePattern: e.target.value })} />
         </Field>
         <div>
           <p className="mb-1.5 text-[13.5px] text-body">Picture when a link is shared</p>
@@ -97,7 +100,7 @@ export function SearchForm({
           <p className="mt-1.5 text-[12.5px] text-muted">Used when someone shares your site on Facebook or in a message, unless the page has its own.</p>
         </div>
         <Field label="Search Console code" htmlFor="s-console" hint="Only needed if you're setting up Search Console yourself. Paste the whole google-site-verification=… line or just the code.">
-          <Input id="s-console" value={s.searchConsole} maxLength={200} readOnly={ro} autoComplete="off" className="font-mono" onChange={(e) => change({ searchConsole: e.target.value })} />
+          <Input id="s-console" data-field="searchConsole" value={s.searchConsole} maxLength={200} readOnly={ro} autoComplete="off" className="font-mono" onChange={(e) => change({ searchConsole: e.target.value })} />
         </Field>
       </section>
 
@@ -119,14 +122,14 @@ export function SearchForm({
           .
         </p>
         <Field label="One-line description" htmlFor="b-desc">
-          <Input id="b-desc" value={s.business.description} maxLength={300} readOnly={ro} onChange={(e) => business({ description: e.target.value })} />
+          <Input id="b-desc" data-field="business.description" value={s.business.description} maxLength={300} readOnly={ro} onChange={(e) => business({ description: e.target.value })} />
         </Field>
       </section>
 
       <section className="space-y-4">
         <Label>Advanced</Label>
         <Field label="Extra lines for robots.txt" htmlFor="s-robots" hint="Allow: and Disallow: lines, one per line. Everything else is written for you.">
-          <Textarea id="s-robots" value={s.robotsExtra} rows={3} maxLength={2000} readOnly={ro} className="font-mono text-[13px]" placeholder={"Disallow: /old-catalogue/"} onChange={(e) => change({ robotsExtra: e.target.value })} />
+          <Textarea id="s-robots" data-field="robotsExtra" value={s.robotsExtra} rows={3} maxLength={2000} readOnly={ro} className="font-mono text-[13px]" placeholder={"Disallow: /old-catalogue/"} onChange={(e) => change({ robotsExtra: e.target.value })} />
         </Field>
         <Switch
           checked={s.hideFromSearch}
@@ -146,6 +149,7 @@ export function SearchForm({
             Retry — {error}
           </button>
         )}
+        {status === "error" && <FieldErrors fields={fields} />}
       </p>
     </div>
   );

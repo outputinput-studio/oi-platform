@@ -10,6 +10,7 @@ import { autoRedirect } from "@/modules/redirects/server";
 import { readSearchSettings } from "@/modules/sites/search";
 import { articleIsLive, isLive } from "@/modules/pages/live";
 import { scheduleTime } from "@/modules/pages/server";
+import { FieldError, named } from "@/lib/form-error";
 
 /**
  * Articles: the site's journal. Same shape as pages — soft delete,
@@ -86,7 +87,7 @@ export async function getArticle(p: { actorId: string; siteId: string; articleId
 
 export async function createArticle(p: { actorId: string; siteId: string; title: string }): Promise<ArticleRow> {
   await assertAccess(p.actorId, p.siteId);
-  const title = titleSchema.parse(p.title);
+  const title = named("title", titleSchema, p.title);
   return withSite(p.siteId, async (tx) => {
     const slug = await freeSlug(tx, slugFromTitle(title));
     const [a] = await tx.insert(articles).values({ siteId: p.siteId, title, slug }).returning();
@@ -208,7 +209,7 @@ async function assertSlugFree(tx: Tx, slug: string, exceptId?: string) {
     .from(articles)
     .where(and(eq(articles.slug, slug), isNull(articles.deletedAt), exceptId ? ne(articles.id, exceptId) : undefined))
     .limit(1);
-  if (clash) throw new AccessError(`There's already an article at /journal/${slug}. Pick another address.`);
+  if (clash) throw new FieldError("slug", `There's already an article at /journal/${slug}. Pick another address.`);
 }
 
 /** The title's slug, or the first free -2, -3… after it. */

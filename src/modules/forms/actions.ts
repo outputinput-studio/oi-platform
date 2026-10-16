@@ -9,8 +9,9 @@ import { siteFromHost } from "@/modules/sites/server";
 import { SUBMISSION_STATUSES } from "@/db/schema";
 import { createForm, deleteForm, reorderForms, setSubmissionStatus, submitForm, updateForm, uploadSubmissionFile } from "./server";
 import type { UploadedFile } from "./fields";
+import { formError } from "@/lib/form-error";
 
-export type FormState = { ok?: string; error?: string };
+export type FormState = { ok?: string; error?: string; fields?: string[] };
 
 function message(err: unknown): string {
   if (err instanceof z.ZodError) return err.issues[0]?.message ?? "That doesn't look right.";
@@ -24,7 +25,7 @@ export async function createFormAction(_prev: FormState, form: FormData): Promis
   try {
     id = (await createForm({ actorId: user.id, siteId: site.id, name: String(form.get("name") ?? "") })).id;
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
   redirect(`/forms/${id}`);
 }
@@ -37,7 +38,7 @@ export async function saveFormAction(formId: string, settings: unknown): Promise
     revalidatePath("/forms");
     return { ok: "Saved" };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 
@@ -48,7 +49,7 @@ export async function reorderFormsAction(order: string[]): Promise<FormState> {
     revalidatePath("/forms");
     return { ok: "Saved" };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 
@@ -96,7 +97,9 @@ export async function submitFormAction(formId: string, _prev: FormState, form: F
     });
     return { ok: r.message };
   } catch (err) {
-    return { error: message(err) };
+    // Answers are checked by field id; on the page each is named f_<id>.
+    const e = formError(err);
+    return { ...e, ...(e.fields ? { fields: e.fields.map((f) => `f_${f}`) } : {}) };
   }
 }
 

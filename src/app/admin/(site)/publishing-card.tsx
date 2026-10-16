@@ -27,7 +27,7 @@ export function PublishingCard({
   const initial = scheduledAt ? new Date(scheduledAt) : defaultTime();
   const [date, setDate] = useState(toIso(initial));
   const [time, setTime] = useState(toTimeInput(initial));
-  const [state, setState] = useState<{ ok?: string; error?: string }>({});
+  const [state, setState] = useState<{ ok?: string; error?: string; fields?: string[] }>({});
   const [busy, setBusy] = useState(false);
 
   const summary =
@@ -48,7 +48,9 @@ export function PublishingCard({
   const saveSchedule = async () => {
     const at = new Date(`${date}T${time || "09:00"}`);
     setBusy(true);
-    setState(await onChange("scheduled", at.toISOString()));
+    const r = await onChange("scheduled", at.toISOString());
+    // Anything wrong here is the time: outline it.
+    setState(r.error ? { ...r, fields: ["at"] } : r);
     setBusy(false);
   };
 
@@ -95,7 +97,7 @@ export function PublishingCard({
           {picked === "scheduled" && (
             <div>
               <Label>Publish on</Label>
-              <div className="grid grid-cols-[1fr_150px] gap-2">
+              <div data-field="at" className="grid grid-cols-[1fr_150px] gap-2">
                 <DateField label="Date" value={date} min={toIso(new Date())} onChange={setDate} />
                 <Input type="time" aria-label="Time" value={time} onChange={(e) => setTime(e.target.value)} />
               </div>

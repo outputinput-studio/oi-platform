@@ -13,6 +13,7 @@ import { draftFrom, orderVars } from "./emails";
 import { quoteFor, ratesFor, readShipping } from "@/modules/sites/shipping";
 import { countUse, discountFor } from "@/modules/discounts/server";
 import { taxOn, type CartLine } from "./cart";
+import { FieldError } from "@/lib/form-error";
 
 /**
  * Checkout and orders. The storefront side (pricing a cart, placing an
@@ -186,9 +187,9 @@ export async function placeOrder(p: { site: Site; cart: CartLine[]; details: unk
     const ship = readShipping(p.site.shipping);
     if (quoteFor(ship, raw.address?.country ?? "", "") !== null) throw new Error("Delivery there is quoted separately. Ask for a quote instead.");
     const rates = ratesFor(ship, { country: raw.address?.country ?? "", postcode: raw.address?.postcode }, priced.subtotal);
-    if (rates.length === 0) throw new Error("Sorry, we don't send to that country yet. Get in touch and we'll sort something out.");
+    if (rates.length === 0) throw new FieldError("address.country", "Sorry, we don't send to that country yet. Get in touch and we'll sort something out.");
     const rate = rates.find((r) => r.id === raw.rate) ?? (rates.length === 1 ? rates[0] : undefined);
-    if (!rate) throw new Error("Pick how you'd like it delivered.");
+    if (!rate) throw new FieldError("rate", "Pick how you'd like it delivered.");
     shipping = { name: rate.name, kind: rate.kind, estimate: rate.estimate };
     shippingPrice = rate.price;
     if (rate.kind === "pickup") {
@@ -197,14 +198,14 @@ export async function placeOrder(p: { site: Site; cart: CartLine[]; details: unk
     }
   }
   const details = checkoutSchema.parse(p.details);
-  if (priced.needsAddress && !details.address && shipping?.kind !== "pickup") throw new Error("Where should it go? Fill in the address.");
+  if (priced.needsAddress && !details.address && shipping?.kind !== "pickup") throw new FieldError("address.line1", "Where should it go? Fill in the address.");
 
   // A discount code, checked again here whatever the page showed.
   let off = 0;
   let code = "";
   if (details.code) {
     const applied = await discountFor({ siteId: p.site.id, code: details.code, lines: priced.lines, currency: priced.currency, email: details.email });
-    if (!applied.ok) throw new Error(applied.reason);
+    if (!applied.ok) throw new FieldError("code", applied.reason);
     off = applied.off;
     code = applied.code ?? "";
     if (applied.freeShipping) shippingPrice = 0;

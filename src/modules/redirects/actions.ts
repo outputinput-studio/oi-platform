@@ -1,17 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { addRedirect, dismissNotFound, removeRedirect } from "./server";
+import { formError } from "@/lib/form-error";
 
-export type FormState = { ok?: string; error?: string };
+export type FormState = { ok?: string; error?: string; fields?: string[] };
 
-function message(err: unknown): string {
-  if (err instanceof z.ZodError) return err.issues[0]?.message ?? "That doesn't look right.";
-  if (err instanceof Error) return err.message;
-  return "Something went wrong. Try again.";
-}
 
 export async function addRedirectAction(_prev: FormState, form: FormData): Promise<FormState> {
   const { user, site } = await requireSiteAccess();
@@ -20,7 +15,7 @@ export async function addRedirectAction(_prev: FormState, form: FormData): Promi
     revalidatePath("/settings/redirects");
     return { ok: `${r.fromPath} now goes to ${r.toPath}.` };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 

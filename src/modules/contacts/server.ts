@@ -4,6 +4,7 @@ import { withSite, type Tx } from "@/db/client";
 import { contacts, forms, submissions, type Contact } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { fieldsSchema, headlineAnswer, type Field } from "@/modules/forms/fields";
+import { FieldError, named } from "@/lib/form-error";
 
 /**
  * Contacts: the people who have written to the site. Most arrive through
@@ -79,11 +80,11 @@ export async function getContact(p: { actorId: string; siteId: string; contactId
 export async function createContact(p: { actorId: string; siteId: string; details: unknown }): Promise<Contact> {
   await assertAccess(p.actorId, p.siteId);
   const d = contactDetailsSchema.parse(p.details);
-  if (!d.name && !d.email && !d.phone) throw new Error("Give them a name, an email or a phone number.");
+  if (!d.name && !d.email && !d.phone) throw new FieldError("name", "Give them a name, an email or a phone number.");
   return withSite(p.siteId, async (tx) => {
     if (d.email) {
       const [existing] = await tx.select().from(contacts).where(and(eq(contacts.email, d.email), isNull(contacts.deletedAt))).limit(1);
-      if (existing) throw new Error(`${d.email} is already a contact${existing.name ? ` (${existing.name})` : ""}.`);
+      if (existing) throw new FieldError("email", `${d.email} is already a contact${existing.name ? ` (${existing.name})` : ""}.`);
     }
     const [row] = await tx.insert(contacts).values({ siteId: p.siteId, ...d }).returning();
     return row;
@@ -100,7 +101,7 @@ export async function updateContact(p: { actorId: string; siteId: string; contac
         .from(contacts)
         .where(and(eq(contacts.email, d.email), isNull(contacts.deletedAt), sql`${contacts.id} <> ${p.contactId}`))
         .limit(1);
-      if (clash) throw new Error(`${d.email} already belongs to ${clash.name || "another contact"}.`);
+      if (clash) throw new FieldError("email", `${d.email} already belongs to ${clash.name || "another contact"}.`);
     }
     const [row] = await tx
       .update(contacts)
@@ -114,7 +115,7 @@ export async function updateContact(p: { actorId: string; siteId: string; contac
 
 export async function addNote(p: { actorId: string; siteId: string; contactId: string; text: string }): Promise<Contact> {
   await assertAccess(p.actorId, p.siteId);
-  const text = z.string().trim().min(1, "Write something first.").max(2_000).parse(p.text);
+  const text = named("text", z.string().trim().min(1, "Write something first.").max(2_000), p.text);
   return withSite(p.siteId, async (tx) => {
     const [c] = await tx.select().from(contacts).where(and(eq(contacts.id, p.contactId), isNull(contacts.deletedAt))).limit(1);
     if (!c) throw new AccessError("That contact doesn't exist.");

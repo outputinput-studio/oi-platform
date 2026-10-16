@@ -7,6 +7,7 @@ import type { MenuKind } from "@/db/schema";
 import { Button, Field, Input, Label, PageHeader, Switch } from "../../../ui";
 import { SortableItem, SortableList } from "../../../sortable";
 import { LinkPicker } from "./link-picker";
+import { FieldErrors } from "@/lib/field-errors";
 
 type Settings = { name: string; items: MenuItem[] };
 
@@ -40,6 +41,7 @@ export function MenuEditor({
   const [menu, setMenu] = useState<Settings>(initial);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState("");
+  const [fields, setFields] = useState<string[]>();
   const [open, setOpen] = useState<string | null>(null);
   /** The picker: adding a new item, or changing where one goes. */
   const [picking, setPicking] = useState<{ for: "new" } | { for: string } | null>(null);
@@ -53,6 +55,7 @@ export function MenuEditor({
         const r = await saveMenuAction(menuKey, snapshot);
         if (r.error) {
           setError(r.error);
+          setFields(r.fields);
           setStatus("error");
         } else {
           setStatus("saved");
@@ -121,6 +124,7 @@ export function MenuEditor({
                 Retry — {error}
               </button>
             )}
+            {status === "error" && <FieldErrors fields={fields} />}
           </span>
         }
       />
@@ -131,7 +135,7 @@ export function MenuEditor({
           </p>
         )}
         <Field label="Menu name" htmlFor="menu-name" hint={fixedName ? "This one always exists, so the name stays." : "The heading of its column in the footer."}>
-          <Input id="menu-name" value={menu.name} readOnly={fixedName} maxLength={60} onChange={(e) => change({ name: e.target.value })} />
+          <Input id="menu-name" data-field="name" value={menu.name} readOnly={fixedName} maxLength={60} onChange={(e) => change({ name: e.target.value })} />
         </Field>
 
         <Label className="mt-6" right={menu.items.length > 1 ? "Drag right to indent" : undefined}>
@@ -146,7 +150,7 @@ export function MenuEditor({
               return (
                 <SortableItem key={item.id} id={item.id}>
                   {({ handle }) => (
-                    <div data-testid={`item-${i}`} className={`rounded-card border border-line bg-surface ${item.depth === 1 ? "ml-7" : ""}`}>
+                    <div data-testid={`item-${i}`} data-field={`items.${i}`} className={`rounded-card border border-line bg-surface ${item.depth === 1 ? "ml-7" : ""}`}>
                       <div className="flex items-center pr-2">
                         <button type="button" {...handle} className="flex h-11 w-10 flex-none cursor-grab touch-none items-center justify-center rounded-button text-faint hover:bg-hover hover:text-text active:cursor-grabbing">
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
@@ -166,7 +170,7 @@ export function MenuEditor({
                       {open === item.id && (
                         <div className="space-y-4 border-t border-line-soft px-4 pb-4 pt-4">
                           <Field label="Label" htmlFor={`item-${item.id}-label`} hint="Leave empty to use the title of what it links to.">
-                            <Input id={`item-${item.id}-label`} value={item.label} maxLength={80} placeholder={d.title} onChange={(e) => setItem(item.id, { label: e.target.value })} />
+                            <Input id={`item-${item.id}-label`} data-field={`items.${i}.label`} value={item.label} maxLength={80} placeholder={d.title} onChange={(e) => setItem(item.id, { label: e.target.value })} />
                           </Field>
                           <div>
                             <p className="mb-1.5 text-[13.5px] text-body">Links to</p>

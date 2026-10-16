@@ -57,7 +57,7 @@ export function FooterForm({ initial, forms, canEdit }: { initial: State; forms:
         {v.newsletterFormId && (
           <div className="mt-3">
           <Field label="Heading above it" htmlFor="footer-heading" hint="Optional. Something like “Join the list”.">
-            <Input id="footer-heading" value={v.newsletterHeading} maxLength={80} readOnly={!canEdit} onChange={(e) => setV({ ...v, newsletterHeading: e.target.value })} />
+            <Input id="footer-heading" data-field="footer.newsletterHeading" value={v.newsletterHeading} maxLength={80} readOnly={!canEdit} onChange={(e) => setV({ ...v, newsletterHeading: e.target.value })} />
           </Field>
           </div>
         )}
@@ -69,7 +69,7 @@ export function FooterForm({ initial, forms, canEdit }: { initial: State; forms:
         <div className="space-y-3">
           {SOCIAL_NETWORKS.map(([k, name, example]) => (
             <Field key={k} label={name} htmlFor={`social-${k}`}>
-              <Input id={`social-${k}`} type="url" value={v.social[k]} maxLength={300} placeholder={example} readOnly={!canEdit} onChange={(e) => setV({ ...v, social: { ...v.social, [k]: e.target.value } })} />
+              <Input id={`social-${k}`} data-field={`social.${k}`} type="url" value={v.social[k]} maxLength={300} placeholder={example} readOnly={!canEdit} onChange={(e) => setV({ ...v, social: { ...v.social, [k]: e.target.value } })} />
             </Field>
           ))}
         </div>

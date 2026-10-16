@@ -3,6 +3,7 @@ import { z } from "zod";
 import { withSite, type Tx } from "@/db/client";
 import { notFoundHits, redirects, type NotFoundHit, type Redirect } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
+import { FieldError, named } from "@/lib/form-error";
 
 /**
  * Redirects and the not-found log. The team side authorises first; the
@@ -40,9 +41,9 @@ export async function listRedirects(p: { actorId: string; siteId: string }): Pro
 
 export async function addRedirect(p: { actorId: string; siteId: string; from: string; to: string }): Promise<Redirect> {
   await assertAccess(p.actorId, p.siteId);
-  const from = fromSchema.parse(p.from);
-  const to = toSchema.parse(p.to);
-  if (from === to) throw new Error("That would send people round in a circle.");
+  const from = named("from", fromSchema, p.from);
+  const to = named("to", toSchema, p.to);
+  if (from === to) throw new FieldError("to", "That would send people round in a circle.");
   return withSite(p.siteId, async (tx) => {
     const [row] = await tx
       .insert(redirects)

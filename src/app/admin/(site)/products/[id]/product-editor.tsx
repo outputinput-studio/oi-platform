@@ -13,6 +13,7 @@ import { Button, Field, Input, Label, PageHeader, Select, Switch, Textarea } fro
 import { SeoCard } from "../../seo-card";
 import { Photos } from "./photos";
 import { DetailRows } from "./detail-rows";
+import { FieldErrors } from "@/lib/field-errors";
 import { deliveryText, type ProductDetails } from "@/modules/products/details";
 import type { DetailRow } from "@/modules/sites/shop";
 import type { Shipping } from "@/modules/sites/shipping";
@@ -89,6 +90,7 @@ export function ProductEditor({
   const [d, setD] = useState<ProductDraft>(product);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState("");
+  const [fields, setFields] = useState<string[]>();
   const [priceText, setPriceText] = useState({ price: priceInput(product.price), salePrice: priceInput(product.salePrice) });
   const [priceError, setPriceError] = useState<{ price?: string; salePrice?: string }>({});
   const [wasVisible] = useState(product.visible);
@@ -106,6 +108,7 @@ export function ProductEditor({
     if (r.error) {
       pending.current = { ...patch, ...pending.current };
       setError(r.error);
+      setFields("fields" in r ? r.fields : undefined);
       setStatus("error");
     } else setStatus("saved");
   }, [product.id]);
@@ -150,18 +153,22 @@ export function ProductEditor({
                 Retry — {error}
               </button>
             )}
+            {status === "error" && <FieldErrors fields={fields} />}
           </span>
         }
       />
       <div className="max-w-[640px] space-y-5 pt-5 md:pt-6">
         <div>
           <Label>Photos</Label>
-          <Photos value={d.photos} urls={photoUrls} available={mediaAvailable} onChange={(photos) => change({ photos })} />
+          <div data-field="photos">
+            <Photos value={d.photos} urls={photoUrls} available={mediaAvailable} onChange={(photos) => change({ photos })} />
+          </div>
         </div>
 
         <Field label="Product name" htmlFor="p-name">
           <Input
             id="p-name"
+            data-field="name"
             value={d.name}
             maxLength={160}
             onChange={(e) => {
@@ -174,10 +181,10 @@ export function ProductEditor({
         <div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Price" htmlFor="p-price">
-              <Input id="p-price" inputMode="decimal" value={priceText.price} placeholder="Enter a price" className="font-mono" onChange={(e) => typePrice("price", e.target.value)} />
+              <Input id="p-price" data-field="price" aria-invalid={Boolean(priceError.price) || undefined} inputMode="decimal" value={priceText.price} placeholder="Enter a price" className="font-mono" onChange={(e) => typePrice("price", e.target.value)} />
             </Field>
             <Field label="Sale price" htmlFor="p-sale">
-              <Input id="p-sale" inputMode="decimal" value={priceText.salePrice} placeholder="Optional" className="font-mono" onChange={(e) => typePrice("salePrice", e.target.value)} />
+              <Input id="p-sale" data-field="salePrice" aria-invalid={Boolean(priceError.salePrice) || undefined} inputMode="decimal" value={priceText.salePrice} placeholder="Optional" className="font-mono" onChange={(e) => typePrice("salePrice", e.target.value)} />
             </Field>
           </div>
           {(priceError.price || priceError.salePrice) && <p className="mt-1.5 text-[12.5px] text-alert">{priceError.price || priceError.salePrice}</p>}
@@ -192,7 +199,7 @@ export function ProductEditor({
 
         <Field label="Category" htmlFor="p-category">
           <div className="flex gap-2">
-            <Select id="p-category" value={d.categoryId ?? ""} onChange={(e) => change({ categoryId: e.target.value || null })}>
+            <Select id="p-category" data-field="categoryId" value={d.categoryId ?? ""} onChange={(e) => change({ categoryId: e.target.value || null })}>
               <option value="">None</option>
               {cats.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -244,13 +251,13 @@ export function ProductEditor({
           <div className="mt-3">
             {d.make === "ready" && (
               <Field label="How many do you have?" htmlFor="p-stock" hint="Comes off sale on its own when it runs out. Leave empty to not count.">
-                <Input id="p-stock" inputMode="numeric" className="max-w-[160px] font-mono" value={d.stock ?? ""} onChange={(e) => change({ stock: wholeOrNull(e.target.value) })} />
+                <Input id="p-stock" data-field="stock" inputMode="numeric" className="max-w-[160px] font-mono" value={d.stock ?? ""} onChange={(e) => change({ stock: wholeOrNull(e.target.value) })} />
               </Field>
             )}
             {d.make === "madeToOrder" && (
               <Field label="How long does it take to make?" htmlFor="p-lead" hint={d.leadTime ? `Shows on your site as "Made to order — around ${d.leadTime} ${d.leadTime === 1 ? d.leadUnit.slice(0, -1) : d.leadUnit}".` : "Shows on your site under the price."}>
                 <div className="flex gap-2">
-                  <Input id="p-lead" inputMode="numeric" className="max-w-[110px] font-mono" value={d.leadTime ?? ""} onChange={(e) => change({ leadTime: wholeOrNull(e.target.value) || null })} />
+                  <Input id="p-lead" data-field="leadTime" inputMode="numeric" className="max-w-[110px] font-mono" value={d.leadTime ?? ""} onChange={(e) => change({ leadTime: wholeOrNull(e.target.value) || null })} />
                   <Segmented
                     label="Weeks or days"
                     value={d.leadUnit}
@@ -340,13 +347,13 @@ export function ProductEditor({
         </div>
 
         <Field label="Description" htmlFor="p-desc" hint="Leave an empty line between paragraphs.">
-          <Textarea id="p-desc" value={d.description} rows={7} onChange={(e) => change({ description: e.target.value })} />
+          <Textarea id="p-desc" data-field="description" value={d.description} rows={7} onChange={(e) => change({ description: e.target.value })} />
         </Field>
 
-        <DetailRows rows={detailRows} value={d.details} delivery={deliveryText(shipping, currency, d)} onChange={(details) => change({ details })} />
+        <DetailRows rows={detailRows} value={d.details} delivery={deliveryText(shipping, currency, d)} onChange={(details) => change({ details })} errorFields={status === "error" ? fields : undefined} />
 
         <Field label="Product code" htmlFor="p-code" hint="Your own reference. Optional; not shown on the site.">
-          <Input id="p-code" value={d.code} maxLength={60} className="max-w-[240px] font-mono" onChange={(e) => change({ code: e.target.value })} />
+          <Input id="p-code" data-field="code" value={d.code} maxLength={60} className="max-w-[240px] font-mono" onChange={(e) => change({ code: e.target.value })} />
         </Field>
 
         <div className="rounded-card border border-line bg-surface p-4">
@@ -359,6 +366,7 @@ export function ProductEditor({
             <Field label="Web address" htmlFor="p-slug" hint={`${siteHost}${path}`}>
               <Input
                 id="p-slug"
+                data-field="slug"
                 value={d.slug}
                 maxLength={80}
                 className="font-mono"

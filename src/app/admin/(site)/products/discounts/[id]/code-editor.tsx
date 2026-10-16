@@ -46,7 +46,7 @@ export function CodeEditor({
   const [d, setD] = useState<Draft>(initial ?? { code: "", kind: "percent", value: 10, appliesTo: "all", categoryId: null, productIds: [], minSpend: null, maxUses: null, perPerson: null, startsAt: "", endsAt: "", active: true });
   const [amount, setAmount] = useState(d.kind === "amount" ? priceInput(d.value) : "");
   const [min, setMin] = useState(priceInput(d.minSpend));
-  const [state, setState] = useState<{ ok?: string; error?: string }>({});
+  const [state, setState] = useState<{ ok?: string; error?: string; fields?: string[] }>({});
   const [pending, start] = useTransition();
   const set = (patch: Partial<Draft>) => setD((cur) => ({ ...cur, ...patch }));
   const fmt = (c: number) => formatPrice(c, currency);
@@ -58,11 +58,13 @@ export function CodeEditor({
     start(async () => {
       let value = d.value;
       let minSpend = d.minSpend;
+      let at = "value";
       try {
         if (d.kind === "amount") value = parsePrice(amount) ?? 0;
+        at = "minSpend";
         minSpend = parsePrice(min);
       } catch (e) {
-        return setState({ error: e instanceof Error ? e.message : "Check the amounts." });
+        return setState({ error: e instanceof Error ? e.message : "Check the amounts.", fields: [at] });
       }
       const r = await saveCodeAction(codeId, { ...d, value, minSpend, startsAt: d.startsAt || null, endsAt: d.endsAt || null }).catch(() => ({ error: "couldn't reach the server", id: undefined }));
       setState(r);
@@ -73,7 +75,7 @@ export function CodeEditor({
     <div className="space-y-6">
       <Field label="Code" htmlFor="code-text" hint="What the customer types at the checkout. Capitals either way.">
         <div className="flex gap-2">
-          <Input id="code-text" value={d.code} maxLength={30} className="font-mono uppercase" onChange={(e) => set({ code: e.target.value.toUpperCase().replace(/\s+/g, "") })} />
+          <Input id="code-text" data-field="code" value={d.code} maxLength={30} className="font-mono uppercase" onChange={(e) => set({ code: e.target.value.toUpperCase().replace(/\s+/g, "") })} />
           <Button type="button" variant="quiet" onClick={() => set({ code: Math.random().toString(36).slice(2, 10).toUpperCase() })}>
             Generate one
           </Button>
@@ -92,12 +94,12 @@ export function CodeEditor({
         <div className="mt-3">
           {d.kind === "percent" && (
             <Field label="Percent off" htmlFor="code-pct">
-              <Input id="code-pct" inputMode="numeric" className="max-w-[120px] font-mono" value={String(d.value)} onChange={(e) => set({ value: Math.min(100, Number(e.target.value.replace(/\D/g, "") || 0)) })} />
+              <Input id="code-pct" data-field="value" inputMode="numeric" className="max-w-[120px] font-mono" value={String(d.value)} onChange={(e) => set({ value: Math.min(100, Number(e.target.value.replace(/\D/g, "") || 0)) })} />
             </Field>
           )}
           {d.kind === "amount" && (
             <Field label="Amount off" htmlFor="code-amt" hint={`In ${currency}.`}>
-              <Input id="code-amt" inputMode="decimal" className="max-w-[160px] font-mono" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <Input id="code-amt" data-field="value" inputMode="decimal" className="max-w-[160px] font-mono" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </Field>
           )}
           {d.kind === "freeShipping" && <p className="text-[12.5px] text-muted">Postage comes off the total. The products stay full price.</p>}
@@ -118,7 +120,7 @@ export function CodeEditor({
             ))}
           </div>
           {d.appliesTo === "category" && (
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div data-field="categoryId" className="mt-3 flex flex-wrap gap-2">
               {categories.map((c) => (
                 <button key={c.id} type="button" aria-pressed={d.categoryId === c.id} onClick={() => set({ categoryId: c.id })} className={`rounded-full border px-3 py-1.5 text-[13px] ${d.categoryId === c.id ? "border-text bg-text text-bg" : "border-line text-body hover:bg-hover"}`}>
                   {c.name} · {c.count}
@@ -128,7 +130,7 @@ export function CodeEditor({
             </div>
           )}
           {d.appliesTo === "products" && (
-            <div className="mt-3 flex max-h-[220px] flex-wrap gap-2 overflow-y-auto">
+            <div data-field="productIds" className="mt-3 flex max-h-[220px] flex-wrap gap-2 overflow-y-auto">
               {products.map((p) => {
                 const on = d.productIds.includes(p.id);
                 return (
@@ -143,17 +145,17 @@ export function CodeEditor({
       )}
 
       <Field label="Minimum spend" htmlFor="code-min" hint="Before postage. Leave empty for no minimum.">
-        <Input id="code-min" inputMode="decimal" className="max-w-[160px] font-mono" value={min} onChange={(e) => setMin(e.target.value)} />
+        <Input id="code-min" data-field="minSpend" inputMode="decimal" className="max-w-[160px] font-mono" value={min} onChange={(e) => setMin(e.target.value)} />
       </Field>
 
       <div>
         <p className="mb-1.5 text-[13.5px] text-body">How many times it can be used</p>
         <div className="grid grid-cols-2 gap-3">
           <Field label="In total" htmlFor="code-max">
-            <Input id="code-max" inputMode="numeric" className="font-mono" value={d.maxUses ?? ""} onChange={(e) => set({ maxUses: e.target.value.replace(/\D/g, "") ? Number(e.target.value.replace(/\D/g, "")) : null })} />
+            <Input id="code-max" data-field="maxUses" inputMode="numeric" className="font-mono" value={d.maxUses ?? ""} onChange={(e) => set({ maxUses: e.target.value.replace(/\D/g, "") ? Number(e.target.value.replace(/\D/g, "")) : null })} />
           </Field>
           <Field label="Per person" htmlFor="code-per">
-            <Input id="code-per" inputMode="numeric" className="font-mono" value={d.perPerson ?? ""} onChange={(e) => set({ perPerson: e.target.value.replace(/\D/g, "") ? Number(e.target.value.replace(/\D/g, "")) : null })} />
+            <Input id="code-per" data-field="perPerson" inputMode="numeric" className="font-mono" value={d.perPerson ?? ""} onChange={(e) => set({ perPerson: e.target.value.replace(/\D/g, "") ? Number(e.target.value.replace(/\D/g, "")) : null })} />
           </Field>
         </div>
         <p className="mt-1.5 text-[12.5px] text-muted">Leave either empty and there is no limit on it.</p>
@@ -163,10 +165,14 @@ export function CodeEditor({
         <p className="mb-1.5 text-[13.5px] text-body">When it runs</p>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Starts" htmlFor="code-start">
-            <DateField id="code-start" value={d.startsAt} onChange={(v) => set({ startsAt: v })} />
+            <div data-field="startsAt">
+              <DateField id="code-start" value={d.startsAt} onChange={(v) => set({ startsAt: v })} />
+            </div>
           </Field>
           <Field label="Ends" htmlFor="code-end">
-            <DateField id="code-end" value={d.endsAt} onChange={(v) => set({ endsAt: v })} />
+            <div data-field="endsAt">
+              <DateField id="code-end" value={d.endsAt} onChange={(v) => set({ endsAt: v })} />
+            </div>
           </Field>
         </div>
       </div>

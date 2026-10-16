@@ -6,14 +6,10 @@ import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { createArticle, deleteArticle, setArticleStatus, updateArticle } from "./server";
 import { createCategory, deleteCategory, reorderCategories, updateCategory } from "./categories";
+import { formError } from "@/lib/form-error";
 
-export type FormState = { ok?: string; error?: string };
+export type FormState = { ok?: string; error?: string; fields?: string[] };
 
-function message(err: unknown): string {
-  if (err instanceof z.ZodError) return err.issues[0]?.message ?? "That doesn't look right.";
-  if (err instanceof Error) return err.message;
-  return "Something went wrong. Try again.";
-}
 
 export async function createArticleAction(_prev: FormState, form: FormData): Promise<FormState> {
   const { user, site } = await requireSiteAccess();
@@ -21,7 +17,7 @@ export async function createArticleAction(_prev: FormState, form: FormData): Pro
   try {
     id = (await createArticle({ actorId: user.id, siteId: site.id, title: String(form.get("title") ?? "") })).id;
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
   redirect(`/articles/${id}`);
 }
@@ -34,7 +30,7 @@ export async function saveArticleAction(articleId: string, edit: unknown): Promi
     revalidatePath("/articles");
     return { ok: "Saved" };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 
@@ -55,7 +51,7 @@ export async function publishArticleAction(articleId: string, status: "draft" | 
     revalidatePath("/articles");
     return { ok: "Saved" };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 
@@ -75,7 +71,7 @@ export async function createCategoryAction(_prev: FormState, form: FormData): Pr
     revalidatePath("/articles/categories");
     return { ok: `${c.name} added.` };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 
@@ -93,7 +89,7 @@ export async function updateCategoryAction(_prev: FormState, form: FormData): Pr
     revalidatePath("/articles/categories");
     return { ok: "Saved" };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 
@@ -110,6 +106,6 @@ export async function reorderCategoriesAction(order: string[]): Promise<FormStat
     revalidatePath("/articles/categories");
     return { ok: "Saved" };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }

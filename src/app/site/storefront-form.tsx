@@ -4,6 +4,10 @@ import { useActionState } from "react";
 import { submitFormAction, type FormState } from "@/modules/forms/actions";
 import type { Field } from "@/modules/forms/fields";
 import { FileField } from "./file-field";
+import { FieldErrors } from "@/lib/field-errors";
+
+/** A field at fault on the storefront: outlined in red, focused or not. */
+export const INVALID = "aria-[invalid=true]:!border-[var(--alert-light,#e06464)] user-invalid:!border-[var(--alert-light,#e06464)]";
 
 /**
  * A form on the storefront, drawn from its fields. Everything reads the
@@ -22,7 +26,7 @@ export function StorefrontForm({ form, about }: { form: { id: string; fields: Fi
     );
   }
 
-  const input = "block w-full rounded-[6px] border border-[var(--border)] bg-[var(--surface)] px-3.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--accent)]";
+  const input = `block w-full rounded-[6px] border border-[var(--border)] bg-[var(--surface)] px-3.5 text-[16px] text-[var(--text)] outline-none focus:border-[var(--accent)] ${INVALID}`;
   return (
     <form action={act} className="max-w-xl space-y-5">
       {form.fields.map((f) => {
@@ -71,6 +75,7 @@ export function StorefrontForm({ form, about }: { form: { id: string; fields: Fi
       {state.error && (
         <p role="alert" className="text-[14px] text-[var(--alert-light,#e06464)]">
           {state.error}
+          <FieldErrors fields={state.fields} />
         </p>
       )}
       <button

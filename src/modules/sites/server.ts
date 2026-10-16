@@ -9,6 +9,7 @@ import { detailRowsSchema, readShopSettings, shopSettingsSchema, type ShopSettin
 import { readShipping, shippingSchema, type Shipping } from "./shipping";
 import { businessSchema, sendingSchema, type Business, type Sending } from "./business";
 import { DEFAULT_TEMPLATES, TEMPLATE_KEYS, notifySchema, readMessages, recipientsSchema, templatesSchema, type Messages } from "./messages";
+import { named } from "@/lib/form-error";
 
 /**
  * A site's own settings. Everything here runs inside withSite(), so the
@@ -26,7 +27,7 @@ export async function siteSettings(p: { actorId: string; siteId: string }): Prom
 
 export async function renameSite(p: { actorId: string; siteId: string; name: string }): Promise<Site> {
   await assertAccess(p.actorId, p.siteId, "owner");
-  const name = nameSchema.parse(p.name);
+  const name = named("name", nameSchema, p.name);
   const [site] = await withSite(p.siteId, (tx) =>
     tx.update(sites).set({ name }).where(eq(sites.id, p.siteId)).returning(),
   );
@@ -46,7 +47,7 @@ export async function updateTheme(p: { actorId: string; siteId: string; theme: u
   // on its own; a schema-wide partial would fill the parts not sent with their defaults.)
   const input = (p.theme && typeof p.theme === "object" ? p.theme : {}) as Record<string, unknown>;
   const shape = themeSchema.shape as Record<string, z.ZodTypeAny>;
-  const patch = Object.fromEntries(Object.keys(input).filter((k) => k in shape).map((k) => [k, shape[k].parse(input[k])]));
+  const patch = Object.fromEntries(Object.keys(input).filter((k) => k in shape).map((k) => [k, named(k, shape[k], input[k])]));
   return withSite(p.siteId, async (tx) => {
     const [cur] = await tx.select({ theme: sites.theme }).from(sites).where(eq(sites.id, p.siteId)).limit(1);
     if (!cur) throw new AccessError("That site doesn't exist.");
@@ -66,7 +67,7 @@ export async function updateTheme(p: { actorId: string; siteId: string; theme: u
  */
 export async function updateFooter(p: { actorId: string; siteId: string; footer: unknown; social: unknown }): Promise<{ theme: Theme; search: SearchSettings }> {
   await assertAccess(p.actorId, p.siteId, "owner");
-  const social = socialSchema.parse(p.social ?? {});
+  const social = named("social", socialSchema, p.social ?? {});
   const theme = await updateTheme({ actorId: p.actorId, siteId: p.siteId, theme: { footer: p.footer } });
   return withSite(p.siteId, async (tx) => {
     const [cur] = await tx.select({ search: sites.search }).from(sites).where(eq(sites.id, p.siteId)).limit(1);
@@ -216,15 +217,15 @@ export async function updateMessages(p: {
   forms?: { id: string; on: boolean; to: string; cc: string; bcc: string }[];
 }): Promise<Messages> {
   await assertAccess(p.actorId, p.siteId, "owner");
-  const templates = p.templates === undefined ? undefined : templatesSchema.parse(p.templates);
+  const templates = p.templates === undefined ? undefined : named("templates", templatesSchema, p.templates);
   if (templates) {
     for (const k of TEMPLATE_KEYS) {
       if (templates[k].subject === DEFAULT_TEMPLATES[k].subject) templates[k].subject = "";
       if (templates[k].body === DEFAULT_TEMPLATES[k].body) templates[k].body = "";
     }
   }
-  const notify = p.notify === undefined ? undefined : notifySchema.parse(p.notify);
-  const formRows = (p.forms ?? []).map((f) => ({ id: z.string().uuid().parse(f.id), ...recipientsSchema.parse(f) }));
+  const notify = p.notify === undefined ? undefined : named("notify", notifySchema, p.notify);
+  const formRows = (p.forms ?? []).map((f, i) => ({ id: z.string().uuid().parse(f.id), ...named(`forms.${i}`, recipientsSchema, f) }));
   return withSite(p.siteId, async (tx) => {
     const [cur] = await tx.select({ messages: sites.messages }).from(sites).where(eq(sites.id, p.siteId)).limit(1);
     if (!cur) throw new AccessError("That site doesn't exist.");
@@ -250,7 +251,7 @@ export async function updateMessages(p: {
 /** Owners write the product details rows (Settings · Product details); products keep their own changes by row id. */
 export async function updateDetailRows(p: { actorId: string; siteId: string; rows: unknown }): Promise<ShopSettings> {
   await assertAccess(p.actorId, p.siteId, "owner");
-  const rows = detailRowsSchema.parse(p.rows);
+  const rows = named("rows", detailRowsSchema, p.rows);
   if (new Set(rows.map((r) => r.id)).size !== rows.length) throw new Error("Two rows share an id. Reload and try again.");
   if (rows.filter((r) => r.kind === "delivery").length > 1) throw new Error("One delivery row is enough.");
   return withSite(p.siteId, async (tx) => {

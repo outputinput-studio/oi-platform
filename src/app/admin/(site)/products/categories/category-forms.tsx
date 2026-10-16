@@ -72,7 +72,7 @@ export function NewCategorySheet({ onClose, onCreated }: { onClose: () => void; 
         <Field label="Description" htmlFor="c-desc" hint="A line under the heading on the category's page. Optional.">
           <Textarea id="c-desc" name="description" rows={2} maxLength={300} />
         </Field>
-        <Notice error={state.error} />
+        <Notice error={state.error} fields={state.fields} />
         <Button type="submit" disabled={pending} className="w-full">
           {pending ? "Adding…" : "Add category"}
         </Button>

@@ -4,18 +4,21 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { addNoteAction, saveContactAction, type FormState } from "@/modules/contacts/actions";
 import type { ContactDetails } from "@/modules/contacts/server";
 import { Button, Card, Field, Input, Label, Notice, Textarea } from "../../../ui";
+import { FieldErrors } from "@/lib/field-errors";
 
 /** Name, email, phone: changes save as you type. */
 export function ContactDetailsForm({ contactId, initial }: { contactId: string; initial: ContactDetails }) {
   const [d, setD] = useState(initial);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState("");
+  const [fields, setFields] = useState<string[]>();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const save = async (snapshot: ContactDetails) => {
     setStatus("saving");
     const r = await saveContactAction(contactId, snapshot).catch(() => ({ error: "couldn't reach the server" }));
     if (r.error) {
       setError(r.error);
+      setFields("fields" in r ? r.fields : undefined);
       setStatus("error");
     } else setStatus("saved");
   };
@@ -32,13 +35,13 @@ export function ContactDetailsForm({ contactId, initial }: { contactId: string; 
   return (
     <div className="space-y-4 rounded-card border border-line bg-surface p-4">
       <Field label="Name" htmlFor="c-name">
-        <Input id="c-name" value={d.name} maxLength={120} onChange={(e) => change({ name: e.target.value })} />
+        <Input id="c-name" data-field="name" value={d.name} maxLength={120} onChange={(e) => change({ name: e.target.value })} />
       </Field>
       <Field label="Email" htmlFor="c-email">
-        <Input id="c-email" type="email" inputMode="email" value={d.email} maxLength={200} autoComplete="off" onChange={(e) => change({ email: e.target.value })} />
+        <Input id="c-email" data-field="email" type="email" inputMode="email" value={d.email} maxLength={200} autoComplete="off" onChange={(e) => change({ email: e.target.value })} />
       </Field>
       <Field label="Phone" htmlFor="c-phone">
-        <Input id="c-phone" type="tel" inputMode="tel" value={d.phone} maxLength={40} autoComplete="off" onChange={(e) => change({ phone: e.target.value })} />
+        <Input id="c-phone" data-field="phone" type="tel" inputMode="tel" value={d.phone} maxLength={40} autoComplete="off" onChange={(e) => change({ phone: e.target.value })} />
       </Field>
       <p className="text-right text-[12px] text-muted" aria-live="polite" data-testid="contact-save-status">
         {status === "idle" && "Changes save as you type."}
@@ -49,6 +52,7 @@ export function ContactDetailsForm({ contactId, initial }: { contactId: string; 
             Retry — {error}
           </button>
         )}
+        {status === "error" && <FieldErrors fields={fields} />}
       </p>
     </div>
   );
@@ -72,7 +76,7 @@ export function Notes({ contactId, notes }: { contactId: string; notes: { at: st
         <form action={act} className="mb-3 space-y-3 rounded-card border border-line bg-surface p-4">
           <input type="hidden" name="contactId" value={contactId} />
           <Textarea name="text" aria-label="Note" rows={3} maxLength={2000} required autoFocus placeholder="Only you and your team see this." />
-          <Notice error={state.error} />
+          <Notice error={state.error} fields={state.fields} />
           <div className="flex gap-2">
             <Button type="submit" size="sm" disabled={pending}>
               {pending ? "Adding…" : "Add note"}

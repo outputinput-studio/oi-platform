@@ -85,10 +85,10 @@ function TemplateCard({ k, title, hint, t, canEdit, me, onChange }: { k: Templat
         <p className="-mt-1 text-[12.5px] leading-[1.5] text-muted">{hint}</p>
       </div>
       <Field label="Subject" htmlFor={`t-${k}-subject`}>
-        <Input id={`t-${k}-subject`} value={t.subject} maxLength={200} readOnly={!canEdit} onChange={(e) => onChange({ subject: e.target.value })} />
+        <Input id={`t-${k}-subject`} data-field={`templates.${k}.subject`} value={t.subject} maxLength={200} readOnly={!canEdit} onChange={(e) => onChange({ subject: e.target.value })} />
       </Field>
       <Field label="Message" htmlFor={`t-${k}-body`} hint={`Fill-ins: ${FILL_INS[k].join(" ")}`}>
-        <Textarea id={`t-${k}-body`} value={t.body} rows={8} maxLength={5000} readOnly={!canEdit} onChange={(e) => onChange({ body: e.target.value })} />
+        <Textarea id={`t-${k}-body`} data-field={`templates.${k}.body`} value={t.body} rows={8} maxLength={5000} readOnly={!canEdit} onChange={(e) => onChange({ body: e.target.value })} />
       </Field>
       <div className="flex flex-wrap items-center gap-2">
         <Button

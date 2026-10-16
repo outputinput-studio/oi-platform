@@ -2,11 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { refreshStripeAccount, removeStripeKeys, saveStripeKeys } from "./server";
+import { formError } from "@/lib/form-error";
 
-export type PaymentsFormState = { ok?: string; error?: string };
+export type PaymentsFormState = { ok?: string; error?: string; fields?: string[] };
 
 /** Settings · Payments: the client's own Stripe keys. */
 export async function saveStripeKeysAction(_prev: PaymentsFormState, form: FormData): Promise<PaymentsFormState> {
@@ -16,8 +16,7 @@ export async function saveStripeKeysAction(_prev: PaymentsFormState, form: FormD
     revalidatePath("/", "layout");
     return { ok: s.chargesEnabled ? "Connected. Your shop can take payments." : "Saved — Stripe still has questions for you before it can take money." };
   } catch (err) {
-    if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "That doesn't look right." };
-    return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+    return formError(err);
   }
 }
 

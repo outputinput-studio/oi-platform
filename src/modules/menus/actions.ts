@@ -2,17 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { createMenu, deleteMenu, resetHeader, saveMenu } from "./server";
+import { formError } from "@/lib/form-error";
 
-export type MenuFormState = { ok?: string; error?: string };
+export type MenuFormState = { ok?: string; error?: string; fields?: string[] };
 
-function message(err: unknown): string {
-  if (err instanceof z.ZodError) return err.issues[0]?.message ?? "That doesn't look right.";
-  if (err instanceof Error) return err.message;
-  return "Something went wrong. Try again.";
-}
 
 export async function createMenuAction(_prev: MenuFormState, form: FormData): Promise<MenuFormState> {
   const { user, site } = await requireSiteAccess();
@@ -20,7 +15,7 @@ export async function createMenuAction(_prev: MenuFormState, form: FormData): Pr
   try {
     key = (await createMenu({ actorId: user.id, siteId: site.id, name: String(form.get("name") ?? "") })).key;
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
   redirect(`/menus/${key}`);
 }
@@ -33,7 +28,7 @@ export async function saveMenuAction(key: string, settings: unknown): Promise<Me
     revalidatePath("/", "layout");
     return { ok: "Saved" };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 

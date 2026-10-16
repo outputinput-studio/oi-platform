@@ -5,6 +5,7 @@ import { discountCodes, orders, type DiscountCode } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import type { Currency } from "@/modules/sites/shop";
 import { applyCode, codeEditSchema, codeTextSchema, type Applied, type Line } from "./rules";
+import { FieldError } from "@/lib/form-error";
 
 /** Discount codes for the team, and the checkout's way of looking one up. */
 
@@ -27,7 +28,7 @@ export async function saveCode(p: { actorId: string; siteId: string; codeId?: st
       .from(discountCodes)
       .where(and(eq(discountCodes.code, e.code), isNull(discountCodes.deletedAt), p.codeId ? ne(discountCodes.id, p.codeId) : undefined))
       .limit(1);
-    if (clash) throw new AccessError(`There's already a code ${e.code}.`);
+    if (clash) throw new FieldError("code", `There's already a code ${e.code}.`);
     const values = { ...e, value: e.kind === "freeShipping" ? 0 : e.value };
     if (p.codeId) {
       const cur = await load(tx, p.codeId);

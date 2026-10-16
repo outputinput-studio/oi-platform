@@ -42,6 +42,7 @@ export function MoveOrder({
   const [message, setMessage] = useState(() => draft(tracking).message);
   const [t, setT] = useState(tracking);
   const [error, setError] = useState("");
+  const [fields, setFields] = useState<string[]>();
   const [pending, start] = useTransition();
 
   // Typing a tracking number puts it into the email (until the message has been edited by hand).
@@ -55,7 +56,10 @@ export function MoveOrder({
     start(async () => {
       setError("");
       const r = await moveOrderAction(orderId, { status: next, ...(next === "sent" ? { tracking: t } : {}), ...(send ? { email: { subject, message } } : {}) });
-      if (r.error) return setError(r.error);
+      if (r.error) {
+        setFields(r.fields);
+        return setError(r.error);
+      }
       setOpen(false);
       router.refresh();
     });
@@ -72,10 +76,10 @@ export function MoveOrder({
               <>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Carrier" htmlFor="m-carrier">
-                    <Input id="m-carrier" value={t.carrier} maxLength={60} placeholder="Australia Post" onChange={(e) => updateTracking({ ...t, carrier: e.target.value })} />
+                    <Input id="m-carrier" data-field="tracking.carrier" value={t.carrier} maxLength={60} placeholder="Australia Post" onChange={(e) => updateTracking({ ...t, carrier: e.target.value })} />
                   </Field>
                   <Field label="Tracking number" htmlFor="m-number">
-                    <Input id="m-number" value={t.number} maxLength={80} className="font-mono" onChange={(e) => updateTracking({ ...t, number: e.target.value })} />
+                    <Input id="m-number" data-field="tracking.number" value={t.number} maxLength={80} className="font-mono" onChange={(e) => updateTracking({ ...t, number: e.target.value })} />
                   </Field>
                 </div>
                 <p className="-mt-2 text-[12.5px] text-muted">Both are optional. Where the carrier is known, the order shows a tracking link.</p>
@@ -87,11 +91,12 @@ export function MoveOrder({
             {send && (
               <>
                 <Field label="Subject" htmlFor="m-subject">
-                  <Input id="m-subject" value={subject} maxLength={200} onChange={(e) => setSubject(e.target.value)} />
+                  <Input id="m-subject" data-field="email.subject" value={subject} maxLength={200} onChange={(e) => setSubject(e.target.value)} />
                 </Field>
                 <Field label="Message" htmlFor="m-message">
                   <Textarea
                     id="m-message"
+                    data-field="email.message"
                     value={message}
                     rows={8}
                     maxLength={5000}
@@ -103,7 +108,7 @@ export function MoveOrder({
                 </Field>
               </>
             )}
-            <Notice error={error} />
+            <Notice error={error} fields={fields} />
             <Button type="button" className="w-full" disabled={pending} onClick={confirm}>
               {pending ? "Saving…" : send ? `${label} and email them` : label}
             </Button>
@@ -146,6 +151,7 @@ export function RefundOrder({ orderId, left, leftLabel, full, draft, currency }:
   const [subject, setSubject] = useState(draft.subject);
   const [message, setMessage] = useState(draft.message);
   const [error, setError] = useState("");
+  const [fields, setFields] = useState<string[]>();
   const [pending, start] = useTransition();
   const confirm = () =>
     start(async () => {
@@ -154,10 +160,14 @@ export function RefundOrder({ orderId, left, leftLabel, full, draft, currency }:
       try {
         cents = parsePrice(amount);
       } catch (e) {
+        setFields(["amount"]);
         return setError(e instanceof Error ? e.message : "That isn't an amount.");
       }
       const r = await refundOrderAction(orderId, { amount: cents, restock, ...(send ? { email: { subject, message } } : {}) });
-      if (r.error) return setError(r.error);
+      if (r.error) {
+        setFields(r.fields);
+        return setError(r.error);
+      }
       setOpen(false);
       router.refresh();
     });
@@ -183,7 +193,7 @@ export function RefundOrder({ orderId, left, leftLabel, full, draft, currency }:
         <Sheet title="Refund" onClose={() => setOpen(false)}>
           <div className="space-y-4">
             <Field label="Amount" htmlFor="refund-amount" hint={`Up to ${leftLabel} (${currency}). It goes back to the card they paid with.`}>
-              <Input id="refund-amount" inputMode="decimal" className="max-w-[180px] font-mono" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <Input id="refund-amount" data-field="amount" inputMode="decimal" className="max-w-[180px] font-mono" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </Field>
             <div className="space-y-4 rounded-card border border-line bg-surface p-4">
               <Switch checked={restock} onChange={setRestock} label="Put the stock back" hint="Ready-to-ship products go back into stock; a one-off goes back on sale." />
@@ -192,14 +202,14 @@ export function RefundOrder({ orderId, left, leftLabel, full, draft, currency }:
             {send && (
               <>
                 <Field label="Subject" htmlFor="refund-subject">
-                  <Input id="refund-subject" value={subject} maxLength={200} onChange={(e) => setSubject(e.target.value)} />
+                  <Input id="refund-subject" data-field="email.subject" value={subject} maxLength={200} onChange={(e) => setSubject(e.target.value)} />
                 </Field>
                 <Field label="Message" htmlFor="refund-message">
-                  <Textarea id="refund-message" value={message} rows={6} maxLength={5000} onChange={(e) => setMessage(e.target.value)} />
+                  <Textarea id="refund-message" data-field="email.message" value={message} rows={6} maxLength={5000} onChange={(e) => setMessage(e.target.value)} />
                 </Field>
               </>
             )}
-            <Notice error={error} />
+            <Notice error={error} fields={fields} />
             <Button type="button" variant="danger" className="w-full" disabled={pending} onClick={confirm}>
               {pending ? "Refunding…" : "Refund it"}
             </Button>
