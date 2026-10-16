@@ -397,3 +397,25 @@ test("Email quote beside Add to cart, and the cart count only counts what can be
   await page.goto(admin + "/inbox");
   await expect(page.getByTestId("submission").filter({ hasText: "Quote for Teal crystal bikini" })).toContainText("Sam Cold");
 });
+
+test("order stages renamed, and how emails are sent", async ({ page }) => {
+  await signInAsOwner(page);
+  await page.goto(admin + "/settings");
+  await page.getByRole("link", { name: /Order statuses/ }).click();
+  await page.getByLabel("Default: In progress").fill("Making it");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByTestId("save-bar")).toContainText("Saved");
+
+  await page.goto(admin + "/orders");
+  await expect(page.getByRole("link", { name: /^Making it/ })).toBeVisible();
+  await page.getByTestId(/^order-\d+$/).filter({ hasText: "Sam Post" }).click();
+  await expect(page.getByRole("button", { name: "Mark as making it" })).toBeVisible();
+
+  await page.goto(admin + "/settings/sending");
+  await page.getByLabel("Shown as from").fill("Demo Studio");
+  await page.getByLabel("Replies go to").fill("hello@demo.example");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByTestId("save-bar")).toContainText("Saved");
+  await page.goto(admin + "/settings");
+  await expect(page.getByRole("link", { name: /Sending/ })).toContainText("From Demo Studio · replies to hello@demo.example");
+});

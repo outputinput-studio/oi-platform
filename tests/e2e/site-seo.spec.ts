@@ -62,15 +62,24 @@ test("defaults come from the content; the client's words win; hidden pages leave
 
 test("site-wide: the title pattern, the business for Google, and hiding the whole site", async ({ page, request }) => {
   await signInAsOwner(page);
+  // Name, phone, email and address come from the business profile.
+  await page.goto(admin + "/settings");
+  await page.getByRole("link", { name: /Business profile/ }).click();
+  await page.getByLabel("Trading name").fill("Demo Site Co");
+  await page.getByLabel("Business number").fill("ABN 48 219 774 301");
+  await page.getByLabel("Address").fill("Unit 4, 88 Guildford Road\nMount Lawley WA 6050");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByTestId("save-bar")).toContainText("Saved");
+
   await page.goto(admin + "/settings/search");
   await page.getByLabel("How page titles read").fill("[Site name] — [Page name]");
-  await page.getByLabel("Business name").fill("Demo Site Co");
   await page.getByLabel("Instagram").fill("https://www.instagram.com/demosite");
   await expect(page.getByTestId("search-save-status")).toHaveText("Saved");
 
   const home = await (await request.get(base + "/", { headers: { host: "demo.localhost" } })).text();
   expect(home).toContain('"@type":"Organization"');
   expect(home).toContain('"name":"Demo Site Co"');
+  expect(home).toContain('"address":"Unit 4, 88 Guildford Road, Mount Lawley WA 6050"');
   expect(home).toContain('"sameAs":["https://www.instagram.com/demosite"]');
   const journal = await (await request.get(base + "/journal", { headers: { host: "demo.localhost" } })).text();
   expect(journal).toContain("<title>Demo site — Journal</title>");

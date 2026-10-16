@@ -13,6 +13,7 @@ import { paymentsStatus } from "@/modules/payments/server";
 import { formatPrice, homeCountry, type Currency } from "@/modules/sites/shop";
 import { siteShipping, siteShop } from "@/modules/sites/server";
 import { publicForm } from "@/modules/forms/server";
+import { businessOf } from "@/modules/sites/business";
 import { Frame } from "./storefront";
 import { hostAndSite } from "./metadata";
 import { CheckoutForm, ClearCart, TidyCart } from "./checkout-form";
@@ -208,6 +209,8 @@ export async function DonePage({ orderId, sessionId }: { orderId: string; sessio
   if (!order) return <Gone site={site} menus={menus} />;
   const cur = order.currency as Currency;
   const paid = order.paymentStatus === "paid";
+  const profile = businessOf(site);
+  const pickup = (order.shipping as { kind?: string } | null)?.kind === "pickup" && profile.address;
   return (
     <Frame site={site} menus={menus} current="/shop/checkout">
       {paid && <ClearCart />}
@@ -233,6 +236,13 @@ export async function DonePage({ orderId, sessionId }: { orderId: string; sessio
           <span>Total</span>
           <span>{formatPrice(order.total, cur)}</span>
         </p>
+        {pickup && (
+          <div data-testid="pickup-from" className="mt-6 rounded-[8px] border border-[var(--border)] px-4 py-3 text-[14px]">
+            <p className="font-medium">Pick up from</p>
+            <p className="mt-1 whitespace-pre-line text-[var(--text-body)]">{profile.address}</p>
+            {profile.hours && <p className="mt-1 text-[var(--text-muted)]">{profile.hours}</p>}
+          </div>
+        )}
         <Link href="/shop" className="mt-8 inline-block underline underline-offset-4">
           Back to the shop
         </Link>

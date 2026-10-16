@@ -7,7 +7,6 @@ import { parsePrice, type Currency } from "@/modules/sites/shop";
 import type { OrderStatus } from "@/db/schema";
 import { Button, Field, Input, Notice, Sheet, Switch, Textarea } from "../../../ui";
 
-const BUTTON: Record<OrderStatus, string> = { new: "", inProgress: "Mark as in progress", sent: "Mark as sent", done: "Mark as done" };
 const TITLE: Record<OrderStatus, string> = { new: "", inProgress: "Making it", sent: "On its way", done: "All done" };
 
 /**
@@ -18,6 +17,7 @@ const TITLE: Record<OrderStatus, string> = { new: "", inProgress: "Making it", s
 export function MoveOrder({
   orderId,
   next,
+  label,
   draft,
   tracking,
   siteName,
@@ -25,6 +25,8 @@ export function MoveOrder({
 }: {
   orderId: string;
   next: OrderStatus;
+  /** The button: "Mark as in progress", in the team's own stage names (Settings · Order statuses). */
+  label: string;
   draft: { subject: string; message: string };
   tracking: { carrier: string; number: string };
   siteName: string;
@@ -63,7 +65,7 @@ export function MoveOrder({
   return (
     <>
       <Button type="button" className="w-full" onClick={() => setOpen(true)}>
-        {BUTTON[next]}
+        {label}
       </Button>
       {open && (
         <Sheet title={TITLE[next]} onClose={() => setOpen(false)}>
@@ -105,7 +107,7 @@ export function MoveOrder({
             )}
             <Notice error={error} />
             <Button type="button" className="w-full" disabled={pending} onClick={confirm}>
-              {pending ? "Saving…" : send ? `${BUTTON[next]} and email them` : BUTTON[next]}
+              {pending ? "Saving…" : send ? `${label} and email them` : label}
             </Button>
           </div>
         </Sheet>

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { requireSiteAccess } from "@/modules/auth/access";
-import { listOrders, orderCounts, STATUS_LABEL } from "@/modules/orders/admin";
+import { listOrders, orderCounts } from "@/modules/orders/admin";
+import { siteShop } from "@/modules/sites/server";
+import { statusNames } from "@/modules/sites/shop";
 import type { OrderItem } from "@/modules/orders/server";
 import { ORDER_STATUSES, type OrderStatus } from "@/db/schema";
 import { formatPrice, type Currency } from "@/modules/sites/shop";
@@ -19,6 +21,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   const { status: raw } = await searchParams;
   const status = (ORDER_STATUSES as readonly string[]).includes(raw ?? "") ? (raw as OrderStatus) : undefined;
   const { user, site } = await requireSiteAccess();
+  const names = statusNames(siteShop(site));
   const [list, counts] = await Promise.all([listOrders({ actorId: user.id, siteId: site.id, status }), orderCounts({ actorId: user.id, siteId: site.id })]);
   return (
     <>
@@ -32,7 +35,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         <Chips
           ariaLabel="Order stages"
           current={status ? `/orders?status=${status}` : "/orders"}
-          items={[{ href: "/orders", label: "All", count: counts.all }, ...ORDER_STATUSES.map((s) => ({ href: `/orders?status=${s}`, label: STATUS_LABEL[s], count: counts[s] }))]}
+          items={[{ href: "/orders", label: "All", count: counts.all }, ...ORDER_STATUSES.map((s) => ({ href: `/orders?status=${s}`, label: names[s], count: counts[s] }))]}
         />
         {list.length === 0 ? (
           <Card className="mt-5 px-5 py-8 text-center">
@@ -43,7 +46,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
               </>
             ) : (
               <>
-                <p className="text-[15px] font-medium">Nothing {status ? STATUS_LABEL[status].toLowerCase() : ""} yet</p>
+                <p className="text-[15px] font-medium">Nothing {status ? names[status].toLowerCase() : ""} yet</p>
                 <p className="mt-1 text-[13px] text-muted">
                   No orders have reached this stage.{" "}
                   <Link href="/orders" className="text-accent-text underline underline-offset-4">
@@ -65,7 +68,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
                       <span className="flex items-center justify-between gap-3">
                         <span className="flex min-w-0 items-center gap-2">
                           <span className="truncate text-[15px] font-medium">{o.name}</span>
-                          <StatusPill status={o.status} refunded={o.paymentStatus === "refunded"} partly={o.paymentStatus === "paid" && o.refunded > 0} />
+                          <StatusPill status={o.status} label={names[o.status]} refunded={o.paymentStatus === "refunded"} partly={o.paymentStatus === "paid" && o.refunded > 0} />
                         </span>
                         <span className="flex-none font-mono text-[14px]">{formatPrice(o.total, o.currency as Currency)}</span>
                       </span>

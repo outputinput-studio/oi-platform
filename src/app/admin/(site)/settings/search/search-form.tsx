@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { saveSearchSettingsAction } from "@/modules/sites/actions";
 import { pageTitle, type Business, type SearchSettings } from "@/modules/sites/search";
@@ -104,24 +105,19 @@ export function SearchForm({
 
       <section className="space-y-4">
         <Label>Your business, for Google</Label>
-        <p className="-mt-2 text-[12.5px] text-muted">What the knowledge panel beside search results is told. Leave anything you don&apos;t have empty.</p>
-        <Field label="Business name" htmlFor="b-name">
-          <Input id="b-name" value={s.business.name} placeholder={siteName} maxLength={120} readOnly={ro} onChange={(e) => business({ name: e.target.value })} />
-        </Field>
+        <p className="-mt-2 text-[12.5px] text-muted">
+          What the knowledge panel beside search results is told. Your name, phone, email and address come from{" "}
+          <Link href="/settings/business" className="underline underline-offset-2">
+            Business profile
+          </Link>
+          .
+        </p>
         <Field label="One-line description" htmlFor="b-desc">
           <Input id="b-desc" value={s.business.description} maxLength={300} readOnly={ro} onChange={(e) => business({ description: e.target.value })} />
         </Field>
         <div>
           <p className="mb-1.5 text-[13.5px] text-body">Logo</p>
           <ImagePicker id="b-logo" value={s.business.logo ?? undefined} url={logoUrl} available={mediaAvailable && canEdit} onChange={(next) => business({ logo: next ?? null })} />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Phone" htmlFor="b-phone">
-            <Input id="b-phone" type="tel" value={s.business.phone} maxLength={40} readOnly={ro} onChange={(e) => business({ phone: e.target.value })} />
-          </Field>
-          <Field label="Email" htmlFor="b-email">
-            <Input id="b-email" type="email" value={s.business.email} maxLength={200} readOnly={ro} onChange={(e) => business({ email: e.target.value })} />
-          </Field>
         </div>
         <p className="label !mt-6">Social profiles</p>
         {(

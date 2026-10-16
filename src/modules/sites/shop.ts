@@ -22,6 +22,15 @@ export const shopSettingsSchema = z.object({
    * chosen, so those show no button.
    */
   enquiryFormId: z.string().uuid().nullable().default(null),
+  /** Settings · Order statuses: the four stages in the team's own words. Empty keeps the default. */
+  statusNames: z
+    .object({
+      new: z.string().trim().max(30).default(""),
+      inProgress: z.string().trim().max(30).default(""),
+      sent: z.string().trim().max(30).default(""),
+      done: z.string().trim().max(30).default(""),
+    })
+    .default({ new: "", inProgress: "", sent: "", done: "" }),
 });
 export type ShopSettings = z.infer<typeof shopSettingsSchema>;
 
@@ -55,4 +64,22 @@ export function priceInput(cents: number | null): string {
 /** The country a shop most likely sells to first, from its currency: where address forms start. */
 export function homeCountry(currency: Currency): string {
   return { AUD: "AU", NZD: "NZ", THB: "TH", USD: "US", EUR: "DE", GBP: "GB", SGD: "SG" }[currency];
+}
+
+export const DEFAULT_STATUS_NAMES = { new: "New", inProgress: "In progress", sent: "Sent", done: "Done" } as const;
+export type StatusKey = keyof typeof DEFAULT_STATUS_NAMES;
+
+/** The order stages as this team calls them. */
+export function statusNames(s: ShopSettings): Record<StatusKey, string> {
+  return {
+    new: s.statusNames.new || DEFAULT_STATUS_NAMES.new,
+    inProgress: s.statusNames.inProgress || DEFAULT_STATUS_NAMES.inProgress,
+    sent: s.statusNames.sent || DEFAULT_STATUS_NAMES.sent,
+    done: s.statusNames.done || DEFAULT_STATUS_NAMES.done,
+  };
+}
+
+/** "Mark as in progress", "Mark as with the courier": the stage name with its first letter lowered. */
+export function markAs(name: string): string {
+  return `Mark as ${name.charAt(0).toLowerCase()}${name.slice(1)}`;
 }

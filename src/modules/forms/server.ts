@@ -1,10 +1,11 @@
 import { and, asc, count, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db, withSite } from "@/db/client";
-import { forms, memberships, products, submissions, users, type Form, type Submission, type SubmissionStatus } from "@/db/schema";
+import { forms, memberships, products, sites, submissions, users, type Form, type Submission, type SubmissionStatus } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { sendEmail } from "@/lib/email";
 import { upsertFromSubmission } from "@/modules/contacts/server";
+import { senderFor } from "@/modules/sites/business";
 import { storage } from "@/lib/storage";
 import { answersSchema, fieldsSchema, filesIn, fillIn, formSettingsSchema, headlineAnswer, senderOf, splitEmails, uploadedFileSchema, type Field, type FormSettings, type UploadedFile } from "./fields";
 
@@ -216,12 +217,13 @@ export async function recordSubmission(p: {
 }): Promise<Submission> {
   const { form, fields, answers } = p;
   const sender = senderOf(fields, answers);
-  const row = await withSite(p.siteId, async (tx) => {
+  const { row, site } = await withSite(p.siteId, async (tx) => {
     // The person first, so the submission can point at them.
     const phoneField = fields.find((f) => f.type === "phone" && answers[f.id]);
     const contactId = form.createContact ? await upsertFromSubmission(tx, { siteId: p.siteId, name: sender.name, email: sender.email, phone: phoneField ? answers[phoneField.id] : "" }) : null;
     const [r] = await tx.insert(submissions).values({ siteId: p.siteId, formId: form.id, answers, fields, contactId }).returning();
-    return r;
+    const [s] = await tx.select({ name: sites.name, business: sites.business, messages: sites.messages, search: sites.search }).from(sites).limit(1);
+    return { row: r, site: s };
   });
 
   try {
@@ -237,6 +239,8 @@ export async function recordSubmission(p: {
           to: email,
           subject: `${who} ${p.subject ?? `sent ${form.name}`} on ${p.siteName}`,
           text: `${lines}\n\nSee it in your inbox: ${p.inboxUrl}/${row.id}${sender.email ? `\nReply to them: ${sender.email}` : ""}`,
+          // Hitting reply writes to whoever sent it.
+          ...(sender.email ? { replyTo: sender.email } : {}),
         }),
       ),
     );
@@ -251,6 +255,7 @@ export async function recordSubmission(p: {
         to: sender.email,
         subject: fillIn(form.replySubject, fields, answers) || `Thanks for writing to ${p.siteName}`,
         text: fillIn(form.replyMessage, fields, answers) || `We have your message and will be in touch.\n\n${p.siteName}`,
+        ...(site ? senderFor(site) : {}),
       });
     } catch (err) {
       console.error("auto-reply failed", err);
