@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { createArticle, deleteArticle, setArticleStatus, updateArticle } from "./server";
+import { createCategory, deleteCategory, reorderCategories, updateCategory } from "./categories";
 
 export type FormState = { ok?: string; error?: string };
 
@@ -50,4 +51,52 @@ export async function deleteArticleAction(form: FormData): Promise<void> {
   await deleteArticle({ actorId: user.id, siteId: site.id, articleId: String(form.get("articleId")) });
   revalidatePath("/articles");
   redirect("/articles");
+}
+
+// ───────────────────────── categories ─────────────────────────
+
+export async function createCategoryAction(_prev: FormState, form: FormData): Promise<FormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    const c = await createCategory({ actorId: user.id, siteId: site.id, name: String(form.get("name") ?? ""), slug: String(form.get("slug") ?? "") });
+    revalidatePath("/articles/categories");
+    return { ok: `${c.name} added.` };
+  } catch (err) {
+    return { error: message(err) };
+  }
+}
+
+export async function updateCategoryAction(_prev: FormState, form: FormData): Promise<FormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await updateCategory({
+      actorId: user.id,
+      siteId: site.id,
+      categoryId: String(form.get("categoryId")),
+      name: String(form.get("name") ?? ""),
+      slug: String(form.get("slug") ?? ""),
+      description: String(form.get("description") ?? ""),
+    });
+    revalidatePath("/articles/categories");
+    return { ok: "Saved" };
+  } catch (err) {
+    return { error: message(err) };
+  }
+}
+
+export async function deleteCategoryAction(form: FormData): Promise<void> {
+  const { user, site } = await requireSiteAccess();
+  await deleteCategory({ actorId: user.id, siteId: site.id, categoryId: String(form.get("categoryId")) });
+  revalidatePath("/articles/categories");
+}
+
+export async function reorderCategoriesAction(order: string[]): Promise<FormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await reorderCategories({ actorId: user.id, siteId: site.id, order: z.array(z.string().uuid()).max(200).parse(order) });
+    revalidatePath("/articles/categories");
+    return { ok: "Saved" };
+  } catch (err) {
+    return { error: message(err) };
+  }
 }

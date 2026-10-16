@@ -5,7 +5,8 @@ import { saveArticleAction } from "@/modules/articles/actions";
 import type { ImageRef } from "@/modules/pages/registry";
 import { slugFromTitle } from "@/modules/pages/slug";
 import type { Seo } from "@/modules/pages/seo";
-import { Button, Field, Input, Label, PageHeader, Textarea } from "../../../ui";
+import Link from "next/link";
+import { Button, Field, Input, Label, PageHeader, Select, Textarea } from "../../../ui";
 import { SeoCard } from "../../seo-card";
 import { ImagePicker } from "../../pages/[id]/image-picker";
 
@@ -24,6 +25,8 @@ type Draft = {
   cover?: ImageRef;
   author: string;
   publishedOn: string;
+  categoryId: string | null;
+  categoryIds: string[];
 };
 
 export function ArticleEditor({
@@ -32,9 +35,11 @@ export function ArticleEditor({
   siteHost,
   mediaAvailable,
   seo,
+  categories,
   actions,
 }: {
-  article: Draft & { id: string; coverUrl?: string; live: boolean };
+  article: Draft & { id: string; coverUrl?: string; live: boolean; path: string };
+  categories: { id: string; name: string; slug: string }[];
   seo: { initial: Seo; imageUrl?: string; fallback: { title: string; description: string; imageUrl?: string } };
   siteName: string;
   siteHost: string;
@@ -77,6 +82,8 @@ export function ArticleEditor({
   }, []);
 
   const [slugTouched, setSlugTouched] = useState(article.slug !== slugFromTitle(article.title));
+  const mainCat = categories.find((c) => c.id === d.categoryId);
+  const path = mainCat ? `/journal/${mainCat.slug}/${d.slug || "…"}` : `/journal/${d.slug || "…"}`;
 
   return (
     <>
@@ -143,9 +150,62 @@ export function ArticleEditor({
             <Input id="a-author" value={d.author} maxLength={80} placeholder={siteName} onChange={(e) => change({ author: e.target.value })} />
           </Field>
 
+          <Label className="mt-9" right={<Link href="/articles/categories" className="text-accent-text">Manage</Link>}>
+            Categories
+          </Label>
+          <div className="space-y-4 rounded-card border border-line bg-surface p-4">
+            {categories.length === 0 ? (
+              <p className="text-[13.5px] text-muted">
+                No categories yet. Grouping articles gives Google a page per subject.{" "}
+                <Link href="/articles/categories" className="text-accent-text underline underline-offset-4">
+                  Add one
+                </Link>
+                .
+              </p>
+            ) : (
+              <>
+                <Field label="Main category" htmlFor="a-category" hint="Sets this article's web address.">
+                  <Select
+                    id="a-category"
+                    value={d.categoryId ?? ""}
+                    onChange={(e) => {
+                      const id = e.target.value || null;
+                      change({ categoryId: id, categoryIds: d.categoryIds.filter((x) => x !== id) });
+                    }}
+                  >
+                    <option value="">None — straight under /journal</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                {categories.length > 1 && (
+                  <fieldset>
+                    <legend className="mb-1.5 text-[13.5px] text-body">Also shows under</legend>
+                    <div className="flex flex-wrap gap-2">
+                      {categories
+                        .filter((c) => c.id !== d.categoryId)
+                        .map((c) => {
+                          const on = d.categoryIds.includes(c.id);
+                          return (
+                            <label key={c.id} className={`cursor-pointer rounded-full border px-3 py-1.5 text-[13px] ${on ? "border-text bg-text text-bg" : "border-line text-body hover:bg-hover"}`}>
+                              <input type="checkbox" className="sr-only" checked={on} onChange={(e) => change({ categoryIds: e.target.checked ? [...d.categoryIds, c.id] : d.categoryIds.filter((x) => x !== c.id) })} />
+                              {c.name}
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </fieldset>
+                )}
+              </>
+            )}
+          </div>
+
           <Label className="mt-9">Address</Label>
           <div className="rounded-card border border-line bg-surface p-4">
-            <Field label="Web address" htmlFor="a-slug" hint={`${siteHost}/journal/${d.slug || "…"}`}>
+            <Field label="Web address" htmlFor="a-slug" hint={`${siteHost}${path}`}>
               <Input
                 id="a-slug"
                 value={d.slug}
@@ -166,7 +226,7 @@ export function ArticleEditor({
               imageUrl={seo.imageUrl}
               fallback={seo.fallback}
               host={siteHost}
-              path={`/journal/${d.slug}`}
+              path={path}
               mediaAvailable={mediaAvailable}
               onSave={(s) => saveArticleAction(article.id, { seo: s })}
             />
@@ -194,7 +254,8 @@ export function ArticleEditor({
               <span className="h-[7px] w-[7px] rounded-full bg-line-strong" />
               <span className="h-[7px] w-[7px] rounded-full bg-line-strong" />
               <span className="min-w-0 flex-1 truncate text-center font-mono text-[11px] text-muted">
-                {siteHost}/journal/{d.slug}
+                {siteHost}
+                {path}
               </span>
             </div>
             <iframe key={version} title="Preview" data-testid="preview" src={`/preview/article/${article.id}`} className="block h-[640px] w-full bg-panel" />

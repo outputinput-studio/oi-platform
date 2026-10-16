@@ -3,7 +3,8 @@ import { headers } from "next/headers";
 import { resolveSurface } from "@/lib/surface";
 import { siteFromHost, siteSearch } from "@/modules/sites/server";
 import { HOME_SLUG, publishedPages, publishedPage } from "@/modules/pages/server";
-import { publishedArticles } from "@/modules/articles/server";
+import { articlePath, publishedArticles } from "@/modules/articles/server";
+import { publishedCategories } from "@/modules/articles/categories";
 import { readSeo } from "@/modules/pages/seo";
 
 export const dynamic = "force-dynamic";
@@ -28,10 +29,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     if (!full || readSeo(full.seo).noindex) continue;
     out.push({ url: p.slug === HOME_SLUG ? `${base}/` : `${base}/${p.slug}`, lastModified: full.updatedAt });
   }
-  if (articles.length) out.push({ url: `${base}/journal`, lastModified: articles[0].updatedAt });
+  if (articles.length) {
+    out.push({ url: `${base}/journal`, lastModified: articles[0].updatedAt });
+    for (const c of await publishedCategories({ siteId: site.id })) out.push({ url: `${base}/journal/${c.slug}`, lastModified: articles[0].updatedAt });
+  }
   for (const a of articles) {
     if (readSeo(a.seo).noindex) continue;
-    out.push({ url: `${base}/journal/${a.slug}`, lastModified: a.updatedAt });
+    out.push({ url: `${base}${articlePath(a)}`, lastModified: a.updatedAt });
   }
   return out;
 }

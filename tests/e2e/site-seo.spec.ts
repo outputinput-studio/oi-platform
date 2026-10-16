@@ -49,7 +49,7 @@ test("defaults come from the content; the client's words win; hidden pages leave
   const sitemap = await (await request.get(base + "/sitemap.xml", { headers: { host: "demo.localhost" } })).text();
   expect(sitemap).toContain("https://demo.localhost/</loc>");
   expect(sitemap).not.toContain("/about-us");
-  expect(sitemap).toContain("https://demo.localhost/journal/our-first-delivery-to-krabi</loc>");
+  expect(sitemap).toContain("https://demo.localhost/journal/deliveries/our-first-delivery-to-krabi</loc>");
 
   // Outside production nothing is crawlable; the admin never is.
   const robots = await (await request.get(base + "/robots.txt", { headers: { host: "demo.localhost" } })).text();
