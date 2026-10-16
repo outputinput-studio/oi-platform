@@ -105,7 +105,7 @@ export function Photos({
       <p className="mt-2 text-[12.5px] leading-[1.5] text-muted">Drag to reorder. The first photo is the main one; the second shows when someone hovers over it on a computer.</p>
       {undescribed > 0 && (
         <p className="mt-2 text-[12.5px] leading-[1.5] text-warning">
-          {undescribed === 1 ? "One photo has" : `${undescribed} photos have`} no description yet. Add one and anyone using a screen reader can tell what the piece looks like.
+          {undescribed === 1 ? "One photo has no description yet. Add one" : `${undescribed} photos have no description yet. Add them`} and anyone using a screen reader can tell what the piece looks like. It&apos;s also best practice for SEO.
         </p>
       )}
       {open && (
