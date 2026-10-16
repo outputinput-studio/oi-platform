@@ -18,6 +18,7 @@ import { discountFor } from "@/modules/discounts/server";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { formError } from "@/lib/form-error";
 import { notifyBackInStock } from "@/modules/waiting/server";
+import { CUSTOMER_COOKIE, currentCustomer } from "@/modules/customers/server";
 
 /**
  * The storefront's cart and checkout. No sign-in: the site is the one the
@@ -109,8 +110,11 @@ export async function checkoutAction(_prev: CartState, form: FormData): Promise<
   let to: string;
   try {
     const { site, host } = await here();
-    const cart = readCart((await cookies()).get(CART_COOKIE)?.value);
-    to = (await startCheckout({ site, host, cart, cartRef: await cartRef(), details: detailsFrom(form) })).redirect;
+    const jar = await cookies();
+    const cart = readCart(jar.get(CART_COOKIE)?.value);
+    // Signed in: the order joins their account. Who they are comes from the session, never the form.
+    const customer = await currentCustomer({ site, token: jar.get(CUSTOMER_COOKIE)?.value });
+    to = (await startCheckout({ site, host, cart, cartRef: await cartRef(), details: detailsFrom(form), customerId: customer?.id })).redirect;
   } catch (err) {
     return checkoutError(err);
   }

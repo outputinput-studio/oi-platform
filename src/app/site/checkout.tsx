@@ -18,6 +18,9 @@ import { businessOf } from "@/modules/sites/business";
 import { Frame } from "./storefront";
 import { hostAndSite } from "./metadata";
 import { CheckoutForm, ClearCart, TidyCart } from "./checkout-form";
+import { CUSTOMER_COOKIE, currentCustomer, listAddresses } from "@/modules/customers/server";
+import { readAccountSettings } from "@/modules/customers/settings";
+import { CodeOffer } from "./account-forms";
 
 /**
  * The cart, checkout, the test payment page and "thank you", all inside
@@ -126,6 +129,11 @@ export async function CheckoutPage() {
   const pay = paymentsStatus(site);
   const enquiryId = siteShop(site).enquiryFormId;
   const canQuote = enquiryId ? !!(await publicForm({ siteId: site.id, formId: enquiryId })) : false;
+  // Signed in: their details and default address fill in. Not signed in (with accounts on): an offer to.
+  const accounts = readAccountSettings(site.accounts);
+  const customer = await currentCustomer({ site, token: (await cookies()).get(CUSTOMER_COOKIE)?.value });
+  const home = customer ? (await listAddresses({ siteId: site.id, customer })).find((a) => a.isDefault) : undefined;
+  const prefill = customer ? { name: home?.name || customer.name, email: customer.email, phone: customer.phone, address: home?.address } : undefined;
   return (
     <Frame site={site} menus={menus} current="/shop/checkout">
       <h1 className="pt-6 text-[34px] font-semibold tracking-[-0.8px] md:pt-10 md:text-[44px]">Checkout</h1>
@@ -150,6 +158,8 @@ export async function CheckoutPage() {
             currency={cart.currency}
             tax={{ rate: cart.taxRate, included: cart.pricesIncludeTax, name: cart.taxName }}
             canQuote={canQuote}
+            prefill={prefill}
+            offerSignIn={accounts.enabled && !customer}
           />
           <aside>
             <ul className="space-y-2 border-b border-[var(--border-soft)] pb-4 text-[14px]">
@@ -212,6 +222,7 @@ export async function DonePage({ orderId, sessionId }: { orderId: string; sessio
   if (!order) return <Gone site={site} menus={menus} />;
   const cur = order.currency as Currency;
   const paid = order.paymentStatus === "paid";
+  const signedIn = !!(await currentCustomer({ site, token: (await cookies()).get(CUSTOMER_COOKIE)?.value }));
   const profile = businessOf(site);
   const pickup = (order.shipping as { kind?: string } | null)?.kind === "pickup" && profile.address;
   return (
@@ -244,6 +255,25 @@ export async function DonePage({ orderId, sessionId }: { orderId: string; sessio
             <p className="font-medium">Pick up from</p>
             <p className="mt-1 whitespace-pre-line text-[var(--text-body)]">{profile.address}</p>
             {profile.hours && <p className="mt-1 text-[var(--text-muted)]">{profile.hours}</p>}
+          </div>
+        )}
+        {paid && (
+          <div className="mt-6 space-y-3">
+            {readAccountSettings(site.accounts).enabled &&
+              (signedIn ? (
+                <Link href={`/account/orders/${order.number}`} className="inline-block text-[15px] underline underline-offset-4">
+                  See it in your account
+                </Link>
+              ) : (
+                <CodeOffer orderId={order.id} next={`/account/orders/${order.number}`} testId="done-code-offer" title="Want to see this order later?" text="We'll email a code to the address you just gave us. No form, no password." />
+              ))}
+            <p className="text-[13.5px] text-[var(--text-muted)]">
+              Either way, you can find this order any time with your order number and email:{" "}
+              <Link href="/track" className="underline underline-offset-4">
+                Track my order
+              </Link>
+              .
+            </p>
           </div>
         )}
         <Link href="/shop" className="mt-8 inline-block underline underline-offset-4">

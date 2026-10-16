@@ -673,3 +673,123 @@ test("search: the header icon, then products, pages and the journal for what was
   const html = await (await request.get(base + "/search?q=stones", { headers: { host: "demo.localhost" } })).text();
   expect(html).toContain('<meta name="robots" content="noindex, follow"/>');
 });
+
+let ameliaOrder = "";
+
+test("customer accounts: turned on, an order, a code after paying, then their account", async ({ page, browser }) => {
+  await signInAsOwner(page);
+  await page.goto(admin + "/settings");
+  await expect(page.getByRole("link", { name: /Customer accounts/ })).toContainText("Off · order tracking is always on");
+  await page.getByRole("link", { name: /Customer accounts/ }).click();
+  await page.getByRole("switch", { name: /^Customer accounts/ }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
+  await expect(page.getByRole("switch", { name: /Let customers set a password/ })).toHaveAttribute("aria-checked", "false");
+
+  // A shopper, no account: buys, and is offered a code to the email they gave.
+  const shopper = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  await shopper.goto(demo + "/shop/sauna-stones");
+  await shopper.getByRole("button", { name: "Add to cart" }).click();
+  await shopper.getByRole("link", { name: "Added — view your cart" }).click();
+  await shopper.getByRole("link", { name: "Checkout" }).click();
+  await expect(shopper.getByTestId("checkout-sign-in")).toContainText("Been here before?");
+  await shopper.getByLabel("Name").fill("Amelia Frost");
+  await shopper.getByLabel("Email").fill("amelia@example.com");
+  await shopper.getByLabel("Street address").fill("8 Bay View Terrace");
+  await shopper.getByLabel("Town or suburb").fill("Claremont");
+  await shopper.getByLabel("State").fill("WA");
+  await shopper.getByLabel("Postcode").fill("6010");
+  await shopper.getByRole("button", { name: "Continue to test payment" }).click();
+  await shopper.getByRole("button", { name: /^Pay .* \(test\)$/ }).click();
+  await expect(shopper.getByTestId("done-heading")).toHaveText("Thank you, Amelia");
+  const number = (await shopper.getByText(/^Order \d+$/).first().textContent())!.replace("Order ", "");
+  ameliaOrder = number;
+  const offer = shopper.getByTestId("done-code-offer");
+  await expect(offer).toContainText("Want to see this order later?");
+  await offer.getByRole("button", { name: "Email me a code" }).click();
+  await expect(offer).toContainText("We sent six digits to amelia@example.com");
+  // A wrong code says so; the right one lands on the order, in their new account.
+  await offer.getByLabel("Code").fill("000000");
+  await offer.getByRole("button", { name: "Continue" }).click();
+  const code = (await offer.getByTestId("dev-code").textContent())!;
+  if (code !== "000000") await expect(offer.getByText("That code isn't right")).toBeVisible();
+  await offer.getByLabel("Code").fill(code);
+  await offer.getByRole("button", { name: "Continue" }).click();
+  await expect(shopper).toHaveURL(`${demo}/account/orders/${number}`);
+  await expect(shopper.getByTestId("order-headline")).toHaveText("We've got your order");
+
+  // Their account: named from the order; an address saved; checkout fills itself in.
+  await shopper.getByRole("link", { name: "Your account", exact: true }).first().click();
+  await expect(shopper.getByTestId("account-name")).toHaveText("Amelia Frost");
+  await expect(shopper.getByRole("link", { name: /^Orders/ })).toContainText("1 order");
+  await shopper.getByRole("link", { name: /^Addresses/ }).click();
+  await shopper.getByLabel("Street address").fill("8 Bay View Terrace");
+  await shopper.getByLabel("Town or suburb").fill("Claremont");
+  await shopper.getByLabel("Postcode").fill("6010");
+  await shopper.getByRole("button", { name: "Save address" }).click();
+  await expect(shopper.getByTestId("address-card")).toContainText("Default");
+  await shopper.goto(demo + "/shop/sauna-stones");
+  await shopper.getByRole("button", { name: "Add to cart" }).click();
+  await shopper.getByRole("link", { name: "Added — view your cart" }).waitFor();
+  await shopper.goto(demo + "/shop/checkout");
+  await expect(shopper.getByLabel("Email")).toHaveValue("amelia@example.com");
+  await expect(shopper.getByLabel("Street address")).toHaveValue("8 Bay View Terrace");
+  await expect(shopper.getByTestId("checkout-sign-in")).toHaveCount(0);
+
+  // Signing out: the account icon goes back to Sign in.
+  await shopper.goto(demo + "/account");
+  await shopper.getByRole("button", { name: "Sign out" }).click();
+  await expect(shopper.getByRole("heading", { name: "Sign in" })).toBeVisible();
+});
+
+test("Track my order: no account needed; a wrong pair says so", async ({ page }) => {
+  await page.goto(demo + "/shop");
+  await page.getByRole("contentinfo").getByRole("link", { name: "Track my order" }).click();
+  await expect(page).toHaveURL(demo + "/track");
+  await page.getByLabel("Order number").fill("1002");
+  await page.getByLabel("Email on the order").fill("nobody@example.com");
+  await page.getByRole("button", { name: "Find my order" }).click();
+  await expect(page.getByTestId("track-error")).toContainText("We can't find an order with those two together");
+  await expect(page.getByLabel("Order number")).toHaveAttribute("aria-invalid", "true");
+  await page.getByLabel("Order number").fill(ameliaOrder);
+  await page.getByLabel("Email on the order").fill("Amelia@Example.com");
+  await page.getByRole("button", { name: "Find my order" }).click();
+  await expect(page.getByTestId("order-headline")).toHaveText("We've got your order");
+  await expect(page.getByTestId("order-steps")).toContainText("Order placed");
+  await expect(page.getByTestId("track-result")).not.toContainText("Bay View"); // where it goes isn't shown here
+  await expect(page.getByTestId("track-result")).toContainText("Keep an eye on it from your phone");
+});
+
+test("passwords, once the shop allows them: set one, then sign in with it", async ({ page, browser }) => {
+  await signInAsOwner(page);
+  await page.goto(admin + "/settings/accounts");
+  await page.getByRole("switch", { name: /Let customers set a password/ }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
+
+  const shopper = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  await shopper.goto(demo + "/account");
+  await shopper.getByLabel("Your email").fill("kim@example.com");
+  await shopper.getByRole("button", { name: "Continue" }).click();
+  await shopper.getByLabel("Code").fill((await shopper.getByTestId("dev-code").textContent())!);
+  await shopper.getByRole("button", { name: "Continue" }).click();
+  await expect(shopper.getByTestId("account-name")).toHaveText("Your account");
+  await shopper.getByRole("link", { name: /^Details/ }).click();
+  await shopper.getByTestId("set-password").click();
+  await shopper.getByLabel("Password").fill("short");
+  await shopper.getByRole("button", { name: "Save it" }).click();
+  await expect(shopper.getByLabel("Password")).toHaveAttribute("aria-invalid", "true");
+  await shopper.getByLabel("Password").fill("wattle garden");
+  await shopper.getByRole("button", { name: "Save it" }).click();
+  await expect(shopper.getByTestId("set-password")).toContainText("Saved. Codes still work too.");
+  await shopper.goto(demo + "/account");
+  await shopper.getByRole("button", { name: "Sign out" }).click();
+
+  await shopper.getByLabel("Your email").fill("kim@example.com");
+  await shopper.getByRole("button", { name: "Continue" }).click();
+  await expect(shopper.getByRole("heading", { name: "Your password" })).toBeVisible();
+  await shopper.getByLabel("Password").fill("wattle gardens");
+  await shopper.getByRole("button", { name: "Sign in" }).click();
+  await expect(shopper.getByText("That password isn't right.")).toBeVisible();
+  await shopper.getByLabel("Password").fill("wattle garden");
+  await shopper.getByRole("button", { name: "Sign in" }).click();
+  await expect(shopper.getByTestId("account-name")).toHaveText("Your account");
+});

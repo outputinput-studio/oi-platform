@@ -6,6 +6,7 @@ import { businessOf, senderFor } from "@/modules/sites/business";
 import { statusNames } from "@/modules/sites/shop";
 import { siteColours, type Theme } from "@/modules/sites/theme";
 import { readMessages, splitList, type Messages } from "@/modules/sites/messages";
+import { readAccountSettings } from "@/modules/customers/settings";
 import { Label, PageHeader, Row, Rows } from "../../ui";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,7 @@ export default async function SettingsPage() {
             <Row title="Tax and currency" detail={`${shop.currency} · prices ${shop.pricesIncludeTax ? "include" : "don't include"} ${shop.taxName}`} href="/settings/shop" />
             <Row title="Payments" detail={paymentsLine(paymentsStatus(site))} href="/settings/payments" />
             <Row title="Enquiries" detail={enquiryForm ? `Through ${enquiryForm.name}` : "Choose the form people use to ask about a product"} href="/settings/enquiries" />
+            <Row title="Customer accounts" detail={accountsLine(readAccountSettings(site.accounts))} href="/settings/accounts" />
           </Rows>
         </section>
         <section>
@@ -91,4 +93,9 @@ function notifyLine(m: Messages): string {
 function brandingLine(t: Theme): string {
   const c = siteColours(t);
   return [t.logo ? "Logo" : "No logo yet", t.favicon ? "favicon" : "", `${c.background} · ${t.accent}`].filter(Boolean).join(" · ");
+}
+
+function accountsLine(a: ReturnType<typeof readAccountSettings>): string {
+  if (!a.enabled) return "Off · order tracking is always on";
+  return a.passwords ? "On · a code, or a password if they set one" : "On · sign in with a code";
 }

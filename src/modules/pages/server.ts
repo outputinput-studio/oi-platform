@@ -292,8 +292,9 @@ export async function searchPages(p: { siteId: string; words: string[]; limit?: 
   ).then((rows) => rows.map((r) => ({ slug: r.slug, title: r.title, hit: r.hit ?? "" })));
 }
 
-/** Addresses a page can't have: the shop, the journal and search live there. */
-export const RESERVED_PAGE_SLUGS = ["shop", "journal", "search"];
+/** Addresses a page can't have: the shop, the journal, search, customer accounts and order tracking live there. */
+const RESERVED: Record<string, string> = { shop: "the shop", journal: "the journal", search: "the site search", account: "customer accounts", track: "order tracking" };
+export const RESERVED_PAGE_SLUGS = Object.keys(RESERVED);
 
 // ───────────────────────── helpers ─────────────────────────
 
@@ -333,7 +334,7 @@ async function touch(tx: Tx, pageId: string) {
 }
 
 async function assertSlugFree(tx: Tx, slug: string) {
-  if (RESERVED_PAGE_SLUGS.includes(slug)) throw new FieldError("slug", `/${slug} is kept for the ${slug === "search" ? "site search" : slug}. Pick another address.`);
+  if (slug in RESERVED) throw new FieldError("slug", `/${slug} is kept for ${RESERVED[slug]}. Pick another address.`);
   const [clash] = await tx.select({ id: pages.id }).from(pages).where(and(eq(pages.slug, slug), isNull(pages.deletedAt))).limit(1);
   if (clash) throw new FieldError("slug", `There's already a page at ${slug}. Pick another address.`);
 }

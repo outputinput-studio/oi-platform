@@ -11,10 +11,10 @@ import { HOLD_MINUTES, markOrderPaid, orderForCustomer, placeOrder, setProviderR
  * account, or — outside production with no Stripe keys — on a test page
  * where nothing real moves. Either way they come back to /shop/checkout/done.
  */
-export async function startCheckout(p: { site: Site; host: string; cart: CartLine[]; cartRef?: string; details: unknown }): Promise<{ redirect: string }> {
+export async function startCheckout(p: { site: Site; host: string; cart: CartLine[]; cartRef?: string; details: unknown; customerId?: string }): Promise<{ redirect: string }> {
   const pay = paymentsStatus(p.site);
   if (!pay.ready || !pay.provider) throw new Error("This shop isn't taking payments yet. Get in touch to order.");
-  const order = await placeOrder({ site: p.site, cart: p.cart, cartRef: p.cartRef, details: p.details, provider: pay.provider });
+  const order = await placeOrder({ site: p.site, cart: p.cart, cartRef: p.cartRef, details: p.details, provider: pay.provider, customerId: p.customerId });
   if (pay.provider === "test") return { redirect: `/shop/checkout/pay?order=${order.id}` };
 
   const base = `https://${p.host}`;

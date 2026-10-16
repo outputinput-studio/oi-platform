@@ -18,3 +18,11 @@ export function timeAgo(then: Date, now: Date = new Date()): string {
   const y = Math.floor(d / 365);
   return `${y} year${y === 1 ? "" : "s"} ago`;
 }
+
+/** "2 minutes", "1 minute", "an hour", "30 seconds": a wait in words. */
+export function waitText(seconds: number): string {
+  if (seconds < 60) return `${Math.max(1, Math.ceil(seconds))} second${Math.ceil(seconds) === 1 ? "" : "s"}`;
+  const m = Math.ceil(seconds / 60);
+  if (m >= 60) return "an hour";
+  return `${m} minute${m === 1 ? "" : "s"}`;
+}

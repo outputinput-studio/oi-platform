@@ -38,6 +38,8 @@ export const sites = pgTable("sites", {
   business: jsonb("business").notNull().$type<Record<string, unknown>>().default({}),
   /** Messages: how emails are sent (from name, reply-to), templates, who's told. See modules/sites/business.ts. */
   messages: jsonb("messages").notNull().$type<Record<string, unknown>>().default({}),
+  /** Customer accounts on the storefront: on or off, passwords allowed. See modules/customers/settings.ts. */
+  accounts: jsonb("accounts").notNull().$type<Record<string, unknown>>().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -647,12 +649,21 @@ export const orders = pgTable(
     /** What has been refunded, in cents. Equal to the total once fully refunded. */
     refunded: integer("refunded").notNull().default(0),
     contactId: uuid("contact_id"),
+    /** The customer account it belongs to: set at checkout when signed in, or when that email signs in later. */
+    customerId: uuid("customer_id"),
     tracking: jsonb("tracking").notNull().$type<Record<string, unknown>>().default({}),
+    /** When it first reached each stage ({ sent: ISO time }), for the customer's timeline. */
+    statusTimes: jsonb("status_times").notNull().$type<Record<string, string>>().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     paidAt: timestamp("paid_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("orders_site_number_idx").on(t.siteId, t.number), index("orders_site_id_idx").on(t.siteId), index("orders_provider_ref_idx").on(t.providerRef)],
+  (t) => [
+    uniqueIndex("orders_site_number_idx").on(t.siteId, t.number),
+    index("orders_site_id_idx").on(t.siteId),
+    index("orders_provider_ref_idx").on(t.providerRef),
+    index("orders_customer_id_idx").on(t.customerId),
+  ],
 );
 export type Order = typeof orders.$inferSelect;
 
@@ -691,3 +702,118 @@ export const discountCodes = pgTable(
   (t) => [uniqueIndex("discount_codes_site_code_idx").on(t.siteId, t.code).where(sql`${t.deletedAt} is null`), index("discount_codes_site_id_idx").on(t.siteId)],
 );
 export type DiscountCode = typeof discountCodes.$inferSelect;
+
+/**
+ * Customer accounts on the storefront (design/storefront-accounts.html).
+ * One per email per site: a customer of two shops on the platform has two
+ * accounts that know nothing of each other. Signing in is a code emailed
+ * to them; a password is optional (and only where the site allows one).
+ */
+export const customers = pgTable(
+  "customers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    /** Lower case. Proven by a code before the account exists, and again before it changes. */
+    email: text("email").notNull(),
+    name: text("name").notNull().default(""),
+    phone: text("phone").notNull().default(""),
+    /** scrypt, never the password. Null: codes only. */
+    passwordHash: text("password_hash"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("customers_site_id_idx").on(t.siteId), uniqueIndex("customers_site_email_idx").on(t.siteId, t.email)],
+);
+export type Customer = typeof customers.$inferSelect;
+
+/** Addresses a customer keeps: the default one fills in checkout. */
+export const customerAddresses = pgTable(
+  "customer_addresses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    /** Their own word for it ("work"); empty is fine. */
+    label: text("label").notNull().default(""),
+    name: text("name").notNull().default(""),
+    /** { line1, line2, city, state, postcode, country }, as checkout takes it. */
+    address: jsonb("address").notNull().$type<Record<string, string>>().default({}),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [index("customer_addresses_site_id_idx").on(t.siteId), index("customer_addresses_customer_id_idx").on(t.customerId)],
+);
+export type CustomerAddress = typeof customerAddresses.$inferSelect;
+
+/** Six-digit codes sent to sign in or to prove a new email. Only a keyed hash is kept; the newest one is the one that works. */
+export const customerCodes = pgTable(
+  "customer_codes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    /** "signIn", or "email" (proving a new address for `customerId`). */
+    purpose: text("purpose").notNull().default("signIn"),
+    customerId: uuid("customer_id").references(() => customers.id, { onDelete: "cascade" }),
+    codeHash: text("code_hash").notNull(),
+    /** A hash of who asked (their connection), so one visitor can't send codes to a thousand inboxes. Never the address itself. */
+    requester: text("requester").notNull().default(""),
+    attempts: integer("attempts").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("customer_codes_site_id_idx").on(t.siteId), index("customer_codes_email_idx").on(t.siteId, t.email, t.createdAt)],
+);
+
+/** Signed-in browsers. The cookie holds a random token; only its hash is kept. Thirty days. */
+export const customerSessions = pgTable(
+  "customer_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("customer_sessions_site_id_idx").on(t.siteId), uniqueIndex("customer_sessions_token_idx").on(t.tokenHash), index("customer_sessions_customer_id_idx").on(t.customerId)],
+);
+
+/**
+ * Slowing down guessing: wrong codes, wrong passwords, order lookups that
+ * don't match. One row per thing being guessed at ("signIn:amelia@…",
+ * "track:amelia@…"). Each lock-out doubles the wait, up to an hour; then
+ * it clears.
+ */
+export const throttles = pgTable(
+  "throttles",
+  {
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    /** Misses since the last lock-out (or since it cleared). */
+    misses: integer("misses").notNull().default(0),
+    /** Lock-outs so far: the next wait is 2 minutes × 2^strikes, up to an hour. */
+    strikes: integer("strikes").notNull().default(0),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("throttles_site_key_idx").on(t.siteId, t.key)],
+);
