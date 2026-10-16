@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { checkoutAction, clearCartAction, previewCodeAction, quoteAction, type CartState } from "@/modules/orders/actions";
 import { taxOn } from "@/modules/orders/cart";
-import { quoteFor, ratePriceLabel, ratesFor, type Shipping } from "@/modules/sites/shipping";
+import { quoteFor, ratePriceLabel, ratesFor, whyNoRates, type Shipping } from "@/modules/sites/shipping";
 import { formatPrice, type Currency } from "@/modules/sites/shop";
 
 const input = "block h-12 w-full rounded-[6px] border border-[var(--border)] bg-transparent px-3.5 text-[16px] outline-none focus:border-[var(--accent)]";
@@ -60,6 +60,17 @@ export function CheckoutForm({
   const countryName = countries.find((c) => c.code === country)?.name ?? country;
   const quote = needsAddress ? quoteFor(shipping, country, countryName) : null;
   const rates = needsAddress ? ratesFor(shipping, { country, postcode }, subtotal) : [];
+  const fmtMoney = (c: number) => formatPrice(c, currency);
+  const none = needsAddress && !quote ? whyNoRates(shipping, { country, postcode }, subtotal) : null;
+  const noneText = !none
+    ? ""
+    : none.why === "postcode"
+      ? none.typed
+        ? `Sorry, we don't deliver to ${postcode.trim()}. Get in touch and we'll sort something out.`
+        : "We deliver here ourselves, to some postcodes. Enter your postcode to see if you're covered."
+      : none.why === "total"
+        ? `Sorry, none of our delivery options cover an order of ${fmtMoney(subtotal)}. Get in touch and we'll sort something out.`
+        : `Sorry, we don't send to ${countryName} yet. Get in touch and we'll sort something out.`;
   const [picked, setPicked] = useState("");
   const rate = rates.find((r) => r.id === picked) ?? rates[0];
   const pickup = rate?.kind === "pickup";
@@ -115,7 +126,7 @@ export function CheckoutForm({
             </div>
           ) : rates.length === 0 ? (
             <p data-testid="no-rates" className="rounded-[6px] border border-[var(--border)] px-4 py-3 text-[14px]">
-              Sorry, we don&apos;t send to {countryName} yet. Get in touch and we&apos;ll sort something out.
+              {noneText}
             </p>
           ) : (
             <div role="radiogroup" aria-label="How it gets to you" className="space-y-2">
@@ -202,6 +213,11 @@ export function CheckoutForm({
           >
             {pending ? "One moment…" : testMode ? "Continue to test payment" : "Continue to payment"}
           </button>
+          {needsAddress && rates.length === 0 && (
+            <p data-testid="cant-continue" className="text-[13.5px]">
+              {noneText}
+            </p>
+          )}
           <p className="text-[13px] text-[var(--text-muted)]">{testMode ? "This is a test shop: nothing real is charged." : "You'll pay securely with Stripe. We never see your card."}</p>
         </>
       )}

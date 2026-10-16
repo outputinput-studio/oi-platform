@@ -76,6 +76,40 @@ export function ratesFor(s: Shipping, where: { country: string; postcode?: strin
     .sort((a, b) => a.price - b.price);
 }
 
+/**
+ * Why an address has nothing to pick from, so checkout can say so rather
+ * than just greying the button: no zone for the country; only local
+ * delivery and the postcode isn't covered (or not typed yet); or every
+ * rate has a total limit this order falls outside.
+ */
+export type NoRates = { why: "noZone" } | { why: "postcode"; typed: boolean } | { why: "total" } | { why: "empty" };
+export function whyNoRates(s: Shipping, where: { country: string; postcode?: string }, subtotal: number): NoRates | null {
+  if (ratesFor(s, where, subtotal).length > 0) return null;
+  const zone = zoneFor(s, where.country);
+  if (!zone) return { why: "noZone" };
+  if (zone.rates.length === 0) return { why: "empty" };
+  const fitsTotal = zone.rates.filter((r) => (r.minTotal === null || subtotal >= r.minTotal) && (r.maxTotal === null || subtotal < r.maxTotal));
+  if (fitsTotal.length > 0 && fitsTotal.every((r) => r.kind === "local")) return { why: "postcode", typed: (where.postcode ?? "").trim() !== "" };
+  return { why: "total" };
+}
+
+/**
+ * What a zone can't deliver, for the shipping editor: the order total from
+ * which no rate applies (every post or pickup rate has an upper limit), or
+ * that it has no rates at all. Local delivery depends on the postcode, so
+ * it doesn't count as covering everyone.
+ */
+export function zoneGaps(z: Zone): { noRates: boolean; from: number | null; below: number | null } {
+  const none = { noRates: false, from: null, below: null };
+  if (z.quote) return none;
+  if (z.rates.length === 0) return { ...none, noRates: true };
+  const open = z.rates.filter((r) => r.kind !== "local");
+  if (open.length === 0) return none;
+  const from = open.some((r) => r.maxTotal === null) ? null : Math.max(...open.map((r) => r.maxTotal ?? 0));
+  const below = open.some((r) => !r.minTotal) ? null : Math.min(...open.map((r) => r.minTotal ?? 0));
+  return { noRates: false, from, below };
+}
+
 /** When delivery to this country is quoted individually: what the customer reads instead of rates. Null when it isn't. */
 export function quoteFor(s: Shipping, country: string, countryName: string): string | null {
   const zone = zoneFor(s, country);

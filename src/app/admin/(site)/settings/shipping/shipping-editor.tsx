@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { saveShippingAction } from "@/modules/sites/actions";
-import { RATE_KINDS, type Rate, type RateKind, type Shipping, type Zone } from "@/modules/sites/shipping";
+import { RATE_KINDS, zoneGaps, type Rate, type RateKind, type Shipping, type Zone } from "@/modules/sites/shipping";
 import { formatPrice, parsePrice, priceInput, type Currency } from "@/modules/sites/shop";
 import { Button, Field, Input, Label, Notice, Switch, Textarea } from "../../../ui";
 
@@ -109,6 +109,7 @@ export function ShippingEditor({
                   </>
                 )}
               </div>
+              <ZoneGaps zone={z} fmt={fmt} />
               {open === z.id && <ZoneEditor zone={z} countries={countries} canEdit={canEdit} hasEnquiryForm={hasEnquiryForm} fmt={fmt} onChange={(patch) => setZone(z.id, patch)} onDelete={() => setS((cur) => ({ ...cur, zones: cur.zones.filter((x) => x.id !== z.id) }))} />}
             </li>
           ))}
@@ -317,6 +318,25 @@ function RateEditor({ rate: r, canEdit, fmt, onChange, onRemove }: { rate: Rate;
           Remove this rate
         </button>
       )}
+    </div>
+  );
+}
+
+/** What this zone can't deliver, said plainly, so checkout never just greys out for a customer. */
+function ZoneGaps({ zone, fmt }: { zone: Zone; fmt: (c: number) => string }) {
+  const g = zoneGaps(zone);
+  const lines = [
+    g.noRates && "No rates yet, so customers here can't check out.",
+    g.below !== null && `Orders under ${fmt(g.below)} have no delivery option here.`,
+    g.from !== null && `Orders of ${fmt(g.from)} or more have no delivery option here.`,
+  ].filter(Boolean) as string[];
+  if (lines.length === 0) return null;
+  return (
+    <div data-testid="zone-gap" className="mx-4 mb-3 rounded-[6px] border border-warning bg-warning-bg px-3 py-2 text-[12.5px] leading-[1.5] text-body">
+      {lines.map((l) => (
+        <p key={l}>{l}</p>
+      ))}
+      <p className="text-muted">Add a rate without a limit, or turn a limit off, to cover them.</p>
     </div>
   );
 }

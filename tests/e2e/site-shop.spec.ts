@@ -212,6 +212,8 @@ test("shipping: a zone with postage and a pickup, chosen at checkout", async ({ 
   // Somewhere we don't send.
   await page.getByLabel("Country").selectOption("NZ");
   await expect(page.getByTestId("no-rates")).toContainText("New Zealand");
+  await expect(page.getByRole("button", { name: "Continue to test payment" })).toBeDisabled();
+  await expect(page.getByTestId("cant-continue")).toContainText("we don't send to New Zealand"); // said by the button, not just greyed
   await page.getByLabel("Country").selectOption("AU");
 
   // Posted instead.
