@@ -133,3 +133,26 @@ describe("delivery", () => {
     expect(picked).toMatchObject({ shippingPrice: 0, total: 8000, address: { country: "AU" }, shipping: { kind: "pickup" } });
   });
 });
+
+describe("discount codes at checkout", () => {
+  test("a code comes off the order, counts when paid, and keeps to its limits", async () => {
+    const { saveCode, listCodes } = await import("@/modules/discounts/server");
+    await saveCode({ actorId: ann, siteId: siteA.id, edit: { code: "welcome10", kind: "percent", value: 10, perPerson: 1 } });
+    await saveCode({ actorId: ann, siteId: siteA.id, edit: { code: "POSTFREE", kind: "freeShipping", minSpend: 5000 } });
+    await expect(saveCode({ actorId: ann, siteId: siteA.id, edit: { code: "WELCOME10", kind: "amount", value: 100 } })).rejects.toThrow(/already a code/);
+
+    const site = (await siteFromHost("orders-a.localhost"))!;
+    const cart = [{ id: shelf, q: 1 }]; // $80, standard post $12 (from the delivery test)
+    const who = { name: "Jade", email: "jade@example.com", address, rate: "std" };
+    await expect(placeOrder({ site, cart, details: { ...who, code: "NOPE" }, provider: "test" })).rejects.toThrow(/isn't a code here/);
+    const o = await placeOrder({ site, cart, details: { ...who, code: "welcome10" }, provider: "test" });
+    expect(o).toMatchObject({ discountCode: "WELCOME10", discount: 800, shippingPrice: 1200, total: 8400 });
+    const free = await placeOrder({ site, cart, details: { ...who, code: "postfree" }, provider: "test" });
+    expect(free).toMatchObject({ discount: 0, shippingPrice: 0, total: 8000 });
+
+    await markOrderPaid({ siteId: site.id, orderId: o.id });
+    expect((await listCodes({ actorId: ann, siteId: site.id })).find((c) => c.code === "WELCOME10")?.uses).toBe(1);
+    // One per person: Jade has had hers.
+    await expect(placeOrder({ site, cart, details: { ...who, code: "WELCOME10" }, provider: "test" })).rejects.toThrow(/already used/);
+  });
+});

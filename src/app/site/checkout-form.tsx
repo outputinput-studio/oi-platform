@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { checkoutAction, clearCartAction, type CartState } from "@/modules/orders/actions";
+import { checkoutAction, clearCartAction, previewCodeAction, type CartState } from "@/modules/orders/actions";
 import { taxOn } from "@/modules/orders/cart";
 import { ratePriceLabel, ratesFor, type Shipping } from "@/modules/sites/shipping";
 import { formatPrice, type Currency } from "@/modules/sites/shop";
@@ -33,14 +33,30 @@ export function CheckoutForm({
   tax: { rate: number; included: boolean; name: string };
 }) {
   const [state, act, pending] = useActionState(checkoutAction, {} as CartState);
+  const [codeText, setCodeText] = useState("");
+  const [code, setCode] = useState<{ code: string; off: number; freeShipping: boolean } | null>(null);
+  const [codeError, setCodeError] = useState("");
+  const [checking, setChecking] = useState(false);
+  const applyCode = async () => {
+    setChecking(true);
+    setCodeError("");
+    const email = (document.querySelector('input[name="email"]') as HTMLInputElement | null)?.value ?? "";
+    const r = await previewCodeAction(codeText, email).catch(() => ({ error: "Couldn't check that code. Try again." }));
+    setChecking(false);
+    if ("ok" in r && r.ok) setCode({ code: r.code ?? codeText.toUpperCase(), off: r.off ?? 0, freeShipping: !!r.freeShipping });
+    else {
+      setCode(null);
+      setCodeError(r.error ?? "That code doesn't work.");
+    }
+  };
   const [country, setCountry] = useState(defaultCountry);
   const [postcode, setPostcode] = useState("");
   const rates = needsAddress ? ratesFor(shipping, { country, postcode }, subtotal) : [];
   const [picked, setPicked] = useState("");
   const rate = rates.find((r) => r.id === picked) ?? rates[0];
   const pickup = rate?.kind === "pickup";
-  const deliveryPrice = rate?.price ?? 0;
-  const total = taxOn(subtotal + deliveryPrice, tax.rate, tax.included);
+  const deliveryPrice = code?.freeShipping ? 0 : (rate?.price ?? 0);
+  const total = taxOn(subtotal - (code?.off ?? 0) + deliveryPrice, tax.rate, tax.included);
   const fmt = (c: number) => formatPrice(c, currency);
   const countryName = countries.find((c) => c.code === country)?.name ?? country;
 
@@ -98,15 +114,44 @@ export function CheckoutForm({
           )}
         </fieldset>
       )}
+      <div>
+        <label htmlFor="checkout-code" className="mb-1.5 block text-[14px]">
+          Discount code
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="checkout-code"
+            value={codeText}
+            onChange={(e) => {
+              setCodeText(e.target.value);
+              if (code) setCode(null);
+            }}
+            autoComplete="off"
+            className={`${input} uppercase`}
+          />
+          <button type="button" onClick={() => void applyCode()} disabled={!codeText.trim() || checking} className="h-12 flex-none rounded-[6px] border border-[var(--border)] px-5 text-[15px] disabled:opacity-50">
+            {checking ? "…" : "Apply"}
+          </button>
+        </div>
+        <input type="hidden" name="code" value={code?.code ?? ""} />
+        {code && <p className="mt-1.5 text-[13px]">{code.code} applied.</p>}
+        {codeError && <p className="mt-1.5 text-[13px] text-[var(--text-muted)]">{codeError}</p>}
+      </div>
       <label className="block">
         <span className="mb-1.5 block text-[14px]">Anything we should know?</span>
         <textarea name="note" rows={3} maxLength={1000} className={`${input} h-auto py-3`} />
       </label>
       <dl className="space-y-1.5 border-t border-[var(--border-soft)] pt-4 text-[14px]">
+        {code && code.off > 0 && (
+          <div className="flex justify-between">
+            <dt>Code {code.code}</dt>
+            <dd data-testid="code-off">−{fmt(code.off)}</dd>
+          </div>
+        )}
         {needsAddress && rate && (
           <div className="flex justify-between">
             <dt>{rate.name}</dt>
-            <dd>{ratePriceLabel(rate.price, fmt)}</dd>
+            <dd>{code?.freeShipping ? "Free with your code" : ratePriceLabel(rate.price, fmt)}</dd>
           </div>
         )}
         {total.tax > 0 && (

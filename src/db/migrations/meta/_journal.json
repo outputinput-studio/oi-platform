@@ -127,6 +127,13 @@
       "when": 1792123422015,
       "tag": "0017_shipping",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792123819162,
+      "tag": "0018_discount_codes",
+      "breakpoints": true
     }
   ]
 }

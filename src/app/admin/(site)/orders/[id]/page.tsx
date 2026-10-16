@@ -28,7 +28,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const tracking = o.tracking as Partial<Tracking>;
   const track = trackingUrl(tracking);
   const next = ORDER_STATUSES[ORDER_STATUSES.indexOf(o.status) + 1];
-  const included = o.total === o.subtotal + o.shippingPrice;
+  const included = o.total === o.subtotal - o.discount + o.shippingPrice;
   const ship = o.shipping as { name?: string; kind?: string; estimate?: string } | null;
   return (
     <>
@@ -132,6 +132,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           <Label>Payment</Label>
           <Rows variant="static">
             <Row title={items.length === 1 ? "Item" : "Items"} right={<span className="font-mono text-[13.5px]">{formatPrice(o.subtotal, cur)}</span>} />
+            {o.discount > 0 && <Row title={`Code ${o.discountCode}`} right={<span className="font-mono text-[13.5px]">−{formatPrice(o.discount, cur)}</span>} />}
             {o.tax > 0 && <Row title={included ? `Includes ${o.taxName} ${o.taxRate}%` : `${o.taxName} ${o.taxRate}%`} right={<span className="font-mono text-[13.5px]">{formatPrice(o.tax, cur)}</span>} />}
             <Row title={ship?.name ? `Delivery · ${ship.name}` : "Delivery"} right={<span className="font-mono text-[13.5px]">{o.shippingPrice ? formatPrice(o.shippingPrice, cur) : ship ? "Free" : "—"}</span>} />
             <Row title="Total paid" right={<span className="font-mono text-[14px] font-medium">{formatPrice(o.total, cur)}</span>} />

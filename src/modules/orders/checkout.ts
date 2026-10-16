@@ -25,12 +25,15 @@ export async function startCheckout(p: { site: Site; host: string; cart: CartLin
   }));
   if (order.shippingPrice > 0) line_items.push({ quantity: 1, price_data: { currency, unit_amount: order.shippingPrice, product_data: { name: `Delivery — ${String((order.shipping as { name?: string } | null)?.name ?? "")}`.replace(/ — $/, "") } } });
   // Prices that don't include tax get it added as its own line, so the total matches the order.
-  const included = order.total === order.subtotal + order.shippingPrice;
+  const included = order.total === order.subtotal - order.discount + order.shippingPrice;
   if (!included) line_items.push({ quantity: 1, price_data: { currency, unit_amount: order.tax, product_data: { name: `${order.taxName} ${order.taxRate}%` } } });
+  // A discount becomes a one-off coupon in the client's own Stripe, so their dashboard shows it.
+  const discounts = order.discount > 0 ? [{ coupon: (await stripe().coupons.create({ amount_off: order.discount, currency, duration: "once", name: order.discountCode || "Discount", max_redemptions: 1 }, { stripeAccount: pay.stripeAccountId })).id }] : undefined;
   const session = await stripe().checkout.sessions.create(
     {
       mode: "payment",
       line_items,
+      ...(discounts ? { discounts } : {}),
       customer_email: order.email,
       client_reference_id: order.id,
       metadata: { siteId: p.site.id, orderId: order.id, number: String(order.number) },
