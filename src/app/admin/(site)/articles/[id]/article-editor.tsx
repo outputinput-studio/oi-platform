@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { saveArticleAction } from "@/modules/articles/actions";
+import { publishArticleAction, saveArticleAction } from "@/modules/articles/actions";
+import { PublishingCard, type PublishStatus } from "../../publishing-card";
 import type { ImageRef } from "@/modules/pages/registry";
 import { slugFromTitle } from "@/modules/pages/slug";
 import type { Seo } from "@/modules/pages/seo";
 import Link from "next/link";
 import { Button, Field, Input, Label, PageHeader, Select, Textarea } from "../../../ui";
 import { SeoCard } from "../../seo-card";
+import { DateField } from "../../../date-picker";
 import { ImagePicker } from "../../pages/[id]/image-picker";
 
 /**
@@ -38,7 +40,7 @@ export function ArticleEditor({
   categories,
   actions,
 }: {
-  article: Draft & { id: string; coverUrl?: string; live: boolean; path: string };
+  article: Draft & { id: string; coverUrl?: string; status: PublishStatus; scheduledAt: string | null; path: string };
   categories: { id: string; name: string; slug: string }[];
   seo: { initial: Seo; imageUrl?: string; fallback: { title: string; description: string; imageUrl?: string } };
   siteName: string;
@@ -103,12 +105,12 @@ export function ArticleEditor({
             </span>
             <form action={actions.setStatus} className="flex items-center gap-2">
               <input type="hidden" name="articleId" value={article.id} />
-              <input type="hidden" name="status" value={article.live ? "draft" : "published"} />
+              <input type="hidden" name="status" value={(article.status === "published") ? "draft" : "published"} />
               <span data-testid="article-status" className="sr-only">
-                {article.live ? "Live" : "Draft"}
+                {article.status === "published" ? "Live" : article.status === "scheduled" ? "Scheduled" : "Draft"}
               </span>
-              <Button type="submit" size="sm" variant={article.live ? "secondary" : "primary"}>
-                {article.live ? "Unpublish" : "Publish"}
+              <Button type="submit" size="sm" variant={(article.status === "published") ? "secondary" : "primary"}>
+                {(article.status === "published") ? "Unpublish" : "Publish"}
               </Button>
             </form>
           </>
@@ -123,7 +125,7 @@ export function ArticleEditor({
               maxLength={160}
               onChange={(e) => {
                 const title = e.target.value;
-                change(slugTouched || article.live ? { title } : { title, slug: slugFromTitle(title) });
+                change(slugTouched || (article.status === "published") ? { title } : { title, slug: slugFromTitle(title) });
               }}
             />
           </Field>
@@ -144,7 +146,7 @@ export function ArticleEditor({
             <Textarea id="a-excerpt" value={d.excerpt} rows={2} maxLength={300} onChange={(e) => change({ excerpt: e.target.value })} />
           </Field>
           <Field label="Publish date" htmlFor="a-date" hint="Shown on the article and sets its place in the journal. Set for you when it first goes live.">
-            <Input id="a-date" type="date" value={d.publishedOn} onChange={(e) => change({ publishedOn: e.target.value })} />
+            <DateField id="a-date" value={d.publishedOn} onChange={(v) => change({ publishedOn: v })} />
           </Field>
           <Field label="Written by" htmlFor="a-author" hint={`Shows under the title. ${siteName} unless you put a person here.`}>
             <Input id="a-author" value={d.author} maxLength={80} placeholder={siteName} onChange={(e) => change({ author: e.target.value })} />
@@ -217,10 +219,13 @@ export function ArticleEditor({
                 }}
               />
             </Field>
-            {article.live && <p className="mt-2 text-[12.5px] text-warning">It&apos;s live: changing the address breaks any link already shared.</p>}
+            {(article.status === "published") && <p className="mt-2 text-[12.5px] text-warning">It&apos;s live: changing the address breaks any link already shared.</p>}
           </div>
 
           <div className="mt-6">
+            <PublishingCard status={article.status} scheduledAt={article.scheduledAt} onChange={(st, at) => publishArticleAction(article.id, st, at)} />
+          </div>
+          <div className="mt-3">
             <SeoCard
               initial={seo.initial}
               imageUrl={seo.imageUrl}

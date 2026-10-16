@@ -61,11 +61,16 @@ export async function updatePageAction(_prev: FormState, form: FormData): Promis
 
 export async function setPageStatusAction(form: FormData) {
   const { user, site } = await requireSiteAccess();
-  const pageId = String(form.get("pageId"));
-  const status = z.enum(["draft", "published"]).parse(form.get("status"));
-  await setPageStatus({ actorId: user.id, siteId: site.id, pageId, status });
+  const at = form.get("at") ? new Date(String(form.get("at"))) : undefined;
+  await setPageStatus({
+    actorId: user.id,
+    siteId: site.id,
+    pageId: String(form.get("pageId")),
+    status: z.enum(["draft", "published", "scheduled"]).parse(form.get("status")),
+    at,
+  });
+  revalidatePath(`/pages/${String(form.get("pageId"))}`);
   revalidatePath("/pages");
-  revalidatePath(`/pages/${pageId}`);
 }
 
 export async function deletePageAction(form: FormData) {
@@ -118,6 +123,19 @@ export async function removeSectionAction(form: FormData) {
 }
 
 /** Autosave target for search and sharing. */
+/** The Publishing card: status and, for scheduled, when. Returns the message rather than throwing. */
+export async function publishPageAction(pageId: string, status: "draft" | "published" | "scheduled", at?: string): Promise<FormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await setPageStatus({ actorId: user.id, siteId: site.id, pageId, status, at: at ? new Date(at) : undefined });
+    revalidatePath(`/pages/${pageId}`);
+    revalidatePath("/pages");
+    return { ok: "Saved" };
+  } catch (err) {
+    return { error: message(err) };
+  }
+}
+
 export async function savePageSeoAction(pageId: string, seo: unknown): Promise<FormState> {
   const { user, site } = await requireSiteAccess();
   try {

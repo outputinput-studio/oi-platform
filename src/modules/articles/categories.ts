@@ -6,6 +6,7 @@ import { AccessError, assertAccess } from "@/modules/auth/access";
 import { slugFromTitle } from "@/modules/pages/slug";
 import { autoRedirect } from "@/modules/redirects/server";
 import { readSearchSettings } from "@/modules/sites/search";
+import { articleIsLive } from "@/modules/pages/live";
 
 /**
  * Article categories. Each is a page at /journal/<slug>; an article's
@@ -55,7 +56,7 @@ export async function updateCategory(p: { actorId: string; siteId: string; categ
       const [site] = await tx.select({ search: sites.search }).from(sites).limit(1);
       if (!site || readSearchSettings(site.search).autoRedirect) {
         await autoRedirect(tx, { siteId: p.siteId, from: `/journal/${c.slug}`, to: `/journal/${patch.slug}` });
-        const live = await tx.select({ slug: articles.slug }).from(articles).where(and(eq(articles.categoryId, c.id), eq(articles.status, "published"), isNull(articles.deletedAt)));
+        const live = await tx.select({ slug: articles.slug }).from(articles).where(and(eq(articles.categoryId, c.id), articleIsLive()));
         for (const a of live) await autoRedirect(tx, { siteId: p.siteId, from: `/journal/${c.slug}/${a.slug}`, to: `/journal/${patch.slug}/${a.slug}` });
       }
     }
@@ -112,7 +113,7 @@ async function categoriesWithCounts(tx: Tx, liveOnly = false): Promise<CategoryR
     const [r] = await tx
       .select({ n: count() })
       .from(articles)
-      .where(and(isNull(articles.deletedAt), liveOnly ? eq(articles.status, "published") : undefined, or(eq(articles.categoryId, c.id), sql`${articles.categoryIds} ? ${c.id}`)));
+      .where(and(liveOnly ? articleIsLive() : isNull(articles.deletedAt), or(eq(articles.categoryId, c.id), sql`${articles.categoryIds} ? ${c.id}`)));
     out.push({ ...c, articleCount: Number(r?.n ?? 0) });
   }
   return out;

@@ -41,9 +41,22 @@ export async function saveArticleAction(articleId: string, edit: unknown): Promi
 export async function setArticleStatusAction(form: FormData): Promise<void> {
   const { user, site } = await requireSiteAccess();
   const articleId = String(form.get("articleId"));
-  await setArticleStatus({ actorId: user.id, siteId: site.id, articleId, status: z.enum(["draft", "published"]).parse(form.get("status")) });
+  await setArticleStatus({ actorId: user.id, siteId: site.id, articleId, status: z.enum(["draft", "published", "scheduled"]).parse(form.get("status")) });
   revalidatePath(`/articles/${articleId}`);
   revalidatePath("/articles");
+}
+
+/** The Publishing card: status and, for scheduled, when. Returns the message rather than throwing. */
+export async function publishArticleAction(articleId: string, status: "draft" | "published" | "scheduled", at?: string): Promise<FormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await setArticleStatus({ actorId: user.id, siteId: site.id, articleId, status, at: at ? new Date(at) : undefined });
+    revalidatePath(`/articles/${articleId}`);
+    revalidatePath("/articles");
+    return { ok: "Saved" };
+  } catch (err) {
+    return { error: message(err) };
+  }
 }
 
 export async function deleteArticleAction(form: FormData): Promise<void> {

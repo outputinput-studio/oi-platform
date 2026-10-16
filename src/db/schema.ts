@@ -142,7 +142,8 @@ export type Membership = typeof memberships.$inferSelect;
  * add, remove and reorder sections, and can't break the layout.
  * Soft delete only: deleted_at is set, rows are never removed.
  */
-export const PAGE_STATUSES = ["draft", "published"] as const;
+/** draft: only the team. published: live. scheduled: live from published_at on, without anyone touching it. */
+export const PAGE_STATUSES = ["draft", "published", "scheduled"] as const;
 export type PageStatus = (typeof PAGE_STATUSES)[number];
 
 export const pages = pgTable(

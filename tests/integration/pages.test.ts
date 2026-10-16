@@ -127,6 +127,26 @@ describe("pages", () => {
     expect(r.rows[0].deleted_at).not.toBeNull();
   });
 
+  test("a scheduled page goes live on its own when the time comes", async () => {
+    const { publishedPage, publishedPages } = await import("@/modules/pages/server");
+    const { isLive } = await import("@/modules/pages/live");
+    const p = await createPage({ actorId: ann, siteId: siteA, title: "Launch", slug: "launch" });
+    await expect(setPageStatus({ actorId: ann, siteId: siteA, pageId: p.id, status: "scheduled" })).rejects.toThrow(/date and time/);
+    await expect(setPageStatus({ actorId: ann, siteId: siteA, pageId: p.id, status: "scheduled", at: new Date(Date.now() - 60_000) })).rejects.toThrow(/already passed/);
+    const soon = new Date(Date.now() + 3_600_000);
+    const s = await setPageStatus({ actorId: ann, siteId: siteA, pageId: p.id, status: "scheduled", at: soon });
+    expect(s.status).toBe("scheduled");
+    expect(s.publishedAt?.getTime()).toBe(soon.getTime());
+    expect(isLive(s)).toBe(false);
+    expect(await publishedPage({ siteId: siteA, slug: "launch" })).toBeNull();
+    expect((await publishedPages({ siteId: siteA })).some((x) => x.slug === "launch")).toBe(false);
+    // The clock moves on (we move it): nothing else has to happen.
+    await owner.query(`update pages set published_at = now() - interval '1 minute' where id = $1`, [p.id]);
+    expect((await publishedPage({ siteId: siteA, slug: "launch" }))?.status).toBe("scheduled");
+    expect((await publishedPages({ siteId: siteA })).some((x) => x.slug === "launch")).toBe(true);
+    await deletePage({ actorId: ann, siteId: siteA, pageId: p.id });
+  });
+
   test("search and sharing saves with the page and refuses junk", async () => {
     const p = await updatePage({ actorId: ann, siteId: siteA, pageId: aboutId, seo: { title: "About us — Pages A", description: "Who we are.", noindex: true } });
     expect(p.seo).toMatchObject({ title: "About us — Pages A", description: "Who we are.", noindex: true, image: null });
