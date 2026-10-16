@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import type { Section, Site } from "@/db/schema";
 import { mediaUrl } from "@/modules/media/server";
 import { imageRef, type ImageRef } from "@/modules/pages/registry";
 import { readSeo, summarise, type Seo } from "@/modules/pages/seo";
-import { siteFromHost, siteSearch, siteTheme } from "@/modules/sites/server";
+import { siteSearch, siteTheme } from "@/modules/sites/server";
+import { storefrontSite } from "@/modules/sites/storefront";
+import { publicHost } from "@/lib/hosts";
 import { pageTitle } from "@/modules/sites/search";
 
 /**
@@ -20,7 +21,8 @@ export function storefrontMetadata(p: { site: Site; seo: unknown; title: string;
   const description = seo.description || summarise(p.fallbackDescription) || undefined;
   const image = seo.image ?? p.fallbackImage ?? search.shareImage;
   const imageUrl = image ? mediaUrl(image.key) : "";
-  const url = `https://${p.host}${p.path}`;
+  // The address Google is given: the client's own domain once it works, whichever address this came in on.
+  const url = `https://${publicHost(p.site, p.host)}${p.path}`;
   const hidden = seo.noindex || search.hideFromSearch;
   const favicon = siteTheme(p.site).favicon;
   return {
@@ -58,8 +60,8 @@ export function fallbacksFromSections(sections: Section[]): { description: strin
   return { description, image };
 }
 
+/** The site this storefront request is for — null when there isn't one, or it isn't live yet (the layout shows the holding page). */
 export async function hostAndSite(): Promise<{ host: string; site: Site | null }> {
-  const h = await headers();
-  const host = h.get("x-oi-host") ?? h.get("host") ?? "";
-  return { host, site: await siteFromHost(host) };
+  const { host, site } = await storefrontSite();
+  return { host, site };
 }

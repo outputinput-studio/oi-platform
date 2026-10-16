@@ -57,6 +57,27 @@ export const sendingSchema = z.object({
 });
 export type Sending = z.infer<typeof sendingSchema>;
 
+/**
+ * Settings · Sending, your own domain: set up in the platform's Resend
+ * account, kept in `messages.sendDomain`. Emails go out from
+ * `local@name` once Resend has seen the records (status "verified").
+ */
+export const sendDomainSchema = z.object({
+  name: z.string(),
+  /** The part before the @: orders@kinikouture.com.au. */
+  local: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,40}$/).default("orders"),
+  resendId: z.string(),
+  status: z.string().default("not_started"),
+  records: z.array(z.object({ record: z.string(), name: z.string(), type: z.string(), value: z.string(), priority: z.number().optional(), status: z.string() })).default([]),
+  checkedAt: z.string().optional(),
+});
+export type SendDomain = z.infer<typeof sendDomainSchema>;
+
+export function readSendDomain(messages: unknown): SendDomain | null {
+  const r = sendDomainSchema.safeParse((messages as { sendDomain?: unknown } | null)?.sendDomain);
+  return r.success ? r.data : null;
+}
+
 export function readSending(raw: unknown): Sending {
   const r = sendingSchema.safeParse((raw as { sending?: unknown } | null)?.sending ?? {});
   return r.success ? r.data : sendingSchema.parse({});
@@ -76,12 +97,15 @@ export function businessOf(site: SiteLike): Business {
 }
 
 /** How a customer email from this site is addressed: the name it's from and where a reply lands. */
-export function senderFor(site: SiteLike & { messages: unknown }): { fromName: string; replyTo?: string } {
+export function senderFor(site: SiteLike & { messages: unknown }): { fromName: string; replyTo?: string; fromAddress?: string } {
   const b = businessOf(site);
   const s = readSending(site.messages);
   const fromName = displayName.parse(s.fromName || b.tradingName || site.name);
   const replyTo = s.replyTo || b.email;
-  return replyTo ? { fromName, replyTo } : { fromName };
+  // Their own sending domain, once Resend has verified it: emails come from it, not the platform's address.
+  const own = readSendDomain(site.messages);
+  const fromAddress = own?.status === "verified" ? `${own.local}@${own.name}` : undefined;
+  return { fromName, ...(replyTo ? { replyTo } : {}), ...(fromAddress ? { fromAddress } : {}) };
 }
 
 /** The name to sign with and show customers. */

@@ -40,8 +40,20 @@ export const sites = pgTable("sites", {
   messages: jsonb("messages").notNull().$type<Record<string, unknown>>().default({}),
   /** Customer accounts on the storefront: on or off, passwords allowed. See modules/customers/settings.ts. */
   accounts: jsonb("accounts").notNull().$type<Record<string, unknown>>().default({}),
+  /**
+   * The client's own domain (Settings · Domain), lower case, without www:
+   * kinikouture.com.au. Its slug address keeps working alongside. Unique:
+   * one domain, one site.
+   */
+  domain: text("domain"),
+  /** For a domain like kinikouture.com.au: www.kinikouture.com.au is the main address (the other redirects to it). */
+  domainWww: boolean("domain_www").notNull().default(false),
+  /** When the domain was last seen working: from then on it's the address Google and links are given. */
+  domainOkAt: timestamp("domain_ok_at", { withTimezone: true }),
+  /** Going live: until then visitors see a holding page and the team sees the real site. Sites made before this existed are live. */
+  launchedAt: timestamp("launched_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [uniqueIndex("sites_domain_idx").on(t.domain)]);
 
 export type Site = typeof sites.$inferSelect;
 

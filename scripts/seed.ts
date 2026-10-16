@@ -16,8 +16,10 @@ if (!url) {
 }
 
 const demoSites = [
-  { slug: "outputinput", name: "output/input" },
-  { slug: "demo", name: "Demo site" },
+  { slug: "outputinput", name: "output/input", live: true },
+  { slug: "demo", name: "Demo site", live: true },
+  // Not launched yet: visitors get the holding page, the team a preview link (Settings · Domain).
+  { slug: "soon", name: "Opening soon", live: false },
 ];
 
 /** One person who owns both demo sites, so the site picker has something to show. */
@@ -26,7 +28,7 @@ const demoOwner = { email: "owner@example.com", name: "Demo Owner" };
 const pool = new Pool({ connectionString: url, max: 1 });
 (async () => {
   for (const s of demoSites) {
-    await pool.query(`insert into sites (slug, name) values ($1, $2) on conflict (slug) do nothing`, [s.slug, s.name]);
+    await pool.query(`insert into sites (slug, name, launched_at) values ($1, $2, case when $3 then now() end) on conflict (slug) do nothing`, [s.slug, s.name, s.live]);
   }
   await pool.query(
     `insert into users (id, name, email, email_verified, updated_at)

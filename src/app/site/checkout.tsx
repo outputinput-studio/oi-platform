@@ -16,6 +16,7 @@ import { siteShipping, siteShop } from "@/modules/sites/server";
 import { publicForm } from "@/modules/forms/server";
 import { businessOf } from "@/modules/sites/business";
 import { Frame } from "./storefront";
+import { adminOriginFor } from "@/lib/hosts";
 import { hostAndSite } from "./metadata";
 import { CheckoutForm, ClearCart, TidyCart } from "./checkout-form";
 import { CUSTOMER_COOKIE, currentCustomer, listAddresses } from "@/modules/customers/server";
@@ -217,7 +218,7 @@ export async function DonePage({ orderId, sessionId }: { orderId: string; sessio
   const c = await current();
   if (!c) return <Placeholder surface="site" />;
   const { site, menus, host } = c;
-  if (sessionId) await confirmStripeReturn({ site, orderId, sessionId, adminUrl: `https://${host.replace(/^[^.]+\./, "admin.")}` }).catch((err) => console.error("stripe return check failed", err));
+  if (sessionId) await confirmStripeReturn({ site, orderId, sessionId, adminUrl: adminOriginFor(host) }).catch((err) => console.error("stripe return check failed", err));
   const order = await orderForCustomer({ siteId: site.id, orderId });
   if (!order) return <Gone site={site} menus={menus} />;
   const cur = order.currency as Currency;

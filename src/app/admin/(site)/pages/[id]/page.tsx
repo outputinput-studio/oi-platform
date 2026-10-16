@@ -1,4 +1,5 @@
 import { requireSiteAccess } from "@/modules/auth/access";
+import { siteAddress } from "@/lib/hosts";
 import { mediaAvailable, mediaUrl } from "@/modules/media/server";
 import { getPage, HOME_SLUG } from "@/modules/pages/server";
 import { listForms } from "@/modules/forms/server";
@@ -18,7 +19,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
   const [page, forms] = await Promise.all([getPage({ actorId: user.id, siteId: site.id, pageId: id }), listForms({ actorId: user.id, siteId: site.id })]);
   // The public address: the admin host with "admin" swapped for the site's slug.
   const adminHost = (await headers()).get("x-oi-host") ?? "";
-  const siteUrl = `${adminHost.replace(/^admin\./, `${site.slug}.`)}${page.slug === HOME_SLUG ? "" : `/${page.slug}`}`;
+  const siteUrl = `${siteAddress(site, adminHost)}${page.slug === HOME_SLUG ? "" : `/${page.slug}`}`;
   const seo = readSeo(page.seo);
   const fb = fallbacksFromSections(page.sections);
 
@@ -41,7 +42,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
         initial: seo,
         imageUrl: seo.image ? mediaUrl(seo.image.key) : undefined,
         fallback: { title: page.slug === HOME_SLUG ? site.name : `${page.title} · ${site.name}`, description: fb.description, imageUrl: fb.image ? mediaUrl(fb.image.key) : undefined },
-        host: adminHost.replace(/^admin\./, `${site.slug}.`),
+        host: siteAddress(site, adminHost),
         path: page.slug === HOME_SLUG ? "/" : `/${page.slug}`,
       }}
       actions={{

@@ -46,8 +46,14 @@ A refusal about one field throws `FieldError(field, message)`; a lone value is p
   small sign-in, not Better Auth: customers belong to one site (RLS), staff don't. Codes are HMAC'd, session tokens
   SHA-256'd, passwords scrypt'd (node:crypto only); guessing is slowed by `throttles` (5 misses → 2 min, doubling to an
   hour). Account functions take the customer the session cookie resolved to, never an id from the form.
-- `src/app/site` — the storefront. The site comes from the hostname (`siteFromHost`, via the owner-defined
-  `resolve_site(slug)` function, the only way to find a site before one is current); only published pages render.
+- `src/app/site` — the storefront. The site comes from the hostname (`siteFromHost`: the client's own domain via the
+  owner-defined `resolve_host(host)`, then the slug via `resolve_site(slug)` — the only ways to find a site before one
+  is current); only published pages render. Storefront pages, their `<head>` and storefront actions get the site
+  through `storefrontSite()` / `visibleSiteFromHost()` (`src/modules/sites/storefront.ts`): a site that hasn't launched
+  is invisible to them, and `src/app/site/layout.tsx` shows the holding page (a signed `oi_pass` cookie lets the team in).
+- Addresses between surfaces come from `src/lib/hosts.ts` (`adminOriginFor`, `siteAddress`, `publicHost`) — never by
+  rewriting the first label of a host, which breaks on a client's own domain. Domains go on Vercel through
+  `src/lib/vercel.ts` (OI_VERCEL_*); sending domains through Resend (`src/lib/email.ts`).
 - `tests/unit` (pure) · `tests/integration` (real Postgres) · `tests/e2e` (Playwright, Host header per surface)
 
 ## Non-negotiables

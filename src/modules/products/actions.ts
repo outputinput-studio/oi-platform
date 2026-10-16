@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { siteAddress } from "@/lib/hosts";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -38,7 +39,7 @@ export async function saveProductAction(productId: string, edit: unknown): Promi
   }
   // Back for sale: whoever asked hears about it. A mail problem never undoes the save.
   try {
-    const host = ((await headers()).get("x-oi-host") ?? "").replace(/^admin\./, `${site.slug}.`);
+    const host = siteAddress(site, (await headers()).get("x-oi-host") ?? "");
     await notifyBackInStock({ siteId: site.id, productId, shopOrigin: `https://${host}` });
   } catch (err) {
     console.error("back in stock check failed", err);

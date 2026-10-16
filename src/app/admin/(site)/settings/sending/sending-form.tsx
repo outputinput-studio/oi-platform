@@ -11,6 +11,7 @@ export function SendingForm({
   fallbackName,
   fallbackReply,
   address,
+  own,
   now,
   canEdit,
 }: {
@@ -19,6 +20,8 @@ export function SendingForm({
   fallbackReply: string;
   /** The platform's sending address, until the site's own domain sends. */
   address: string;
+  /** Sending from their own verified domain. */
+  own: boolean;
   now: { fromName: string; replyTo?: string };
   canEdit: boolean;
 }) {
@@ -51,8 +54,8 @@ export function SendingForm({
         <div className="rounded-card border border-line bg-surface px-4 py-3">
           <p className="font-mono text-[13.5px]">{address || "Not set up here"}</p>
           <p className="mt-1 text-[12.5px] leading-[1.5] text-muted">
-            Emails leave from output/input&apos;s address with your name on them: right now, <span className="text-body">{now.fromName}</span>
-            {now.replyTo ? `, replies to ${now.replyTo}` : ""}. Sending from your own domain comes with Settings · Domain.
+            {own ? "Emails leave from your own domain" : "Emails leave from output/input's address"} with your name on them: right now, <span className="text-body">{now.fromName}</span>
+            {now.replyTo ? `, replies to ${now.replyTo}` : ""}.{own ? "" : " To send from your own domain, set it up below."}
           </p>
         </div>
       </div>

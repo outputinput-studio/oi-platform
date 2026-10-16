@@ -79,15 +79,17 @@ export async function updateFooter(p: { actorId: string; siteId: string; footer:
 }
 
 /**
- * Which site a storefront hostname belongs to. The first label of the
- * host is the site's slug (kini.outputinput.co → kini) until custom
- * domains arrive. Uses resolve_site(), an owner-defined function, because
- * no site is current yet and `sites` is locked by id.
+ * Which site a storefront hostname belongs to: a client's own domain
+ * (kinikouture.com.au, or its www) first, then the slug address — the first
+ * label of the host (kini.outputinput.co → kini), which keeps working once a
+ * domain is connected. Uses resolve_host() and resolve_site(), owner-defined
+ * functions, because no site is current yet and `sites` is locked by id.
  */
 export async function siteFromHost(host: string): Promise<Site | null> {
-  const slug = host.toLowerCase().split(":")[0].split(".")[0];
+  const name = host.toLowerCase().split(":")[0].trim();
+  const slug = name.split(".")[0];
   if (!slug) return null;
-  const r = await db.execute(sql`select resolve_site(${slug}) as id`);
+  const r = name.includes(".") ? await db.execute(sql`select coalesce(resolve_host(${name}), resolve_site(${slug})) as id`) : await db.execute(sql`select resolve_site(${slug}) as id`);
   const id = (r.rows[0] as { id: string | null } | undefined)?.id;
   if (!id) return null;
   const [site] = await withSite(id, (tx) => tx.select().from(sites).limit(1));

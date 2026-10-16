@@ -50,6 +50,19 @@ const schema = z.object({
    * production, checkout then uses test payments.
    */
   OI_SECRETS_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(40, "should be 32 bytes, base64").optional()),
+
+  /**
+   * Clients' own domains (Settings · Domain) are added to this Vercel
+   * project through Vercel's API. The token is a secret (Vercel → Account
+   * settings → Tokens); the ids are not. Not set → domains are saved and
+   * their DNS checked, but someone adds them to Vercel by hand.
+   * OI_VERCEL_ENVIRONMENT_ID: staging's custom environment, so a domain
+   * added from staging points at staging, not production. Unset in production.
+   */
+  OI_VERCEL_TOKEN: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(10).optional()),
+  OI_VERCEL_PROJECT_ID: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
+  OI_VERCEL_TEAM_ID: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
+  OI_VERCEL_ENVIRONMENT_ID: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
 });
 
 export type Env = z.infer<typeof schema>;
@@ -112,4 +125,16 @@ export function authHosts(): string[] {
     .split(",")
     .map((h) => h.trim())
     .filter(Boolean);
+}
+
+/**
+ * The platform's own domains (outputinput.co, outputinput.io, localhost),
+ * from the wildcard sign-in hosts. A host under one of these is a site's
+ * slug address; anything else is a client's own domain.
+ */
+export function platformBases(): string[] {
+  const bases = authHosts()
+    .filter((h) => h.startsWith("*."))
+    .map((h) => h.slice(2).split(":")[0].toLowerCase());
+  return [...new Set([...bases, "localhost"])];
 }

@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { siteAddress } from "@/lib/hosts";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { listProductCategories } from "@/modules/products/categories";
 import { Card, PageHeader } from "../../../ui";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function ProductCategoriesPage() {
   const { user, site } = await requireSiteAccess();
   const cats = await listProductCategories({ actorId: user.id, siteId: site.id });
-  const siteHost = ((await headers()).get("x-oi-host") ?? "").replace(/^admin\./, `${site.slug}.`);
+  const siteHost = siteAddress(site, (await headers()).get("x-oi-host") ?? "");
   return (
     <>
       <PageHeader title="Categories" back="/products" actions={<AddCategory />} />
