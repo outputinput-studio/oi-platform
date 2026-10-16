@@ -34,20 +34,20 @@ afterAll(async () => {
 });
 
 describe("menus", () => {
-  let shop = "";
+  let stockists = "";
   let sizing = "";
   test("an untouched header is automatic: every live page but the front one", async () => {
     const home = await createPage({ actorId: ann, siteId: siteA, title: "Home", slug: "home" });
-    shop = (await createPage({ actorId: ann, siteId: siteA, title: "Shop", slug: "shop" })).id;
+    stockists = (await createPage({ actorId: ann, siteId: siteA, title: "Stockists", slug: "stockists" })).id;
     sizing = (await createPage({ actorId: ann, siteId: siteA, title: "Sizing", slug: "sizing" })).id;
-    for (const id of [home.id, shop]) await setPageStatus({ actorId: ann, siteId: siteA, pageId: id, status: "published" });
+    for (const id of [home.id, stockists]) await setPageStatus({ actorId: ann, siteId: siteA, pageId: id, status: "published" });
 
     const list = await listMenus({ actorId: ann, siteId: siteA });
     expect(list.map((m) => m.name)).toEqual(["Header", "Footer"]);
     expect(list[0]).toMatchObject({ automatic: true, summary: expect.stringMatching(/^Automatic/) });
     const s = await siteMenus({ siteId: siteA });
     expect(s).toMatchObject({ automaticHeader: true, footer: [] });
-    expect(s.header.map((l) => l.href)).toEqual(["/shop"]);
+    expect(s.header.map((l) => l.href)).toEqual(["/stockists"]);
   });
 
   test("saving the header makes it the team's own; nesting and drafts behave on the site", async () => {
@@ -58,7 +58,7 @@ describe("menus", () => {
       settings: {
         name: "Ignored for the header",
         items: [
-          { id: "a", label: "", link: { type: "page", pageId: shop }, depth: 0 },
+          { id: "a", label: "", link: { type: "page", pageId: stockists }, depth: 0 },
           { id: "b", label: "Sizes", link: { type: "page", pageId: sizing }, depth: 1 }, // a draft: hidden for now
           { id: "c", label: "Instagram", link: { type: "url", url: "https://instagram.com/x", newTab: true }, depth: 1 },
         ],
@@ -68,7 +68,7 @@ describe("menus", () => {
     expect(menu).toMatchObject({ name: "Header", automatic: false });
     let s = await siteMenus({ siteId: siteA });
     expect(s.automaticHeader).toBe(false);
-    expect(s.header).toEqual([{ label: "Shop", href: "/shop", external: false, newTab: false, children: [{ label: "Instagram", href: "https://instagram.com/x", external: true, newTab: true, children: [] }] }]);
+    expect(s.header).toEqual([{ label: "Stockists", href: "/stockists", external: false, newTab: false, children: [{ label: "Instagram", href: "https://instagram.com/x", external: true, newTab: true, children: [] }] }]);
 
     await setPageStatus({ actorId: ann, siteId: siteA, pageId: sizing, status: "published" });
     s = await siteMenus({ siteId: siteA });
@@ -86,12 +86,12 @@ describe("menus", () => {
   });
 
   test("footer and extra menus become footer columns; only extra menus can be deleted", async () => {
-    await saveMenu({ actorId: ann, siteId: siteA, key: "footer", settings: { name: "Footer", items: [{ id: "f", label: "Shop", link: { type: "page", pageId: shop }, depth: 0 }] } });
+    await saveMenu({ actorId: ann, siteId: siteA, key: "footer", settings: { name: "Footer", items: [{ id: "f", label: "Stockists", link: { type: "page", pageId: stockists }, depth: 0 }] } });
     const help = await createMenu({ actorId: ann, siteId: siteA, name: "Help" });
     await saveMenu({ actorId: ann, siteId: siteA, key: help.key, settings: { name: "Help & care", items: [{ id: "h", label: "Email us", link: { type: "url", url: "mailto:hi@example.com", newTab: false }, depth: 0 }] } });
     const s = await siteMenus({ siteId: siteA });
     expect(s.footer.map((c) => [c.title, c.links.map((l) => l.label)])).toEqual([
-      ["", ["Shop"]],
+      ["", ["Stockists"]],
       ["Help & care", ["Email us"]],
     ]);
     await expect(deleteMenu({ actorId: ann, siteId: siteA, key: "footer" })).rejects.toThrow(/always there/);

@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, isNull, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { withSite, type Tx } from "@/db/client";
 import { articleCategories, articles, sites, type Article } from "@/db/schema";
@@ -11,6 +11,7 @@ import { readSearchSettings } from "@/modules/sites/search";
 import { articleIsLive, isLive } from "@/modules/pages/live";
 import { scheduleTime } from "@/modules/pages/server";
 import { FieldError, named } from "@/lib/form-error";
+import { likePattern } from "@/lib/search";
 
 /**
  * Articles: the site's journal. Same shape as pages — soft delete,
@@ -178,6 +179,22 @@ export async function publishedArticle(p: { siteId: string; slug: string }): Pro
       .limit(1),
   );
   return j ? row(j) : null;
+}
+
+/** Site search: live articles where every word turns up in the title, summary, body or main category. Newest first. */
+export async function searchArticles(p: { siteId: string; words: string[]; limit?: number }): Promise<ArticleRow[]> {
+  if (p.words.length === 0) return [];
+  const each = p.words.map((w) => {
+    const like = likePattern(w);
+    return or(ilike(articles.title, like), ilike(articles.excerpt, like), ilike(articles.body, like), ilike(articleCategories.name, like));
+  });
+  const rows = await withSite(p.siteId, (tx) =>
+    joined(tx)
+      .where(and(articleIsLive(), ...each))
+      .orderBy(desc(articles.publishedAt), desc(articles.createdAt))
+      .limit(p.limit ?? 10),
+  );
+  return rows.map(row);
 }
 
 /** Whether the storefront menu should show Journal at all. */

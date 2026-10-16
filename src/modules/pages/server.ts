@@ -1,15 +1,16 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { withSite, type Tx } from "@/db/client";
 import { pages, sections, sites, type Page, type Section } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
-import { isSectionType, parseSectionData, type SectionType } from "./registry";
+import { isSectionType, NOT_WORDS, parseSectionData, type SectionType } from "./registry";
 import { slugFromTitle } from "./slug";
 import { isLive, pageIsLive } from "./live";
 import { seoSchema, type Seo } from "./seo";
 import { autoRedirect } from "@/modules/redirects/server";
 import { readSearchSettings } from "@/modules/sites/search";
 import { FieldError, named } from "@/lib/form-error";
+import { likePattern } from "@/lib/search";
 
 /**
  * Pages and their sections. Every function authorises the actor, then
@@ -268,6 +269,32 @@ export async function publishedPages(p: { siteId: string }): Promise<Pick<Page, 
   );
 }
 
+/**
+ * Site search: live pages where every word turns up in the title or in
+ * any words on the page (headings, text, questions, image descriptions —
+ * every string in a section but the NOT_WORDS ones). Each comes with the
+ * first bit of text that matched, for a snippet.
+ */
+export async function searchPages(p: { siteId: string; words: string[]; limit?: number }): Promise<{ slug: string; title: string; hit: string }[]> {
+  if (p.words.length === 0) return [];
+  // Every string value in the section, by way of its key so the NOT_WORDS ones can be left out.
+  const strings = sql`jsonb_path_query(s.data, 'strict $.** ? (@.type() == "object").keyvalue() ? (@.value.type() == "string" && !(@.key == $skip[*])).value', ${JSON.stringify({ skip: NOT_WORDS })}::jsonb)`;
+  const words = (like: string) => sql`exists (select 1 from ${sections} s, ${strings} v where s.page_id = ${pages.id} and s.deleted_at is null and v #>> '{}' ilike ${like})`;
+  const each = p.words.map((w) => or(ilike(pages.title, likePattern(w)), words(likePattern(w))));
+  const first = sql`(select v #>> '{}' from ${sections} s, ${strings} v where s.page_id = ${pages.id} and s.deleted_at is null and v #>> '{}' ilike ${likePattern(p.words[0])} order by s.position limit 1)`;
+  return withSite(p.siteId, (tx) =>
+    tx
+      .select({ slug: pages.slug, title: pages.title, hit: sql<string | null>`${first}` })
+      .from(pages)
+      .where(and(pageIsLive(), ...each))
+      .orderBy(asc(pages.position), asc(pages.createdAt))
+      .limit(p.limit ?? 10),
+  ).then((rows) => rows.map((r) => ({ slug: r.slug, title: r.title, hit: r.hit ?? "" })));
+}
+
+/** Addresses a page can't have: the shop, the journal and search live there. */
+export const RESERVED_PAGE_SLUGS = ["shop", "journal", "search"];
+
 // ───────────────────────── helpers ─────────────────────────
 
 async function loadPage(tx: Tx, pageId: string): Promise<Page> {
@@ -306,6 +333,7 @@ async function touch(tx: Tx, pageId: string) {
 }
 
 async function assertSlugFree(tx: Tx, slug: string) {
+  if (RESERVED_PAGE_SLUGS.includes(slug)) throw new FieldError("slug", `/${slug} is kept for the ${slug === "search" ? "site search" : slug}. Pick another address.`);
   const [clash] = await tx.select({ id: pages.id }).from(pages).where(and(eq(pages.slug, slug), isNull(pages.deletedAt))).limit(1);
   if (clash) throw new FieldError("slug", `There's already a page at ${slug}. Pick another address.`);
 }

@@ -646,3 +646,30 @@ test("waiting list and per-product delivery: sold out, someone asks, it comes ba
   await page.getByTestId("product-details").locator("summary", { hasText: "Delivery" }).click();
   await expect(page.getByTestId("product-details")).toContainText("Delivery is free.");
 });
+
+test("search: the header icon, then products, pages and the journal for what was typed", async ({ page, request }) => {
+  await page.goto(demo + "/shop");
+  await page.getByRole("link", { name: "Search", exact: true }).click();
+  await expect(page).toHaveURL(demo + "/search");
+  await expect(page.getByRole("searchbox", { name: "Search the site" })).toBeFocused();
+
+  // A product, by a word in its name.
+  await page.getByRole("searchbox", { name: "Search the site" }).fill("stones");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page).toHaveURL(demo + "/search?q=stones");
+  await expect(page.getByTestId("search-summary")).toHaveText("1 result for “stones”");
+  await expect(page.getByTestId("search-products")).toContainText("Sauna stones");
+
+  // A page by the words on it, with the passage that matched; an article by its summary.
+  await page.goto(demo + "/search?q=shed");
+  await expect(page.getByTestId("search-pages").getByRole("link", { name: /About us/ })).toContainText("Founded in a shed.");
+  await page.goto(demo + "/search?q=coast");
+  await page.getByTestId("search-articles").getByRole("link", { name: /Our first delivery to Krabi/ }).click();
+  await expect(page.getByRole("heading", { name: "Our first delivery to Krabi" })).toBeVisible();
+
+  // Nothing: says so. And results are never indexed.
+  await page.goto(demo + "/search?q=zzqx");
+  await expect(page.getByTestId("search-summary")).toHaveText("Nothing matched “zzqx”. Try fewer words, or other ones.");
+  const html = await (await request.get(base + "/search?q=stones", { headers: { host: "demo.localhost" } })).text();
+  expect(html).toContain('<meta name="robots" content="noindex, follow"/>');
+});
