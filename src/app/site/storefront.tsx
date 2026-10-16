@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
+import { recordNotFound, redirectFor } from "@/modules/redirects/server";
 import { siteFromHost, siteSearch, siteTheme } from "@/modules/sites/server";
 import { socialLinks } from "@/modules/sites/search";
 import { mediaUrl } from "@/modules/media/server";
@@ -19,21 +20,21 @@ import { fallbacksFromSections, hostAndSite, storefrontMetadata } from "./metada
  * (dark or light, its own accent), applied as CSS variables on the frame,
  * so every section below reads tokens and never a colour.
  */
-export async function Storefront({ slug }: { slug: string }) {
+export async function Storefront({ slug, requestPath }: { slug: string | null; requestPath?: string }) {
   const h = await headers();
   const host = h.get("x-oi-host") ?? h.get("host") ?? "";
   const site = await siteFromHost(host);
   if (!site) return <Placeholder surface="site" />; // no such site: keep the stage-1 placeholder
 
-  const [page, menu] = await Promise.all([publishedPage({ siteId: site.id, slug }), storefrontMenu(site.id)]);
+  const [page, menu] = await Promise.all([slug ? publishedPage({ siteId: site.id, slug }) : null, storefrontMenu(site.id)]);
   if (!page) {
     if (slug === HOME_SLUG) return <ComingSoon site={site} />;
-    notFound();
+    return missing(site.id, requestPath ?? `/${slug}`, h.get("referer"));
   }
 
   return (
-    <Frame site={site} menu={menu} current={slug}>
-      {slug === HOME_SLUG && <OrganizationSchema site={site} host={host} />}
+    <Frame site={site} menu={menu} current={page.slug}>
+      {page.slug === HOME_SLUG && <OrganizationSchema site={site} host={host} />}
       <h1 className="sr-only">{page.title}</h1>
       <RenderSections sections={page.sections} />
     </Frame>
@@ -66,6 +67,17 @@ export async function pageMetadata(slug: string): Promise<Metadata> {
   if (!page) return { title: site.name, robots: { index: false, follow: false } };
   const fb = fallbacksFromSections(page.sections);
   return storefrontMetadata({ site, seo: page.seo, title: slug === HOME_SLUG ? site.name : page.title, fallbackDescription: fb.description, fallbackImage: fb.image, path: slug === HOME_SLUG ? "/" : `/${slug}`, host });
+}
+
+/**
+ * An address that isn't a live page: follow a redirect if the team made
+ * one, otherwise remember the miss for Settings · Redirects and 404.
+ */
+export async function missing(siteId: string, path: string, referrer: string | null): Promise<never> {
+  const to = await redirectFor({ siteId, path });
+  if (to) permanentRedirect(to);
+  await recordNotFound({ siteId, path, referrer });
+  notFound();
 }
 
 /** The menu: every live page, then Journal when there's an article to read. */

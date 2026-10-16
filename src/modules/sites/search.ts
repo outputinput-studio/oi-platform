@@ -40,6 +40,8 @@ export const searchSettingsSchema = z.object({
     .default(""),
   /** The whole site asks search engines to stay away. */
   hideFromSearch: z.boolean().default(false),
+  /** When a live page or article is renamed, the old address keeps working. */
+  autoRedirect: z.boolean().default(true),
   /** Extra lines for /robots.txt, for the rare owner who needs them. */
   robotsExtra: z.string().trim().max(2_000).default(""),
   /** What Google's knowledge panel is told: an Organization, as JSON-LD on the front page. */
