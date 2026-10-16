@@ -267,6 +267,10 @@ export const forms = pgTable(
     afterMessage: text("after_message").notNull().default("Thanks, we have it. We'll be in touch."),
     /** Who gets an email per submission, comma separated. Empty: the owners. */
     notifyEmails: text("notify_emails").notNull().default(""),
+    /** Settings · Who gets notified: off sends nobody an email (it still lands in the Inbox); CC and BCC, comma separated. */
+    notifyOn: boolean("notify_on").notNull().default(true),
+    notifyCc: text("notify_cc").notNull().default(""),
+    notifyBcc: text("notify_bcc").notNull().default(""),
     /** Whether a submission with an email address makes (or updates) a contact. Off for a newsletter signup. */
     createContact: boolean("create_contact").notNull().default(true),
     /** An email back to the sender the moment they send it. Subject and message take {fill-ins}. */

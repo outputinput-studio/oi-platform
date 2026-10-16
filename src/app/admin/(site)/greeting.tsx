@@ -20,7 +20,7 @@ export function Greeting({ name }: { name: string }) {
     : "";
   return (
     <div>
-      <p className="label h-4">{date}</p>
+      <p className="label h-4 !text-muted">{date}</p>
       <h2 className="mt-1.5 text-[26px] font-semibold tracking-[-0.5px]">
         {word}, {first}.
       </h2>

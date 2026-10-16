@@ -1,12 +1,14 @@
 import { requireSiteAccess } from "@/modules/auth/access";
 import { siteShop } from "@/modules/sites/server";
 import { tradingName } from "@/modules/sites/business";
-import { draftEmail, getOrder, trackingUrl, type Tracking } from "@/modules/orders/admin";
+import { getOrder, trackingUrl, type Tracking } from "@/modules/orders/admin";
+import { orderVars } from "@/modules/orders/emails";
+import { readMessages, templateFor } from "@/modules/sites/messages";
 import type { Address, OrderItem } from "@/modules/orders/server";
 import { mediaUrl } from "@/modules/media/server";
 import { countryName } from "@/lib/countries";
 import { formatPrice, type Currency } from "@/modules/sites/shop";
-import { ORDER_STATUSES } from "@/db/schema";
+import { ORDER_STATUSES, type OrderStatus } from "@/db/schema";
 import { Label, PageHeader, Row, Rows } from "../../../ui";
 import { LocalTime } from "../../local-time";
 import { StatusPill } from "../status-pill";
@@ -31,7 +33,8 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const addressLines = addr.line1 ? [o.name, addr.line1, addr.line2, [addr.city, addr.state, addr.postcode].filter(Boolean).join(" "), addr.country ? countryName(addr.country) : ""].filter(Boolean) as string[] : [];
   const tracking = o.tracking as Partial<Tracking>;
   const track = trackingUrl(tracking);
-  const next = ORDER_STATUSES[ORDER_STATUSES.indexOf(o.status) + 1];
+  // Never "new": an order only moves forward from it.
+  const next = ORDER_STATUSES[ORDER_STATUSES.indexOf(o.status) + 1] as Exclude<OrderStatus, "new"> | undefined;
   const included = o.total === o.subtotal - o.discount + o.shippingPrice;
   const ship = o.shipping as { name?: string; kind?: string; estimate?: string } | null;
   return (
@@ -148,7 +151,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         {role === "owner" && o.refunded < o.total && (
           <RefundOrder orderId={o.id} left={priceInput(o.total - o.refunded)} leftLabel={formatPrice(o.total - o.refunded, cur)} full={o.refunded === 0} draft={{ subject: `Your refund for order ${o.number}`, message: `Hi ${o.name.split(" ")[0]},\n\nI've refunded ${formatPrice(o.total - o.refunded, cur)} for order ${o.number}. It goes back to the card you paid with and usually shows within 5–10 business days.\n\n${tradingName(site)}` }} currency={cur} />
         )}
-        {next && <MoveOrder orderId={o.id} next={next} label={markAs(names[next])} draft={draftEmail(o, next, tradingName(site), tracking.number ? (tracking as Tracking) : undefined)} tracking={{ carrier: tracking.carrier ?? "", number: tracking.number ?? "" }} siteName={tradingName(site)} order={{ name: o.name, number: o.number, items: items.map((i) => i.name) }} />}
+        {next && <MoveOrder orderId={o.id} next={next} label={markAs(names[next])} template={templateFor(readMessages(site.messages), next)} vars={orderVars(o, tradingName(site))} tracking={{ carrier: tracking.carrier ?? "", number: tracking.number ?? "" }} />}
       </div>
     </>
   );

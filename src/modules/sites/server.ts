@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, withSite } from "@/db/client";
 import { forms, sites, type Site } from "@/db/schema";
@@ -8,6 +8,7 @@ import { readSearchSettings, searchSettingsSchema, type SearchSettings } from ".
 import { readShopSettings, shopSettingsSchema, type ShopSettings } from "./shop";
 import { readShipping, shippingSchema, type Shipping } from "./shipping";
 import { businessSchema, sendingSchema, type Business, type Sending } from "./business";
+import { DEFAULT_TEMPLATES, TEMPLATE_KEYS, notifySchema, readMessages, recipientsSchema, templatesSchema, type Messages } from "./messages";
 
 /**
  * A site's own settings. Everything here runs inside withSite(), so the
@@ -168,5 +169,51 @@ export async function updateSending(p: { actorId: string; siteId: string; sendin
       .set({ messages: { ...(cur.messages ?? {}), sending } })
       .where(eq(sites.id, p.siteId));
     return sending;
+  });
+}
+
+/**
+ * Owners change the customer emails (wording, keeping a copy) and who's
+ * told about what: orders, stock, failed payments, and each form. One
+ * save, one transaction. A template equal to the default is stored empty,
+ * so it keeps following the default.
+ */
+export async function updateMessages(p: {
+  actorId: string;
+  siteId: string;
+  keepCopy?: boolean;
+  templates?: unknown;
+  notify?: unknown;
+  forms?: { id: string; on: boolean; to: string; cc: string; bcc: string }[];
+}): Promise<Messages> {
+  await assertAccess(p.actorId, p.siteId, "owner");
+  const templates = p.templates === undefined ? undefined : templatesSchema.parse(p.templates);
+  if (templates) {
+    for (const k of TEMPLATE_KEYS) {
+      if (templates[k].subject === DEFAULT_TEMPLATES[k].subject) templates[k].subject = "";
+      if (templates[k].body === DEFAULT_TEMPLATES[k].body) templates[k].body = "";
+    }
+  }
+  const notify = p.notify === undefined ? undefined : notifySchema.parse(p.notify);
+  const formRows = (p.forms ?? []).map((f) => ({ id: z.string().uuid().parse(f.id), ...recipientsSchema.parse(f) }));
+  return withSite(p.siteId, async (tx) => {
+    const [cur] = await tx.select({ messages: sites.messages }).from(sites).where(eq(sites.id, p.siteId)).limit(1);
+    if (!cur) throw new AccessError("That site doesn't exist.");
+    const next = {
+      ...(cur.messages ?? {}),
+      ...(p.keepCopy === undefined ? {} : { keepCopy: p.keepCopy }),
+      ...(templates ? { templates } : {}),
+      ...(notify ? { notify } : {}),
+    };
+    await tx.update(sites).set({ messages: next }).where(eq(sites.id, p.siteId));
+    for (const f of formRows) {
+      const [row] = await tx
+        .update(forms)
+        .set({ notifyOn: f.on, notifyEmails: f.to, notifyCc: f.cc, notifyBcc: f.bcc, updatedAt: new Date() })
+        .where(and(eq(forms.id, f.id), isNull(forms.deletedAt)))
+        .returning({ id: forms.id });
+      if (!row) throw new AccessError("That form isn't on this site.");
+    }
+    return readMessages(next);
   });
 }

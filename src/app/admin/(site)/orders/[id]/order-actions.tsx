@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { moveOrderAction, refundOrderAction } from "@/modules/orders/actions";
 import { parsePrice, type Currency } from "@/modules/sites/shop";
+import type { Template } from "@/modules/sites/messages";
+import { draftFrom, trackingText } from "@/modules/orders/emails";
 import type { OrderStatus } from "@/db/schema";
 import { Button, Field, Input, Notice, Sheet, Switch, Textarea } from "../../../ui";
 
@@ -11,32 +13,33 @@ const TITLE: Record<OrderStatus, string> = { new: "", inProgress: "Making it", s
 
 /**
  * The button that moves an order to its next stage. It opens a sheet with
- * the email the customer will get (edit it, or don't send one), and for
- * "sent" the carrier and tracking number — both optional.
+ * the email the customer will get, drafted from Settings · Customer emails
+ * (edit it, or don't send one), and for "sent" the carrier and tracking
+ * number — both optional.
  */
 export function MoveOrder({
   orderId,
   next,
   label,
-  draft,
+  template,
+  vars,
   tracking,
-  siteName,
-  order,
 }: {
   orderId: string;
   next: OrderStatus;
   /** The button: "Mark as in progress", in the team's own stage names (Settings · Order statuses). */
   label: string;
-  draft: { subject: string; message: string };
+  /** The site's wording for this stage, with {fill-ins}. */
+  template: Template;
+  vars: Record<string, string>;
   tracking: { carrier: string; number: string };
-  siteName: string;
-  order: { name: string; number: number; items: string[] };
 }) {
   const router = useRouter();
+  const draft = (tr: { carrier: string; number: string }) => draftFrom(template, { ...vars, tracking: trackingText(tr) });
   const [open, setOpen] = useState(false);
   const [send, setSend] = useState(next !== "done");
-  const [subject, setSubject] = useState(draft.subject);
-  const [message, setMessage] = useState(draft.message);
+  const [subject, setSubject] = useState(() => draft(tracking).subject);
+  const [message, setMessage] = useState(() => draft(tracking).message);
   const [t, setT] = useState(tracking);
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
@@ -45,12 +48,7 @@ export function MoveOrder({
   const [edited, setEdited] = useState(false);
   const updateTracking = (nt: { carrier: string; number: string }) => {
     setT(nt);
-    if (!edited && next === "sent") {
-      const first = order.name.split(" ")[0];
-      const what = order.items.length === 1 ? order.items[0] : `order ${order.number}`;
-      const line = nt.number ? `\n\n${nt.carrier ? `${nt.carrier} tracking` : "Tracking"}: ${nt.number}` : "";
-      setMessage(`Hi ${first},\n\nYour ${what} went out today.${line}\n\n${siteName}`);
-    }
+    if (!edited && next === "sent") setMessage(draft(nt).message);
   };
 
   const confirm = () =>

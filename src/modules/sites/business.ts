@@ -57,9 +57,6 @@ export const sendingSchema = z.object({
 });
 export type Sending = z.infer<typeof sendingSchema>;
 
-/** The whole messages column: sending now; templates and who's told arrive with later screens. */
-export const messagesSchema = z.object({ sending: sendingSchema.default({ fromName: "", replyTo: "" }) }).passthrough();
-
 export function readSending(raw: unknown): Sending {
   const r = sendingSchema.safeParse((raw as { sending?: unknown } | null)?.sending ?? {});
   return r.success ? r.data : sendingSchema.parse({});

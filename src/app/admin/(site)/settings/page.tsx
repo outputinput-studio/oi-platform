@@ -4,6 +4,7 @@ import { paymentsStatus } from "@/modules/payments/server";
 import { listForms } from "@/modules/forms/server";
 import { businessOf, senderFor } from "@/modules/sites/business";
 import { statusNames } from "@/modules/sites/shop";
+import { readMessages, splitList, type Messages } from "@/modules/sites/messages";
 import { Label, PageHeader, Row, Rows } from "../../ui";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,7 @@ export default async function SettingsPage() {
   const shipping = siteShipping(site);
   const profile = businessOf(site);
   const sender = senderFor(site);
+  const messages = readMessages(site.messages);
   const enquiryId = shop.enquiryFormId;
   const enquiryForm = enquiryId ? (await listForms({ actorId: user.id, siteId: site.id })).find((f) => f.id === enquiryId) : undefined;
   return (
@@ -37,6 +39,8 @@ export default async function SettingsPage() {
         <section>
           <Label>Messages</Label>
           <Rows>
+            <Row title="Customer emails" detail={`Four order emails${messages.keepCopy ? " · you keep a copy" : ""} · send yourself a test`} href="/settings/emails" />
+            <Row title="Who gets notified" detail={notifyLine(messages)} href="/settings/notify" />
             <Row title="Sending" detail={`From ${sender.fromName}${sender.replyTo ? ` · replies to ${sender.replyTo}` : " · no reply address yet"}`} href="/settings/sending" />
           </Rows>
         </section>
@@ -72,4 +76,11 @@ function paymentsLine(s: ReturnType<typeof paymentsStatus>): string {
   if (s.provider === "test") return "Test payments until your Stripe keys go in";
   if (!s.hasKeys) return "Put your Stripe keys in to take payments";
   return s.chargesEnabled ? `Stripe connected${s.livemode ? "" : " · test mode"}` : "Stripe still has questions";
+}
+
+function notifyLine(m: Messages): string {
+  const o = m.notify.newOrder;
+  if (!o.on) return "New orders: nobody is emailed";
+  const to = splitList(o.to);
+  return `New orders to ${to.length ? to.join(", ") : "the owners"}${o.cc || o.bcc ? " · with copies" : ""}`;
 }

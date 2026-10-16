@@ -5,9 +5,9 @@ import { forms, memberships, products, sites, submissions, users, type Form, typ
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { sendEmail } from "@/lib/email";
 import { upsertFromSubmission } from "@/modules/contacts/server";
-import { senderFor } from "@/modules/sites/business";
+import { customerMail, recipientsFor } from "@/modules/sites/messages";
 import { storage } from "@/lib/storage";
-import { answersSchema, fieldsSchema, filesIn, fillIn, formSettingsSchema, headlineAnswer, senderOf, splitEmails, uploadedFileSchema, type Field, type FormSettings, type UploadedFile } from "./fields";
+import { answersSchema, fieldsSchema, filesIn, fillIn, formSettingsSchema, headlineAnswer, senderOf, uploadedFileSchema, type Field, type FormSettings, type UploadedFile } from "./fields";
 
 /**
  * Forms and what comes through them.
@@ -227,23 +227,19 @@ export async function recordSubmission(p: {
   });
 
   try {
-    const to = splitEmails(form.notifyEmails);
-    const recipients = to.length ? to : await ownerEmails(p.siteId);
+    const recipients = recipientsFor({ on: form.notifyOn, to: form.notifyEmails, cc: form.notifyCc, bcc: form.notifyBcc }, form.notifyOn ? await ownerEmails(p.siteId) : []);
     const who = sender.name || sender.email || "Someone";
     const lines = fields
       .map((f) => `${f.label}\n${f.type === "file" ? filesIn(answers[f.id]).map((u) => `${u.name}: ${fileUrl(u.key)}`).join("\n") || "—" : answers[f.id] || "—"}`)
       .join("\n\n");
-    await Promise.all(
-      recipients.map((email) =>
-        sendEmail({
-          to: email,
-          subject: `${who} ${p.subject ?? `sent ${form.name}`} on ${p.siteName}`,
-          text: `${lines}\n\nSee it in your inbox: ${p.inboxUrl}/${row.id}${sender.email ? `\nReply to them: ${sender.email}` : ""}`,
-          // Hitting reply writes to whoever sent it.
-          ...(sender.email ? { replyTo: sender.email } : {}),
-        }),
-      ),
-    );
+    if (recipients)
+      await sendEmail({
+        ...recipients,
+        subject: `${who} ${p.subject ?? `sent ${form.name}`} on ${p.siteName}`,
+        text: `${lines}\n\nSee it in your inbox: ${p.inboxUrl}/${row.id}${sender.email ? `\nReply to them: ${sender.email}` : ""}`,
+        // Hitting reply writes to whoever sent it.
+        ...(sender.email ? { replyTo: sender.email } : {}),
+      });
   } catch (err) {
     console.error("submission email failed", err);
   }
@@ -255,7 +251,7 @@ export async function recordSubmission(p: {
         to: sender.email,
         subject: fillIn(form.replySubject, fields, answers) || `Thanks for writing to ${p.siteName}`,
         text: fillIn(form.replyMessage, fields, answers) || `We have your message and will be in touch.\n\n${p.siteName}`,
-        ...(site ? senderFor(site) : {}),
+        ...(site ? customerMail(site) : {}),
       });
     } catch (err) {
       console.error("auto-reply failed", err);

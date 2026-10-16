@@ -1,7 +1,7 @@
 import type Stripe from "stripe";
 import { withSite } from "@/db/client";
 import { sites } from "@/db/schema";
-import { markOrderPaid } from "@/modules/orders/server";
+import { markOrderFailed, markOrderPaid } from "@/modules/orders/server";
 import { siteStripe, siteWebhookSecret } from "@/modules/payments/server";
 
 /**
@@ -29,6 +29,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ siteId: string
     const orderId = session.metadata?.orderId ?? "";
     if (session.payment_status !== "paid" || session.metadata?.siteId !== siteId || !isUuid(orderId)) return Response.json({ ignored: true });
     await markOrderPaid({ siteId, orderId });
+    return Response.json({ ok: true });
+  }
+  if (event.type === "checkout.session.async_payment_failed") {
+    const session = event.data.object;
+    const orderId = session.metadata?.orderId ?? "";
+    if (session.metadata?.siteId !== siteId || !isUuid(orderId)) return Response.json({ ignored: true });
+    await markOrderFailed({ siteId, orderId });
     return Response.json({ ok: true });
   }
   return Response.json({ ignored: true });

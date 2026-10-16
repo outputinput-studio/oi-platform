@@ -7,7 +7,9 @@ import { COUNTRY_CODES, countryName } from "@/lib/countries";
 import { upsertFromSubmission } from "@/modules/contacts/server";
 import { customerView, makeLine, readPhotos } from "@/modules/products/catalogue";
 import { readShopSettings, formatPrice, type Currency } from "@/modules/sites/shop";
-import { businessOf, senderFor, tradingName } from "@/modules/sites/business";
+import { businessOf, tradingName } from "@/modules/sites/business";
+import { customerMail, readMessages, recipientsFor, templateFor } from "@/modules/sites/messages";
+import { draftFrom, orderVars } from "./emails";
 import { quoteFor, ratesFor, readShipping } from "@/modules/sites/shipping";
 import { countUse, discountFor } from "@/modules/discounts/server";
 import { taxOn, type CartLine } from "./cart";
@@ -289,10 +291,54 @@ export async function markOrderPaid(p: { siteId: string; orderId: string; adminU
     const contactId = await upsertFromSubmission(tx, { siteId: p.siteId, name: o.name, email: o.email, phone: o.phone });
     const [paid] = await tx.update(orders).set({ paymentStatus: "paid", paidAt: new Date(), contactId, updatedAt: new Date() }).where(eq(orders.id, o.id)).returning();
     const [site] = await tx.select().from(sites).limit(1);
-    return { order: paid, first: true, site };
+    // Counted stock that this order brought down to its last one or two (or none).
+    const low = await tx
+      .select({ name: products.name, stock: products.stock })
+      .from(products)
+      .where(and(inArray(products.id, items.map((it) => it.productId)), eq(products.make, "ready"), sql`${products.stock} is not null and ${products.stock} <= ${LOW_STOCK}`));
+    return { order: paid, first: true, site, low };
   });
-  if (result.first && "site" in result && result.site) await sendOrderEmails(result.site, result.order, p.adminUrl).catch((err) => console.error("order emails failed", err));
+  if (result.first && "site" in result && result.site) {
+    await sendOrderEmails(result.site, result.order, p.adminUrl).catch((err) => console.error("order emails failed", err));
+    if (result.low.length) await notifyLowStock(result.site, result.low as { name: string; stock: number }[], p.adminUrl).catch((err) => console.error("low stock email failed", err));
+  }
   return { order: result.order, first: result.first };
+}
+
+/** "Running low" is the last one or two. */
+export const LOW_STOCK = 2;
+
+/**
+ * Stripe says a payment that was still going through (a bank debit, say)
+ * didn't. The order stops holding stock and the team hears about it, if
+ * they've asked to (Settings · Who gets notified).
+ */
+export async function markOrderFailed(p: { siteId: string; orderId: string; adminUrl?: string }): Promise<void> {
+  const r = await withSite(p.siteId, async (tx) => {
+    const [o] = await tx.update(orders).set({ paymentStatus: "failed", updatedAt: new Date() }).where(and(eq(orders.id, p.orderId), eq(orders.paymentStatus, "pending"))).returning();
+    const [site] = await tx.select().from(sites).limit(1);
+    return { o, site };
+  });
+  if (!r.o || !r.site) return;
+  const who = recipientsFor(readMessages(r.site.messages).notify.paymentFailed, await ownerEmails(p.siteId));
+  if (!who) return;
+  await sendEmail({
+    ...who,
+    subject: `A payment didn't go through: order ${r.o.number} from ${r.o.name}`,
+    text: `${r.o.name} (${r.o.email}${r.o.phone ? `, ${r.o.phone}` : ""}) tried to pay ${formatPrice(r.o.total, r.o.currency as Currency)} for order ${r.o.number}, and their payment was declined.\n\n${orderLines(r.o)}\n\nNothing was charged and the stock isn't held. You might reply to them with another way to pay.`,
+    replyTo: r.o.email,
+  }).catch((err) => console.error("payment failed email failed", err));
+}
+
+async function notifyLowStock(site: Site, low: { name: string; stock: number }[], adminUrl?: string) {
+  const who = recipientsFor(readMessages(site.messages).notify.lowStock, await ownerEmails(site.id));
+  if (!who) return;
+  const lines = low.map((l) => `${l.name} — ${l.stock === 0 ? "sold out" : `${l.stock} left`}`);
+  await sendEmail({
+    ...who,
+    subject: low.length === 1 ? `Running low: ${low[0].name}` : `Running low: ${low.length} products`,
+    text: `${lines.join("\n")}${adminUrl ? `\n\nUpdate stock: ${adminUrl}/products` : ""}`,
+  });
 }
 
 // ───────────────────────── emails ─────────────────────────
@@ -315,36 +361,37 @@ export function orderLines(o: Order): string {
 
 async function sendOrderEmails(site: Site, o: Order, adminUrl?: string) {
   const cur = o.currency as Currency;
-  const owners = await ownerEmails(site.id);
-  for (const to of owners) {
+  const who = recipientsFor(readMessages(site.messages).notify.newOrder, await ownerEmails(site.id));
+  if (who) {
     await sendEmail({
-      to,
+      ...who,
       subject: `New order ${o.number} — ${formatPrice(o.total, cur)} from ${o.name}`,
       text: `${o.name} (${o.email}${o.phone ? `, ${o.phone}` : ""}) just paid for order ${o.number}.\n\n${orderLines(o)}${o.note ? `\n\nTheir note: ${o.note}` : ""}${adminUrl ? `\n\nOpen it: ${adminUrl}/orders/${o.id}` : ""}`,
       // Hitting reply writes to the customer.
       replyTo: o.email,
     });
   }
-  await sendEmail({ to: o.email, ...receiptEmail(site, o), ...senderFor(site) });
+  await sendEmail({ to: o.email, ...receiptEmail(site, o), ...customerMail(site) });
 }
 
 /**
- * The customer's confirmation. With a business number (Settings ·
- * Business profile) it reads as a tax invoice; a pickup order gets the
+ * The customer's confirmation, in the site's own wording (Settings ·
+ * Customer emails). The receipt always goes in — where {receipt} sits, or
+ * after the message — and with a business number (Settings · Business
+ * profile) the tax-invoice lines close it; a pickup order gets the
  * address and hours.
  */
-export function receiptEmail(site: Pick<Site, "name" | "business" | "search">, o: Order): { subject: string; text: string } {
+export function receiptEmail(site: Pick<Site, "name" | "business" | "search" | "messages">, o: Order): { subject: string; text: string } {
   const b = businessOf(site);
   const name = tradingName(site);
-  const first = o.name.split(" ")[0];
   const pickup = (o.shipping as { kind?: string } | null)?.kind === "pickup" && b.address ? `\n\nPick up from:\n${b.address}${b.hours ? `\n${b.hours}` : ""}` : "";
+  const receipt = `${orderLines(o)}${pickup}`;
+  const tpl = templateFor(readMessages(site.messages), "confirmed");
+  const body = /\{\s*receipt\s*\}/i.test(tpl.body) ? tpl.body : `${tpl.body}\n\n{receipt}`;
+  const d = draftFrom({ subject: tpl.subject, body }, { ...orderVars(o, name), receipt });
   const date = (o.paidAt ?? o.createdAt).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" });
-  const invoice = b.businessNumber ? `\n\nTax invoice · ${name} · ${b.businessNumber}\nOrder ${o.number} · ${date}` : "";
-  const contact = [b.phone, b.email].filter(Boolean).join(" · ");
-  return {
-    subject: `Thanks ${first}, we have your order (${o.number})`,
-    text: `Hi ${first},\n\nThanks for your order from ${name}. Here's what you bought:\n\n${orderLines(o)}${pickup}\n\nWe'll be in touch as it moves along.${invoice}\n\n${name}${contact ? `\n${contact}` : ""}`,
-  };
+  const footer = [b.businessNumber ? `Tax invoice · ${name} · ${b.businessNumber}\nOrder ${o.number} · ${date}` : "", [b.phone, b.email].filter(Boolean).join(" · ")].filter(Boolean).join("\n");
+  return { subject: d.subject, text: footer ? `${d.message}\n\n${footer}` : d.message };
 }
 
 /** Owners' addresses. Platform tables, so outside withSite(). */

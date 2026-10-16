@@ -107,10 +107,12 @@ body {
 }
 
 /* The small uppercase label above a field or a group: "PAGE TITLE", "SECTIONS". */
+/* Section titles ("ORDER CONFIRMED", "SELLING"): full text colour so they stand out (Carl, Oct 2026).
+   Small print that borrows the look (a date, weekday initials) adds !text-muted. */
 .label {
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 1.3px;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--text);
 }
