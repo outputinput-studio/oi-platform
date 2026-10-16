@@ -84,9 +84,9 @@ test("a product from nothing to the shop", async ({ page, request }) => {
   await page.getByRole("switch", { name: /Visible on site/ }).click();
   await expect(page.getByTestId("product-save-status")).toHaveText("✓ Saved");
 
-  // The list shows it, with the note that nothing can be bought yet.
+  // The list shows it. Test payments are on here (no Stripe keys), so there's no "nothing can be bought" note.
   await page.goto(admin + "/products");
-  await expect(page.getByTestId("no-checkout")).toBeVisible();
+  await expect(page.getByTestId("no-checkout")).toHaveCount(0);
   await expect(page.getByTestId("product-teal-crystal-bikini")).toContainText("Made to order · 6 weeks");
   await expect(page.getByTestId("product-teal-crystal-bikini")).not.toContainText("Hidden");
 
@@ -120,4 +120,35 @@ test("a product from nothing to the shop", async ({ page, request }) => {
   await page.getByLabel("Currency").selectOption("AUD");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("Saved")).toBeVisible();
+});
+
+test("buy it: cart, checkout, test payment, thank you", async ({ page }) => {
+  await page.goto(demo + "/shop/teal-crystal-bikini");
+  await page.getByRole("button", { name: "Add to cart" }).click();
+  await page.getByRole("link", { name: "Added — view your cart" }).click();
+  await expect(page).toHaveURL(demo + "/shop/cart");
+  await expect(page.getByTestId("cart-count")).toHaveText("1");
+  await expect(page.getByTestId("cart-line-teal-crystal-bikini")).toContainText("$380");
+  await expect(page.getByTestId("cart-total")).toHaveText("$380");
+  await expect(page.getByText("Includes GST")).toBeVisible();
+
+  await page.getByRole("link", { name: "Checkout" }).click();
+  await page.getByLabel("Name").fill("Dee Buyer");
+  await page.getByLabel("Email").fill("dee@example.com");
+  await page.getByLabel("Street address").fill("12 Rokeby Road");
+  await page.getByLabel("Town or suburb").fill("Subiaco");
+  await page.getByLabel("State").fill("WA");
+  await page.getByLabel("Postcode").fill("6008");
+  await expect(page.getByLabel("Country")).toHaveValue("AU");
+  await page.getByRole("button", { name: "Continue to test payment" }).click();
+
+  await expect(page).toHaveURL(/\/shop\/checkout\/pay\?order=/);
+  await expect(page.getByText("no real money moves")).toBeVisible();
+  await page.getByRole("button", { name: "Pay $380 (test)" }).click();
+  await expect(page).toHaveURL(/\/shop\/checkout\/done\?order=/);
+  await expect(page.getByTestId("done-heading")).toHaveText("Thank you, Dee");
+  await expect(page.getByText("A receipt is on its way to dee@example.com.")).toBeVisible();
+  // The cart empties once it's paid.
+  await page.goto(demo + "/shop");
+  await expect(page.getByTestId("cart-count")).toHaveCount(0);
 });

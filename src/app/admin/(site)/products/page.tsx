@@ -5,6 +5,7 @@ import { listProductCategories } from "@/modules/products/categories";
 import { adminTag, makeLine } from "@/modules/products/catalogue";
 import { mediaUrl } from "@/modules/media/server";
 import { siteShop } from "@/modules/sites/server";
+import { paymentsStatus } from "@/modules/payments/server";
 import { formatPrice } from "@/modules/sites/shop";
 import { Card, Chevron, Chips, PageHeader } from "../../ui";
 import { AddProduct } from "./add-product";
@@ -27,10 +28,15 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
     <>
       <PageHeader title="Products" back="/" actions={<AddProduct categories={cats.map((c) => ({ id: c.id, name: c.name }))} defaultCategory={current?.id} />} />
       <div className="pt-4 md:pt-5">
-        {all.length > 0 && (
-          <div data-testid="no-checkout" className="mb-4 rounded-card border border-warning bg-warning-bg px-4 py-3">
-            <p className="text-[14px] font-medium text-text">Nothing can be bought yet</p>
-            <p className="mt-0.5 text-[12.5px] leading-[1.5] text-body">Your pieces show on your site with their prices, but there&apos;s no cart until payments are set up. Only you see this.</p>
+        {all.length > 0 && !paymentsStatus(site).ready && (
+          <div data-testid="no-checkout" className="mb-4 flex items-center gap-3 rounded-card border border-warning bg-warning-bg px-4 py-3">
+            <span className="min-w-0 flex-1">
+              <span className="block text-[14px] font-medium text-text">Nothing can be bought yet</span>
+              <span className="mt-0.5 block text-[12.5px] leading-[1.5] text-body">Your pieces are on the site, but Add to cart is hidden until Stripe is connected. Only you see this.</span>
+            </span>
+            <Link href="/settings/payments" className="flex-none rounded-button bg-accent px-3.5 py-2 text-[13.5px] font-medium text-text hover:bg-accent-hover">
+              Connect Stripe
+            </Link>
           </div>
         )}
         {cats.length > 0 && (
