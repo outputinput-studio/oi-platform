@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { checkoutAction, clearCartAction, previewCodeAction, quoteAction, tidyCartAction, type CartState } from "@/modules/orders/actions";
+import { checkoutAction, clearCartAction, previewCodeAction, quoteAction, type CartState } from "@/modules/orders/actions";
 import { taxOn } from "@/modules/orders/cart";
 import { quoteFor, ratePriceLabel, ratesFor, type Shipping } from "@/modules/sites/shipping";
 import { formatPrice, type Currency } from "@/modules/sites/shop";
@@ -254,8 +254,12 @@ export function ClearCart() {
 
 /** Takes things that can't be bought out of the cart cookie, once the page has said so. */
 export function TidyCart() {
+  const [done, setDone] = useState(false);
   useEffect(() => {
-    void tidyCartAction();
+    void fetch("/api/cart/tidy", { method: "POST" })
+      .then(() => setDone(true))
+      .catch(() => {});
   }, []);
-  return null;
+  // A marker for tests: the cookie is tidy from here on.
+  return done ? <span data-testid="cart-tidied" hidden /> : null;
 }

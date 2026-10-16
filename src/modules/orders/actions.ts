@@ -6,11 +6,11 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { siteFromHost } from "@/modules/sites/server";
 import { paymentsStatus } from "@/modules/payments/server";
-import { environmentName } from "@/lib/env";
 import { randomUUID } from "node:crypto";
 import { CART_COOKIE, CART_REF_COOKIE, addLine, readCart, setLine, writeCart, type CartLine } from "./cart";
 import { markOrderPaid, orderForCustomer, priceCart } from "./server";
 import { startCheckout } from "./checkout";
+import { cartCookieOptions } from "./cookies";
 import { requestProductQuote, requestQuote } from "./quote";
 import { moveOrder, refundOrder } from "./admin";
 import { discountFor } from "@/modules/discounts/server";
@@ -33,7 +33,7 @@ async function here() {
 
 async function saveCart(lines: CartLine[]) {
   const jar = await cookies();
-  const opts = { httpOnly: true, sameSite: "lax" as const, secure: environmentName() !== "local", path: "/", maxAge: 60 * 60 * 24 * 30 };
+  const opts = cartCookieOptions();
   jar.set(CART_COOKIE, writeCart(lines), opts);
   if (!jar.get(CART_REF_COOKIE)?.value) jar.set(CART_REF_COOKIE, randomUUID(), opts);
 }
@@ -135,20 +135,6 @@ export async function testPayAction(form: FormData): Promise<void> {
   await markOrderPaid({ siteId: site.id, orderId, adminUrl: `https://${host.replace(/^[^.]+\./, "admin.")}` });
   (await cookies()).delete(CART_COOKIE);
   redirect(`/shop/checkout/done?order=${orderId}`);
-}
-
-/**
- * The cart page tidies the cookie when something in it can't be bought
- * any more (or there's less of it), so the count in the header and the
- * cart agree on every page after. No revalidate: the page that called
- * this keeps showing what was taken out, once.
- */
-export async function tidyCartAction(): Promise<void> {
-  const { site } = await here();
-  const jar = await cookies();
-  const cart = readCart(jar.get(CART_COOKIE)?.value);
-  const { tidy } = await priceCart({ site, cart, cartRef: await cartRef() });
-  if (JSON.stringify(tidy) !== JSON.stringify(cart)) await saveCart(tidy);
 }
 
 /** The done page empties the cart once the order is paid (cookies can only change in an action). */

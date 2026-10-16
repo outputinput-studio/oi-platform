@@ -386,6 +386,8 @@ test("Email quote beside Add to cart, and the cart count only counts what can be
   await expect(page.getByTestId("cart-count")).toHaveCount(0);
   await page.goto(demo + "/shop/cart");
   await expect(page.getByText("Teal crystal bikini is no longer available, so we took it out of your cart.")).toBeVisible();
+  await expect(page.getByTestId("cart-tidied")).toBeAttached(); // the page tidies the cart cookie just after it shows
+  await expect(page.getByText("Teal crystal bikini is no longer available")).toBeVisible(); // and the note stays put
   await page.goto(demo + "/shop/cart");
   await expect(page.getByText("no longer available")).toHaveCount(0); // it really was taken out
   await expect(page.getByText("Nothing in it yet.")).toBeVisible();
