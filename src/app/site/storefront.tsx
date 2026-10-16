@@ -6,8 +6,9 @@ import { siteFromHost, siteSearch, siteTheme } from "@/modules/sites/server";
 import { socialLinks } from "@/modules/sites/search";
 import { mediaUrl } from "@/modules/media/server";
 import { themeVars } from "@/modules/sites/theme";
-import { HOME_SLUG, publishedPage, publishedPages } from "@/modules/pages/server";
-import { hasPublishedArticles } from "@/modules/articles/server";
+import { HOME_SLUG, publishedPage } from "@/modules/pages/server";
+import { siteMenus, type SiteMenus } from "@/modules/menus/server";
+import type { NavLink } from "@/modules/menus/items";
 import { RenderSections } from "@/modules/pages/render";
 import { Placeholder } from "@/lib/placeholder";
 import type { Site } from "@/db/schema";
@@ -26,14 +27,14 @@ export async function Storefront({ slug, requestPath }: { slug: string | null; r
   const site = await siteFromHost(host);
   if (!site) return <Placeholder surface="site" />; // no such site: keep the stage-1 placeholder
 
-  const [page, menu] = await Promise.all([slug ? publishedPage({ siteId: site.id, slug }) : null, storefrontMenu(site.id)]);
+  const [page, menus] = await Promise.all([slug ? publishedPage({ siteId: site.id, slug }) : null, siteMenus({ siteId: site.id })]);
   if (!page) {
     if (slug === HOME_SLUG) return <ComingSoon site={site} />;
     return missing(site.id, requestPath ?? `/${slug}`, h.get("referer"));
   }
 
   return (
-    <Frame site={site} menu={menu} current={page.slug}>
+    <Frame site={site} menus={menus} current={page.slug === HOME_SLUG ? "/" : `/${page.slug}`}>
       {page.slug === HOME_SLUG && <OrganizationSchema site={site} host={host} />}
       <h1 className="sr-only">{page.title}</h1>
       <RenderSections sections={page.sections} />
@@ -80,59 +81,115 @@ export async function missing(siteId: string, path: string, referrer: string | n
   notFound();
 }
 
-/** The menu: every live page, then Journal when there's an article to read. */
-export async function storefrontMenu(siteId: string): Promise<{ slug: string; title: string }[]> {
-  const [pages, journal] = await Promise.all([publishedPages({ siteId }), hasPublishedArticles({ siteId })]);
-  return [...pages.map((p) => ({ slug: p.slug, title: p.title })), ...(journal ? [{ slug: "journal", title: "Journal" }] : [])];
-}
-
 /**
  * The frame every storefront page sits in: theme, header with the menu,
- * footer. The editor's preview renders the same frame (`preview`): links
- * become plain text there, so nothing inside the preview pane navigates.
+ * footer with its columns. The editor's preview renders the same frame
+ * (`preview`): links become plain text there, so nothing inside the
+ * preview pane navigates. `current` is the path being shown, so its menu
+ * item reads as the one you're on.
  */
 export function Frame({
   site,
-  menu,
+  menus,
   current,
   preview = false,
   children,
 }: {
   site: Site;
-  menu: { slug: string; title: string }[];
+  menus: SiteMenus;
   current: string;
   preview?: boolean;
   children: React.ReactNode;
 }) {
   const theme = siteTheme(site);
-  const links = menu.filter((p) => p.slug !== HOME_SLUG);
   const A = preview ? PreviewLink : Link;
+  const on = (href: string) => href === current || (href !== "/" && current.startsWith(href + "/"));
   return (
     <div data-surface="site" data-theme={theme.mode} style={themeVars(theme) as React.CSSProperties} className="flex min-h-screen flex-col bg-[var(--bg)] text-[var(--text)]">
       <header className="border-b border-[var(--border)]">
-        <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between gap-6 px-5 md:px-8">
-          <A href="/" className="text-[17px] font-semibold tracking-[-0.2px]">
+        <div className="mx-auto flex min-h-16 w-full max-w-5xl items-center justify-between gap-6 px-5 py-3 md:px-8">
+          <A href="/" className="flex-none text-[17px] font-semibold tracking-[-0.2px]">
             {site.name}
           </A>
-          {links.length > 0 && (
-            <nav aria-label="Pages" className="flex gap-5 overflow-x-auto text-[14px]">
-              {links.map((p) => (
-                <A key={p.slug} href={`/${p.slug}`} className={p.slug === current ? "text-[var(--text)]" : "text-[var(--text-muted)] hover:text-[var(--text)]"}>
-                  {p.title}
-                </A>
-              ))}
+          {menus.header.length > 0 && (
+            <nav aria-label="Pages" className="flex flex-wrap items-center justify-end gap-x-5 gap-y-1.5 text-[14px]">
+              {menus.header.map((l, i) =>
+                l.children.length ? (
+                  <Dropdown key={i} link={l} on={on} preview={preview} />
+                ) : (
+                  <MenuLink key={i} link={l} preview={preview} className={on(l.href) ? "text-[var(--text)]" : "text-[var(--text-muted)] hover:text-[var(--text)]"} />
+                ),
+              )}
             </nav>
           )}
         </div>
       </header>
       <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-6 md:px-8 md:py-10">{children}</main>
       <footer className="border-t border-[var(--border)]">
+        {menus.footer.length > 0 && (
+          <div className="mx-auto grid w-full max-w-5xl grid-cols-2 gap-x-6 gap-y-7 px-5 pt-8 md:grid-cols-4 md:px-8">
+            {menus.footer.map((col, i) => (
+              <nav key={i} aria-label={col.title || "Footer"} className="text-[14px]">
+                {col.title && <p className="mb-2.5 text-[12px] font-medium uppercase tracking-[1px] text-[var(--text-muted)]">{col.title}</p>}
+                <ul className="space-y-2">
+                  {col.links.flatMap((l) => [l, ...l.children]).map((l, j) => (
+                    <li key={j}>
+                      <MenuLink link={l} preview={preview} className="text-[var(--text-body)] hover:text-[var(--text)]" />
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            ))}
+          </div>
+        )}
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-5 py-6 text-[13px] text-[var(--text-muted)] md:px-8">
           <span>{site.name}</span>
           <span>© {new Date().getFullYear()}</span>
         </div>
       </footer>
     </div>
+  );
+}
+
+/** One menu link: inside the site, out to the web (maybe in a new tab), or plain words in the preview. */
+function MenuLink({ link, preview, className }: { link: NavLink; preview: boolean; className?: string }) {
+  if (preview) return <span className={className}>{link.label}</span>;
+  if (link.external)
+    return (
+      <a href={link.href} className={className} {...(link.newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
+        {link.label}
+      </a>
+    );
+  return (
+    <Link href={link.href} className={className}>
+      {link.label}
+    </Link>
+  );
+}
+
+/**
+ * An item with children: a marker that opens them in place. On a
+ * computer they drop down under it; on a phone the same. No script —
+ * <details> does the opening, so it works before anything loads.
+ */
+function Dropdown({ link, on, preview }: { link: NavLink; on: (href: string) => boolean; preview: boolean }) {
+  const active = on(link.href) || link.children.some((c) => on(c.href));
+  return (
+    <details className="group relative">
+      <summary className={`flex cursor-pointer list-none items-center gap-1 [&::-webkit-details-marker]:hidden ${active ? "text-[var(--text)]" : "text-[var(--text-muted)] hover:text-[var(--text)]"}`}>
+        {link.label}
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="group-open:rotate-180" aria-hidden>
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </summary>
+      <ul className="absolute right-0 top-full z-20 mt-2 min-w-48 rounded-[8px] border border-[var(--border)] bg-[var(--surface)] py-1.5 shadow-[0_12px_32px_-8px_rgba(0,0,0,0.45)]">
+        {[link, ...link.children].map((c, i) => (
+          <li key={i}>
+            <MenuLink link={c} preview={preview} className={`block px-4 py-2 ${on(c.href) ? "text-[var(--text)]" : "text-[var(--text-body)] hover:text-[var(--text)]"}`} />
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 

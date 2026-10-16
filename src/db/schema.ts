@@ -436,3 +436,34 @@ export const articleCategories = pgTable(
   ],
 );
 export type ArticleCategory = typeof articleCategories.$inferSelect;
+
+/**
+ * Menus: the header and footer every site has, plus any extra menus the
+ * team adds (each an extra footer column). Items live in `items` as a
+ * flat, ordered list with a depth of 0 or 1, pointing at pages and
+ * articles by id so a rename never breaks a link. A site with no header
+ * row gets the automatic menu: every live page, then Journal.
+ */
+export const MENU_KINDS = ["header", "footer", "custom"] as const;
+export type MenuKind = (typeof MENU_KINDS)[number];
+export const menus = pgTable(
+  "menus",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: MENU_KINDS }).notNull(),
+    name: text("name").notNull(),
+    items: jsonb("items").notNull().$type<unknown[]>().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [
+    // One header and one footer per site; any number of custom menus.
+    uniqueIndex("menus_site_fixed_kind_idx").on(t.siteId, t.kind).where(sql`${t.kind} <> 'custom' and ${t.deletedAt} is null`),
+    index("menus_site_id_idx").on(t.siteId),
+  ],
+);
+export type Menu = typeof menus.$inferSelect;

@@ -69,7 +69,7 @@ export function Nav({
   const [more, setMore] = useState(false);
   const folded = useFolded();
   const active = (href: string) =>
-    pathname === href || (href !== "/" && pathname.startsWith(href + "/")) || (href === "/pages" && (pathname.startsWith("/forms") || pathname.startsWith("/articles")));
+    pathname === href || (href !== "/" && pathname.startsWith(href + "/")) || (href === "/pages" && ["/forms", "/articles", "/menus"].some((p) => pathname.startsWith(p)));
   const moreActive = secondary.some((i) => active(i.href)) || active("/account");
 
   return (

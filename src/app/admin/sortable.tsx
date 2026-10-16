@@ -14,11 +14,17 @@ import { CSS } from "@dnd-kit/utilities";
 export function SortableList({
   ids,
   onReorder,
+  onDrop,
   onDragStart,
   children,
 }: {
   ids: string[];
-  onReorder: (next: string[]) => void;
+  onReorder?: (next: string[]) => void;
+  /**
+   * Every drop, moved or not, with how far it went sideways: menus read a
+   * drag to the right as "sits under the one above". Used instead of onReorder.
+   */
+  onDrop?: (p: { id: string; order: string[]; dx: number }) => void;
   /** Called as a drag begins: the lists fold their cards so a tall open one doesn't fight the drop. */
   onDragStart?: () => void;
   children: React.ReactNode;
@@ -29,12 +35,12 @@ export function SortableList({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
   const onDragEnd = (e: DragEndEvent) => {
-    const { active, over } = e;
-    if (!over || active.id === over.id) return;
+    const { active, over, delta } = e;
     const from = ids.indexOf(String(active.id));
-    const to = ids.indexOf(String(over.id));
+    const to = over ? ids.indexOf(String(over.id)) : from;
     if (from < 0 || to < 0) return;
-    onReorder(arrayMove(ids, from, to));
+    if (onDrop) return onDrop({ id: String(active.id), order: from === to ? ids : arrayMove(ids, from, to), dx: delta.x });
+    if (from !== to) onReorder?.(arrayMove(ids, from, to));
   };
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd}>

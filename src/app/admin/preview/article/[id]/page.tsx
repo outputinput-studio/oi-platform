@@ -1,7 +1,8 @@
 import { requireSiteAccess } from "@/modules/auth/access";
 import { getArticle } from "@/modules/articles/server";
 import { ArticleBody } from "@/app/site/article";
-import { Frame, storefrontMenu } from "@/app/site/storefront";
+import { Frame } from "@/app/site/storefront";
+import { siteMenus } from "@/modules/menus/server";
 
 export const dynamic = "force-dynamic";
 
@@ -9,9 +10,9 @@ export const dynamic = "force-dynamic";
 export default async function ArticlePreview({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { user, site } = await requireSiteAccess();
-  const [a, menu] = await Promise.all([getArticle({ actorId: user.id, siteId: site.id, articleId: id }), storefrontMenu(site.id)]);
+  const [a, menus] = await Promise.all([getArticle({ actorId: user.id, siteId: site.id, articleId: id }), siteMenus({ siteId: site.id })]);
   return (
-    <Frame site={site} menu={menu} current="journal" preview>
+    <Frame site={site} menus={menus} current="/journal" preview>
       <ArticleBody article={a} site={site} preview />
     </Frame>
   );
