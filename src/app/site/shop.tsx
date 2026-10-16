@@ -17,7 +17,7 @@ import { AddToCart } from "./add-to-cart";
 import { Enquire } from "./enquire";
 import { EmailQuote } from "./email-quote";
 import { COUNTRIES } from "@/lib/countries";
-import { formatPrice, homeCountry } from "@/modules/sites/shop";
+import { formatPrice, homeCountry, type Currency } from "@/modules/sites/shop";
 import { deliveryText, readProductDetails, resolveDetails } from "@/modules/products/details";
 import { Placeholder } from "@/lib/placeholder";
 import { Frame, missing } from "./storefront";
@@ -56,39 +56,42 @@ export async function Shop({ category }: { category?: ProductCategory } = {}) {
           ))}
         </nav>
       )}
-      {list.length === 0 ? (
-        <p className="py-10 text-[var(--text-muted)]">Nothing here yet.</p>
-      ) : (
-        <ul className="grid grid-cols-2 gap-x-4 gap-y-8 pt-7 md:grid-cols-3 md:gap-x-6">
-          {list.map((p) => {
-            const v = customerView(p, currency);
-            const [main, second] = p.photos;
-            return (
-              <li key={p.id}>
-                <Link href={productPath(p)} className="group block">
-                  <span className="relative block aspect-[4/5] overflow-hidden rounded-[8px] bg-[var(--surface)]">
-                    {main && (
-                      // eslint-disable-next-line @next/next/no-img-element -- served straight from the bucket
-                      <img src={mediaUrl(main.key)} alt={main.alt} width={main.width} height={main.height} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
-                    )}
-                    {second && (
-                      // eslint-disable-next-line @next/next/no-img-element -- the second photo shows on hover
-                      <img src={mediaUrl(second.key)} alt="" loading="lazy" className="absolute inset-0 hidden h-full w-full object-cover opacity-0 transition-opacity duration-300 group-hover:opacity-100 md:block" />
-                    )}
-                  </span>
-                  <span className="mt-3 block text-[15px] leading-[1.35] group-hover:underline group-hover:underline-offset-4">{p.name}</span>
-                  <span className="mt-1 block text-[14px]">
-                    {v.price}
-                    {v.was && <s className="ml-2 text-[var(--text-muted)]">{v.was}</s>}
-                  </span>
-                  <span className="mt-0.5 block text-[12.5px] text-[var(--text-muted)]">{v.note}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      {list.length === 0 ? <p className="py-10 text-[var(--text-muted)]">Nothing here yet.</p> : <ProductGrid products={list} currency={currency} />}
     </Frame>
+  );
+}
+
+/** Products as the shop shows them: photo (the second on hover), name, price, the line under it. */
+export function ProductGrid({ products, currency }: { products: ProductRow[]; currency: Currency }) {
+  return (
+    <ul className="grid grid-cols-2 gap-x-4 gap-y-8 pt-7 md:grid-cols-3 md:gap-x-6">
+      {products.map((p) => {
+        const v = customerView(p, currency);
+        const [main, second] = p.photos;
+        return (
+          <li key={p.id}>
+            <Link href={productPath(p)} className="group block">
+              <span className="relative block aspect-[4/5] overflow-hidden rounded-[8px] bg-[var(--surface)]">
+                {main && (
+                  // eslint-disable-next-line @next/next/no-img-element -- served straight from the bucket
+                  <img src={mediaUrl(main.key)} alt={main.alt} width={main.width} height={main.height} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+                )}
+                {second && (
+                  // eslint-disable-next-line @next/next/no-img-element -- the second photo shows on hover
+                  <img src={mediaUrl(second.key)} alt="" loading="lazy" className="absolute inset-0 hidden h-full w-full object-cover opacity-0 transition-opacity duration-300 group-hover:opacity-100 md:block" />
+                )}
+              </span>
+              <span className="mt-3 block text-[15px] leading-[1.35] group-hover:underline group-hover:underline-offset-4">{p.name}</span>
+              <span className="mt-1 block text-[14px]">
+                {v.price}
+                {v.was && <s className="ml-2 text-[var(--text-muted)]">{v.was}</s>}
+              </span>
+              <span className="mt-0.5 block text-[12.5px] text-[var(--text-muted)]">{v.note}</span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

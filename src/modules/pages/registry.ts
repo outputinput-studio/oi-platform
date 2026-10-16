@@ -31,6 +31,13 @@ const body = z.string().max(20_000).default("");
 /** Small text above the heading ("MADE TO MEASURE"). Empty hides it. */
 const label = z.string().trim().max(60).default("");
 
+/**
+ * Site search reads every string in a section as words on the page, except
+ * these: references and settings nobody reads (an image's storage key, a
+ * form's id, which side the picture sits). A new field like that goes here.
+ */
+export const NOT_WORDS = ["key", "formId", "pictureSide"];
+
 /** How the add-section sheet groups the types. */
 export const SECTION_GROUPS = { words: "Words", images: "Images", forms: "Forms" } as const;
 export type SectionGroup = keyof typeof SECTION_GROUPS;

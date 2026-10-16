@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { withSite, type Tx } from "@/db/client";
 import { productCategories, products, sites, type Product } from "@/db/schema";
@@ -12,6 +12,7 @@ import { readProductDetails } from "./details";
 import { productEditSchema, productNameSchema, readPhotos } from "./catalogue";
 import { assertShopSlugFree, freeShopSlug } from "./slugs";
 import { FieldError, named } from "@/lib/form-error";
+import { likePattern } from "@/lib/search";
 import { readOptions, readVariants, upsertVariant, variantKey, variantsFor } from "./options";
 
 /**
@@ -132,6 +133,34 @@ export async function publishedProduct(p: { siteId: string; slug: string }): Pro
       .limit(1),
   );
   return j ? row(j) : null;
+}
+
+/**
+ * Site search: visible products where every word turns up somewhere —
+ * the name, description, product code, category, an option's values or
+ * a combination's code. Name matches first, then newest.
+ */
+export async function searchProducts(p: { siteId: string; words: string[]; limit?: number }): Promise<ProductRow[]> {
+  if (p.words.length === 0) return [];
+  const each = p.words.map((w) => {
+    const like = likePattern(w);
+    return or(
+      ilike(products.name, like),
+      ilike(products.description, like),
+      ilike(products.code, like),
+      ilike(productCategories.name, like),
+      sql`exists (select 1 from jsonb_path_query(${products.options}, '$[*].values[*]') v where v #>> '{}' ilike ${like})`,
+      sql`exists (select 1 from jsonb_path_query(${products.variants}, '$[*].code') v where v #>> '{}' ilike ${like})`,
+    );
+  });
+  const inName = p.words.map((w) => sql`(${products.name} ilike ${likePattern(w)})::int`);
+  const rows = await withSite(p.siteId, (tx) =>
+    joined(tx)
+      .where(and(isNull(products.deletedAt), eq(products.visible, true), ...each))
+      .orderBy(desc(sql`${sql.join(inName, sql` + `)}`), desc(products.createdAt))
+      .limit(p.limit ?? 24),
+  );
+  return rows.map(row);
 }
 
 /** Whether the automatic menu should offer Shop. */
