@@ -1,0 +1,1 @@
+ALTER TABLE "sites" ADD COLUMN "search" jsonb DEFAULT '{}'::jsonb NOT NULL;

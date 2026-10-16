@@ -24,6 +24,8 @@ export const sites = pgTable("sites", {
   name: text("name").notNull(),
   /** How the storefront looks: see themeSchema in modules/sites/theme.ts. Validated on every write. */
   theme: jsonb("theme").notNull().$type<Record<string, unknown>>().default({}),
+  /** Search engines: see searchSettingsSchema in modules/sites/search.ts. */
+  search: jsonb("search").notNull().$type<Record<string, unknown>>().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

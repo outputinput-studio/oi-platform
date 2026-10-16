@@ -4,7 +4,8 @@ import type { Section, Site } from "@/db/schema";
 import { mediaUrl } from "@/modules/media/server";
 import { imageRef, type ImageRef } from "@/modules/pages/registry";
 import { readSeo, summarise, type Seo } from "@/modules/pages/seo";
-import { siteFromHost } from "@/modules/sites/server";
+import { siteFromHost, siteSearch } from "@/modules/sites/server";
+import { pageTitle } from "@/modules/sites/search";
 
 /**
  * What a storefront page tells Google and a shared link: the words the
@@ -14,16 +15,19 @@ import { siteFromHost } from "@/modules/sites/server";
  */
 export function storefrontMetadata(p: { site: Site; seo: unknown; title: string; fallbackDescription: string; fallbackImage: ImageRef | null; path: string; host: string }): Metadata {
   const seo: Seo = readSeo(p.seo);
-  const title = seo.title || (p.title === p.site.name ? p.site.name : `${p.title} · ${p.site.name}`);
+  const search = siteSearch(p.site);
+  const title = seo.title || pageTitle(search.titlePattern, p.title, p.site.name);
   const description = seo.description || summarise(p.fallbackDescription) || undefined;
-  const image = seo.image ?? p.fallbackImage;
+  const image = seo.image ?? p.fallbackImage ?? search.shareImage;
   const imageUrl = image ? mediaUrl(image.key) : "";
   const url = `https://${p.host}${p.path}`;
+  const hidden = seo.noindex || search.hideFromSearch;
   return {
     title,
     description,
     alternates: { canonical: url },
-    robots: seo.noindex ? { index: false, follow: false } : { index: true, follow: true },
+    robots: hidden ? { index: false, follow: false } : { index: true, follow: true },
+    ...(search.searchConsole ? { verification: { google: search.searchConsole } } : {}),
     openGraph: {
       title,
       description,
