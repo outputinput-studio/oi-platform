@@ -15,6 +15,7 @@ import { Enquire } from "./enquire";
 import { EmailQuote } from "./email-quote";
 import { COUNTRIES } from "@/lib/countries";
 import { homeCountry } from "@/modules/sites/shop";
+import { deliveryText, readProductDetails, resolveDetails } from "@/modules/products/details";
 import { Placeholder } from "@/lib/placeholder";
 import { Frame, missing } from "./storefront";
 import { hostAndSite, storefrontMetadata } from "./metadata";
@@ -169,8 +170,41 @@ function ProductPage({ product: p, site, enquiry }: { product: ProductRow; site:
               ))}
           </div>
         )}
+        <ProductDetailsList product={p} site={site} />
       </div>
     </article>
+  );
+}
+
+/** Settings · Product details, as this product has them: rows that open on a tap, closed to start. */
+function ProductDetailsList({ product: p, site }: { product: ProductRow; site: Site }) {
+  const shop = siteShop(site);
+  const rows = resolveDetails(shop.detailRows, readProductDetails(p.details), deliveryText(siteShipping(site), shop.currency, p));
+  if (rows.length === 0) return null;
+  return (
+    <div data-testid="product-details" className="mt-8 border-t border-[var(--border)]">
+      {rows.map((r) => (
+        <details key={r.id} className="group border-b border-[var(--border)]">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-[16px] font-medium [&::-webkit-details-marker]:hidden">
+            {r.title}
+            <span aria-hidden className="inline-block text-[20px] leading-none text-[var(--text-muted)] transition-transform group-open:rotate-45">
+              +
+            </span>
+          </summary>
+          <div className="space-y-3 pb-5 text-[15px] leading-[1.65] text-[var(--text-body)]">
+            {r.text
+              .split(/\n{2,}/)
+              .map((para) => para.trim())
+              .filter(Boolean)
+              .map((para, i) => (
+                <p key={i} className="whitespace-pre-line">
+                  {para}
+                </p>
+              ))}
+          </div>
+        </details>
+      ))}
+    </div>
   );
 }
 

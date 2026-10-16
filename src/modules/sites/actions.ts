@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
-import { renameSite, setEnquiryForm, updateBusiness, updateFooter, updateMessages, updateSearchSettings, updateSending, updateShipping, updateShopSettings, updateStatusNames, updateTheme } from "./server";
+import { renameSite, setEnquiryForm, updateBusiness, updateDetailRows, updateFooter, updateMessages, updateSearchSettings, updateSending, updateShipping, updateShopSettings, updateStatusNames, updateTheme } from "./server";
 
 export type SettingsFormState = { ok?: string; error?: string };
 
@@ -159,6 +159,18 @@ export async function saveFooterAction(p: { footer: unknown; social: unknown }):
   const { user, site } = await requireSiteAccess();
   try {
     await updateFooter({ actorId: user.id, siteId: site.id, ...p });
+    revalidatePath("/", "layout");
+    return { ok: "Saved" };
+  } catch (err) {
+    return failed(err);
+  }
+}
+
+/** Settings · Product details. */
+export async function saveDetailRowsAction(rows: unknown): Promise<SettingsFormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await updateDetailRows({ actorId: user.id, siteId: site.id, rows });
     revalidatePath("/", "layout");
     return { ok: "Saved" };
   } catch (err) {

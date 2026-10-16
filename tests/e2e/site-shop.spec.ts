@@ -457,3 +457,48 @@ test("customer emails in your own words, a test to yourself, and who hears about
   await page.goto(admin + "/settings");
   await expect(page.getByRole("link", { name: /Who gets notified/ })).toContainText("New orders to orders@demo.example · with copies");
 });
+
+test("product details: rows written once, changed or hidden on one product, opened on the shop", async ({ page }) => {
+  await signInAsOwner(page);
+  await page.goto(admin + "/settings");
+  await page.getByRole("link", { name: /Product details/ }).click();
+  await expect(page.getByText("No rows yet.")).toBeVisible();
+  await page.getByRole("button", { name: "+ Materials" }).click();
+  await page.getByLabel("Row 1 text").fill("Stretch mesh and glass crystals.");
+  await page.getByRole("button", { name: "+ Care" }).click();
+  await page.getByLabel("Row 2 text").fill("Hand wash cold.");
+  await page.getByRole("button", { name: "+ Delivery" }).click();
+  // Delivery writes itself from Shipping; the suggestion goes once it's used.
+  await expect(page.getByTestId("detail-row-2")).toContainText("Written from Shipping");
+  await expect(page.getByRole("button", { name: "+ Delivery" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Save rows" }).click();
+  await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
+  await expect(page.getByTestId("detail-row-0")).toContainText("1 product as written");
+
+  // On the bikini: its own materials, no care row.
+  await page.goto(admin + "/products");
+  await page.getByTestId("product-teal-crystal-bikini").click();
+  const details = page.getByTestId("product-detail-rows");
+  await expect(details).toContainText("Materials, Care, Delivery");
+  await details.getByRole("button", { name: /Product details/ }).click();
+  await details.getByTestId("product-detail-Materials").getByRole("button", { name: "Change for this product" }).click();
+  await details.getByLabel("Materials on this product").fill("Teal mesh, 200 hand-set crystals.");
+  await details.getByTestId("product-detail-Care").getByRole("button", { name: "Hide here" }).click();
+  await expect(details.getByTestId("product-detail-Care")).toContainText("Hidden on this product");
+  await expect(details).toContainText("2 changed here");
+  await expect(page.getByTestId("product-save-status")).toHaveText("✓ Saved");
+
+  await page.goto(demo + "/shop/teal-crystal-bikini");
+  const shown = page.getByTestId("product-details");
+  await expect(shown.locator("summary")).toHaveText([/^Materials/, /^Delivery/]);
+  await expect(shown.getByText("Teal mesh, 200 hand-set crystals.")).toBeHidden(); // closed to start
+  await shown.locator("summary", { hasText: "Materials" }).click();
+  await expect(shown.getByText("Teal mesh, 200 hand-set crystals.")).toBeVisible();
+  await shown.locator("summary", { hasText: "Delivery" }).click();
+  await expect(shown).toContainText("Made to order, then posted: around 6 weeks.");
+
+  // The settings screen counts it.
+  await page.goto(admin + "/settings/product-details");
+  await expect(page.getByTestId("detail-row-0")).toContainText("0 products as written · 1 changed");
+  await expect(page.getByTestId("detail-row-1")).toContainText("1 hidden");
+});

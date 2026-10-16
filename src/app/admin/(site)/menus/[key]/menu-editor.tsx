@@ -200,7 +200,7 @@ export function MenuEditor({
           <button
             type="button"
             onClick={() => setPicking({ for: "new" })}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-card border border-dashed border-line-strong text-[14.5px] text-body hover:border-accent hover:text-accent-text"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-card border border-dashed border-accent text-[14.5px] text-text hover:bg-hover"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
               <path d="M5 12h14M12 5v14" />

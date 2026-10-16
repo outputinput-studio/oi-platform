@@ -8,6 +8,21 @@ import { z } from "zod";
 export const CURRENCIES = ["AUD", "NZD", "THB", "USD", "EUR", "GBP", "SGD"] as const;
 export type Currency = (typeof CURRENCIES)[number];
 
+/**
+ * Settings · Product details: rows that open up on every product page
+ * (Materials, Care, Returns…). Written once; each product uses them as
+ * they are, changes one for itself, or hides it. A "delivery" row writes
+ * itself from Settings · Shipping.
+ */
+export const detailRowSchema = z.object({
+  id: z.string().min(1).max(40),
+  kind: z.enum(["text", "delivery"]).default("text"),
+  title: z.string().trim().min(1, "Give the row a title, like Care.").max(60),
+  text: z.string().trim().max(2000).default(""),
+});
+export type DetailRow = z.infer<typeof detailRowSchema>;
+export const detailRowsSchema = z.array(detailRowSchema).max(12, "Twelve rows at most.");
+
 export const shopSettingsSchema = z.object({
   currency: z.enum(CURRENCIES).default("AUD"),
   /** Prices as entered already include tax (the way most small shops in AU, NZ and TH price). */
@@ -22,6 +37,7 @@ export const shopSettingsSchema = z.object({
    * chosen, so those show no button.
    */
   enquiryFormId: z.string().uuid().nullable().default(null),
+  detailRows: detailRowsSchema.default([]),
   /** Settings · Order statuses: the four stages in the team's own words. Empty keeps the default. */
   statusNames: z
     .object({

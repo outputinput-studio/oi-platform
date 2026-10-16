@@ -5,7 +5,7 @@ import { forms, sites, type Site } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { parseTheme, readTheme, themeSchema, type Theme } from "./theme";
 import { readSearchSettings, searchSettingsSchema, socialSchema, type SearchSettings } from "./search";
-import { readShopSettings, shopSettingsSchema, type ShopSettings } from "./shop";
+import { detailRowsSchema, readShopSettings, shopSettingsSchema, type ShopSettings } from "./shop";
 import { readShipping, shippingSchema, type Shipping } from "./shipping";
 import { businessSchema, sendingSchema, type Business, type Sending } from "./business";
 import { DEFAULT_TEMPLATES, TEMPLATE_KEYS, notifySchema, readMessages, recipientsSchema, templatesSchema, type Messages } from "./messages";
@@ -115,7 +115,7 @@ export function siteShop(site: Pick<Site, "shop">): ShopSettings {
 /** Owners set the currency and tax: it changes what every price means. The enquiry form is kept as it was. */
 export async function updateShopSettings(p: { actorId: string; siteId: string; settings: unknown }): Promise<ShopSettings> {
   await assertAccess(p.actorId, p.siteId, "owner");
-  const patch = shopSettingsSchema.omit({ enquiryFormId: true, statusNames: true }).parse(p.settings);
+  const patch = shopSettingsSchema.omit({ enquiryFormId: true, statusNames: true, detailRows: true }).parse(p.settings);
   return withSite(p.siteId, async (tx) => {
     const [cur] = await tx.select({ shop: sites.shop }).from(sites).where(eq(sites.id, p.siteId)).limit(1);
     if (!cur) throw new AccessError("That site doesn't exist.");
@@ -244,5 +244,20 @@ export async function updateMessages(p: {
       if (!row) throw new AccessError("That form isn't on this site.");
     }
     return readMessages(next);
+  });
+}
+
+/** Owners write the product details rows (Settings · Product details); products keep their own changes by row id. */
+export async function updateDetailRows(p: { actorId: string; siteId: string; rows: unknown }): Promise<ShopSettings> {
+  await assertAccess(p.actorId, p.siteId, "owner");
+  const rows = detailRowsSchema.parse(p.rows);
+  if (new Set(rows.map((r) => r.id)).size !== rows.length) throw new Error("Two rows share an id. Reload and try again.");
+  if (rows.filter((r) => r.kind === "delivery").length > 1) throw new Error("One delivery row is enough.");
+  return withSite(p.siteId, async (tx) => {
+    const [cur] = await tx.select({ shop: sites.shop }).from(sites).where(eq(sites.id, p.siteId)).limit(1);
+    if (!cur) throw new AccessError("That site doesn't exist.");
+    const settings = { ...readShopSettings(cur.shop), detailRows: rows };
+    await tx.update(sites).set({ shop: settings }).where(eq(sites.id, p.siteId));
+    return settings;
   });
 }

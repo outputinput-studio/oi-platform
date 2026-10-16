@@ -5,7 +5,8 @@ import { listProductCategories } from "@/modules/products/categories";
 import { deleteProductAction } from "@/modules/products/actions";
 import { mediaAvailable, mediaUrl } from "@/modules/media/server";
 import { readSeo } from "@/modules/pages/seo";
-import { siteShop } from "@/modules/sites/server";
+import { siteShipping, siteShop } from "@/modules/sites/server";
+import { readProductDetails } from "@/modules/products/details";
 import { publicForm } from "@/modules/forms/server";
 import { paymentsStatus } from "@/modules/payments/server";
 import { ProductEditor } from "./product-editor";
@@ -41,6 +42,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
         visible: p.visible,
         photos: p.photos,
         code: p.code,
+        details: readProductDetails(p.details),
       }}
       photoUrls={Object.fromEntries(p.photos.map((ph) => [ph.key, mediaUrl(ph.key)]))}
       categories={cats.map((c) => ({ id: c.id, name: c.name }))}
@@ -52,6 +54,8 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
       deleteAction={deleteProductAction}
       hasEnquiryForm={hasEnquiryForm}
       paymentsReady={paymentsStatus(site).ready}
+      detailRows={shop.detailRows}
+      shipping={siteShipping(site)}
     />
   );
 }

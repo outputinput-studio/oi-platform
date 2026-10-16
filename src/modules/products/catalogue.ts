@@ -3,6 +3,7 @@ import { PRODUCT_AVAILABILITY, PRODUCT_BUY_WITH, PRODUCT_MAKES, type ProductAvai
 import { imageRef, type ImageRef } from "@/modules/pages/registry";
 import { seoSchema } from "@/modules/pages/seo";
 import { formatPrice, type Currency } from "@/modules/sites/shop";
+import { productDetailsSchema } from "./details";
 
 /**
  * The catalogue's rules, pure: what the editor may change, how a piece
@@ -43,6 +44,8 @@ export const productEditSchema = z.object({
   photos: z.array(imageRef).max(MAX_PHOTOS, `Up to ${MAX_PHOTOS} photos.`).optional(),
   code: z.string().trim().max(60).optional(),
   seo: seoSchema.optional(),
+  /** Product details rows changed or hidden here, by row id. */
+  details: productDetailsSchema.optional(),
 });
 export type ProductEdit = z.infer<typeof productEditSchema>;
 

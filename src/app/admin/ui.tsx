@@ -17,8 +17,9 @@ export function Button({
   const dims = size === "sm" ? "h-9 px-3.5 text-[13.5px]" : "h-11 px-5 text-[15px]";
   const look = {
     primary: "bg-accent text-text hover:bg-accent-hover",
-    secondary: "border border-line-strong text-text hover:bg-hover",
-    quiet: "border border-line text-body hover:text-text hover:bg-hover",
+    // Secondary buttons (Carl, Oct 2026): a blue border so they read as buttons beside the primary one.
+    secondary: "border border-accent text-text hover:bg-hover",
+    quiet: "border border-accent text-text hover:bg-hover",
     danger: "border border-line text-alert hover:bg-alert-bg",
   }[variant];
   return (
@@ -269,7 +270,7 @@ export function PageHeader({
   return (
     <header className="sticky top-0 z-10 -mx-4 flex h-[52px] items-center gap-1.5 border-b border-line bg-bg px-2 md:static md:mx-0 md:h-[90px] md:gap-3 md:px-0">
       {back ? (
-        <Link href={back} aria-label="Back" className="flex h-11 w-11 flex-none items-center justify-center rounded-button text-text hover:bg-hover">
+        <Link href={back} aria-label="Back" className="flex h-10 w-10 flex-none items-center justify-center rounded-button border border-line-strong text-text hover:bg-hover md:h-11 md:w-11">
           <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="m15 18-6-6 6-6" />
           </svg>

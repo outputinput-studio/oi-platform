@@ -8,6 +8,7 @@ import type { Seo } from "@/modules/pages/seo";
 import { slugFromTitle } from "@/modules/pages/slug";
 import { autoRedirect } from "@/modules/redirects/server";
 import { readSearchSettings } from "@/modules/sites/search";
+import { readProductDetails } from "./details";
 import { productEditSchema, productNameSchema, readPhotos } from "./catalogue";
 import { assertShopSlugFree, freeShopSlug } from "./slugs";
 
@@ -71,7 +72,7 @@ export async function updateProduct(p: { actorId: string; siteId: string; produc
     const cur = await load(tx, p.productId);
     if (e.slug && e.slug !== cur.slug) await assertShopSlugFree(tx, e.slug, { productId: cur.id });
     const patch: Partial<Product> = { updatedAt: new Date() };
-    for (const k of ["name", "slug", "description", "price", "salePrice", "digital", "make", "stock", "leadTime", "leadUnit", "availability", "buyWith", "visible", "photos", "code"] as const) {
+    for (const k of ["name", "slug", "description", "price", "salePrice", "digital", "make", "stock", "leadTime", "leadUnit", "availability", "buyWith", "visible", "photos", "code", "details"] as const) {
       if (e[k] !== undefined) (patch as Record<string, unknown>)[k] = e[k];
     }
     if (e.seo !== undefined) patch.seo = e.seo as Seo;
@@ -152,4 +153,21 @@ async function load(tx: Tx, id: string): Promise<Product> {
     .limit(1);
   if (!x) throw new AccessError("That product doesn't exist.");
   return x;
+}
+
+/**
+ * For Settings · Product details: per row, how many products change it for
+ * themselves and how many hide it, out of how many products there are.
+ */
+export async function detailRowUsage(p: { actorId: string; siteId: string }): Promise<{ total: number; rows: Record<string, { custom: number; hidden: number }> }> {
+  await assertAccess(p.actorId, p.siteId);
+  const all = await withSite(p.siteId, (tx) => tx.select({ details: products.details }).from(products).where(isNull(products.deletedAt)));
+  const rows: Record<string, { custom: number; hidden: number }> = {};
+  for (const { details } of all) {
+    for (const [id, o] of Object.entries(readProductDetails(details))) {
+      rows[id] ??= { custom: 0, hidden: 0 };
+      rows[id][o.mode === "hidden" ? "hidden" : "custom"]++;
+    }
+  }
+  return { total: all.length, rows };
 }
