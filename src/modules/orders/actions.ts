@@ -10,6 +10,8 @@ import { environmentName } from "@/lib/env";
 import { CART_COOKIE, addLine, cartCount, readCart, setLine, writeCart, type CartLine } from "./cart";
 import { markOrderPaid, orderForCustomer, priceCart } from "./server";
 import { startCheckout } from "./checkout";
+import { moveOrder } from "./admin";
+import { requireSiteAccess } from "@/modules/auth/access";
 
 /**
  * The storefront's cart and checkout. No sign-in: the site is the one the
@@ -96,4 +98,19 @@ export async function testPayAction(form: FormData): Promise<void> {
 export async function clearCartAction(): Promise<void> {
   (await cookies()).delete(CART_COOKIE);
   revalidatePath("/", "layout");
+}
+
+// ───────────────────────── the team side ─────────────────────────
+
+/** Orders admin: move an order to its next stage, maybe emailing the customer. */
+export async function moveOrderAction(orderId: string, change: unknown): Promise<CartState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await moveOrder({ actorId: user.id, siteId: site.id, orderId, change });
+    revalidatePath("/orders", "layout");
+    return { ok: "Saved" };
+  } catch (err) {
+    if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "Check the details and try again." };
+    return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+  }
 }

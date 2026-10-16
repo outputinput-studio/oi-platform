@@ -29,7 +29,7 @@ const useFolded = () => useSyncExternalStore(subscribe, readFolded, () => false)
  * Primary navigation, following design/admin.html.
  *
  * Laptop: a sidebar with the wordmark, one row per area, and the signed-in
- * person at the bottom. Phone: a tab bar with Home, Content, Inbox, Products and
+ * person at the bottom. Phone: a tab bar with Home, Orders, Inbox, Products and
  * More, where More opens a sheet with the rest. One <nav>, two lists,
  * CSS picks which shows, so there is exactly one "Team" link on the page.
  *
@@ -39,11 +39,12 @@ type Item = { href: string; label: string; icon: (p: IconProps) => React.ReactNo
 
 const primary: Item[] = [
   { href: "/", label: "Home", icon: HomeIcon },
-  { href: "/pages", label: "Content", icon: ContentIcon, hint: "Pages" },
+  { href: "/orders", label: "Orders", icon: OrdersIcon },
   { href: "/inbox", label: "Inbox", icon: InboxIcon },
   { href: "/products", label: "Products", icon: TagIcon },
 ];
 const secondary: Item[] = [
+  { href: "/pages", label: "Content", icon: ContentIcon, hint: "Pages" },
   { href: "/media", label: "Images", icon: ImageIcon },
   { href: "/contacts", label: "Contacts", icon: ContactsIcon },
   { href: "/team", label: "Team", icon: PeopleIcon },
@@ -56,6 +57,7 @@ export function Nav({
   role,
   envName,
   inboxCount,
+  ordersCount = 0,
   signOut,
 }: {
   siteName: string;
@@ -64,11 +66,14 @@ export function Nav({
   envName: string | null;
   /** New submissions waiting: the badge on Inbox. */
   inboxCount: number;
+  /** Paid orders nobody has started on: the badge on Orders. */
+  ordersCount?: number;
   signOut: () => Promise<void>;
 }) {
   const pathname = usePathname();
   const [more, setMore] = useState(false);
   const folded = useFolded();
+  const count = (href: string) => (href === "/inbox" ? inboxCount : href === "/orders" ? ordersCount : 0);
   const active = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(href + "/")) || (href === "/pages" && ["/forms", "/articles", "/menus"].some((p) => pathname.startsWith(p)));
   const moreActive = secondary.some((i) => active(i.href)) || active("/account");
@@ -109,12 +114,12 @@ export function Nav({
               >
                 <span className="relative flex">
                   <it.icon size={folded ? 21 : 19} />
-                  {it.href === "/inbox" && folded && <Badge n={inboxCount} />}
+                  {folded && <Badge n={count(it.href)} name={it.href.slice(1)} />}
                 </span>
                 <span className={folded ? "sr-only" : "min-w-0 flex-1 truncate"}>{it.label}</span>
-                {it.href === "/inbox" && !folded && inboxCount > 0 && (
-                  <span aria-hidden className={`flex h-[18px] items-center justify-center rounded-full bg-accent text-[10.5px] font-semibold leading-none text-text ${inboxCount < 10 ? "w-[18px]" : "min-w-[18px] px-[5px]"}`}>
-                    {inboxCount > 99 ? "99+" : inboxCount}
+                {!folded && count(it.href) > 0 && (
+                  <span aria-hidden className={`flex h-[18px] items-center justify-center rounded-full bg-accent text-[10.5px] font-semibold leading-none text-text ${count(it.href) < 10 ? "w-[18px]" : "min-w-[18px] px-[5px]"}`}>
+                    {count(it.href) > 99 ? "99+" : count(it.href)}
                   </span>
                 )}
               </Link>
@@ -146,7 +151,7 @@ export function Nav({
           >
             <span className="relative flex">
               <it.icon size={22} />
-              {it.href === "/inbox" && <Badge n={inboxCount} />}
+              <Badge n={count(it.href)} name={it.href.slice(1)} />
             </span>
             <span className="text-[10.5px] tracking-[0.1px]">{it.label}</span>
           </Link>
@@ -266,11 +271,11 @@ function ContentIcon({ size }: IconProps) {
   );
 }
 /** The count on the Inbox icon. Nothing when nothing's waiting. */
-function Badge({ n }: { n: number }) {
+function Badge({ n, name }: { n: number; name: string }) {
   if (n <= 0) return null;
   return (
     <span
-      data-testid="inbox-badge"
+      data-testid={`${name}-badge`}
       aria-hidden
       className={`absolute -right-2 -top-1.5 flex h-[18px] items-center justify-center rounded-full bg-accent text-[10px] font-semibold leading-none text-text ${n < 10 ? "w-[18px]" : "min-w-[18px] px-[5px]"}`}
     >
@@ -298,6 +303,14 @@ function InboxIcon({ size }: IconProps) {
   );
 }
 
+function OrdersIcon({ size }: IconProps) {
+  return (
+    <svg {...svg(size)}>
+      <path d="M6 7h12l-1 14H7z" />
+      <path d="M9 7a3 3 0 0 1 6 0" />
+    </svg>
+  );
+}
 function TagIcon({ size }: IconProps) {
   return (
     <svg {...svg(size)}>

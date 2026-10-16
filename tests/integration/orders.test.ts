@@ -31,11 +31,12 @@ afterAll(async () => {
   await owner.end();
 });
 
+let shelf = "";
+let oneOff = "";
+let hidden = "";
+let first = "";
+
 describe("orders", () => {
-  let shelf = "";
-  let oneOff = "";
-  let hidden = "";
-  let first = "";
   test("the cart is priced from the products, not the browser", async () => {
     shelf = (await createProduct({ actorId: ann, siteId: siteA.id, name: "Shelf piece" })).id;
     await updateProduct({ actorId: ann, siteId: siteA.id, productId: shelf, edit: { price: 10000, salePrice: 8000, stock: 2, visible: true } });
@@ -87,5 +88,26 @@ describe("orders", () => {
     expect(await orderForCustomer({ siteId: siteBId, orderId: first })).toBeNull();
     await expect(markOrderPaid({ siteId: siteBId, orderId: first })).rejects.toThrow(/doesn't exist/);
     expect(await orderForCustomer({ siteId: siteA.id, orderId: "not-a-uuid" })).toBeNull();
+  });
+});
+
+describe("orders for the team", () => {
+  test("only paid orders are listed; moving one along keeps its tracking", async () => {
+    const { listOrders, orderCounts, newOrderCount, getOrder, moveOrder, draftEmail, trackingUrl } = await import("@/modules/orders/admin");
+    const list = await listOrders({ actorId: ann, siteId: siteA.id });
+    expect(list.map((o) => o.number)).toEqual([1001]); // 1002 was never paid
+    expect(await orderCounts({ actorId: ann, siteId: siteA.id })).toMatchObject({ all: 1, new: 1, inProgress: 0 });
+    expect(await newOrderCount({ siteId: siteA.id })).toBe(1);
+
+    const o = list[0];
+    await expect(getOrder({ actorId: ann, siteId: siteA.id, orderId: (await placeOrder({ site: siteA, cart: [{ id: shelf, q: 1 }], details: { name: "X", email: "x@example.com", address }, provider: "test" })).id })).rejects.toThrow(/doesn't exist/);
+    await moveOrder({ actorId: ann, siteId: siteA.id, orderId: o.id, change: { status: "inProgress", email: draftEmail(o, "inProgress", "Orders A") } });
+    const sent = await moveOrder({ actorId: ann, siteId: siteA.id, orderId: o.id, change: { status: "sent", tracking: { carrier: "Australia Post", number: "33ANJ482019" } } });
+    expect(sent).toMatchObject({ status: "sent", tracking: { carrier: "Australia Post", number: "33ANJ482019" } });
+    expect(trackingUrl(sent.tracking as { carrier: string; number: string })).toBe("https://auspost.com.au/mypost/track/details/33ANJ482019");
+    expect(draftEmail(sent, "sent", "Orders A", { carrier: "Australia Post", number: "33ANJ482019" }).message).toContain("Australia Post tracking: 33ANJ482019");
+    expect(await newOrderCount({ siteId: siteA.id })).toBe(0);
+    await expect(moveOrder({ actorId: ann, siteId: siteA.id, orderId: o.id, change: { status: "lost" } })).rejects.toThrow();
+    await expect(moveOrder({ actorId: ann, siteId: siteA.id, orderId: o.id, change: { status: "done", email: { subject: "", message: "Hi" } } })).rejects.toThrow(/subject/);
   });
 });

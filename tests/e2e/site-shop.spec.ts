@@ -152,3 +152,33 @@ test("buy it: cart, checkout, test payment, thank you", async ({ page }) => {
   await page.goto(demo + "/shop");
   await expect(page.getByTestId("cart-count")).toHaveCount(0);
 });
+
+test("the order reaches the team, and moves along", async ({ page }) => {
+  await signInAsOwner(page);
+  await expect(page.getByTestId("orders-badge").first()).toHaveText("1");
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Orders", exact: true }).first().click();
+  await expect(page.getByTestId("new-orders")).toHaveText("1 new order needs confirming");
+  const row = page.getByTestId(/^order-\d+$/).first();
+  await expect(row).toContainText("Dee Buyer");
+  await expect(row).toContainText("Teal crystal bikini");
+  await expect(row).toContainText("$380");
+  await row.click();
+
+  await expect(page.getByTestId("deliver-to")).toContainText("12 Rokeby Road");
+  await expect(page.getByTestId("deliver-to")).toContainText("Australia");
+  await expect(page.getByText("Test payment — no real money moved.")).toBeVisible();
+  await expect(page.getByText("GST 10%")).toBeVisible();
+
+  await page.getByRole("button", { name: "Mark as in progress" }).click();
+  await expect(page.getByRole("dialog").getByLabel("Subject")).toHaveValue("I've started on your Teal crystal bikini");
+  await page.getByRole("dialog").getByRole("button", { name: "Mark as in progress and email them" }).click();
+  await expect(page.getByRole("button", { name: "Mark as sent" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Mark as sent" }).click();
+  await page.getByRole("dialog").getByLabel("Carrier").fill("Australia Post");
+  await page.getByRole("dialog").getByLabel("Tracking number").fill("33ANJ482019");
+  await expect(page.getByRole("dialog").getByLabel("Message")).toHaveValue(/Australia Post tracking: 33ANJ482019/);
+  await page.getByRole("dialog").getByRole("button", { name: "Mark as sent and email them" }).click();
+  await expect(page.getByRole("link", { name: "Track this parcel" })).toHaveAttribute("href", "https://auspost.com.au/mypost/track/details/33ANJ482019");
+  await expect(page.getByTestId("orders-badge")).toHaveCount(0);
+});
