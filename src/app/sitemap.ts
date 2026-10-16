@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { headers } from "next/headers";
 import { resolveSurface } from "@/lib/surface";
-import { siteFromHost } from "@/modules/sites/server";
+import { siteFromHost, siteSearch } from "@/modules/sites/server";
 import { HOME_SLUG, publishedPages, publishedPage } from "@/modules/pages/server";
 import { publishedArticles } from "@/modules/articles/server";
 import { readSeo } from "@/modules/pages/seo";
@@ -19,7 +19,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const { surface, host } = resolveSurface(hostHeader);
   if (surface !== "site") return [];
   const site = await siteFromHost(host);
-  if (!site) return [];
+  if (!site || siteSearch(site).hideFromSearch) return [];
   const base = `https://${host}`;
   const [pages, articles] = await Promise.all([publishedPages({ siteId: site.id }), publishedArticles({ siteId: site.id })]);
   const out: MetadataRoute.Sitemap = [];

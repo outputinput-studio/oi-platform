@@ -1,5 +1,5 @@
 import { requireSiteAccess } from "@/modules/auth/access";
-import { siteTheme } from "@/modules/sites/server";
+import { siteSearch, siteTheme } from "@/modules/sites/server";
 import { Label, PageHeader, Row, Rows } from "../../ui";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +20,7 @@ export default async function SettingsPage() {
             <Row title="Site name" detail={site.name} href="/settings/site" />
             <Row title="Theme" detail={`${siteTheme(site).mode === "light" ? "Light" : "Dark"} · accent ${siteTheme(site).accent}`} href="/settings/theme" />
             <Row title="Address" detail={`${site.slug} · your own domain arrives in a later stage`} />
+            <Row title="Search engines" detail={siteSearch(site).hideFromSearch ? "Hidden from Google" : "Sitemap, title pattern, sharing image"} href="/settings/search" />
             <Row title="Team" detail={role === "owner" ? "Who can sign in, and as what" : "Who can sign in"} href="/team" />
           </Rows>
         </section>

@@ -4,7 +4,8 @@
 import { beforeAll, afterAll, describe, expect, test } from "vitest";
 import { Pool } from "pg";
 import { AccessError } from "@/modules/auth/access";
-import { siteSettings, siteTheme, updateTheme } from "@/modules/sites/server";
+import { siteSearch, siteSettings, siteTheme, updateSearchSettings, updateTheme } from "@/modules/sites/server";
+import { pageTitle } from "@/modules/sites/search";
 import { parseTheme, readTheme, themeVars } from "@/modules/sites/theme";
 
 const owner = new Pool({ connectionString: process.env.MIGRATE_DATABASE_URL, max: 1 });
@@ -58,5 +59,22 @@ describe("updateTheme", () => {
   test("a bad colour is refused and nothing changes", async () => {
     await expect(updateTheme({ actorId: bob, siteId: site, theme: { mode: "dark", accent: "red" } })).rejects.toThrow();
     expect(siteTheme(await siteSettings({ actorId: bob, siteId: site })).mode).toBe("light");
+  });
+});
+
+describe("search engines", () => {
+  test("titles follow the pattern; the front page is just the site", () => {
+    expect(pageTitle("[Page name] · [Site name]", "About", "Kini")).toBe("About · Kini");
+    expect(pageTitle("[Site name] — [Page name]", "About", "Kini")).toBe("Kini — About");
+    expect(pageTitle("[Page name] · [Site name]", "Kini", "Kini")).toBe("Kini");
+    expect(pageTitle("", "About", "Kini")).toBe("About · Kini");
+  });
+  test("an owner saves them; a bad link is refused; staff can't", async () => {
+    const r = await updateSearchSettings({ actorId: bob, siteId: site, settings: { titlePattern: "[Site name]: [Page name]", hideFromSearch: true, searchConsole: "google-site-verification=abc123", business: { name: "Theme A Pty", instagram: "https://www.instagram.com/themea" } } });
+    expect(r.searchConsole).toBe("abc123");
+    expect(r.business.instagram).toBe("https://www.instagram.com/themea");
+    expect(siteSearch(await siteSettings({ actorId: bob, siteId: site })).hideFromSearch).toBe(true);
+    await expect(updateSearchSettings({ actorId: bob, siteId: site, settings: { business: { facebook: "facebook.com/x" } } })).rejects.toThrow(/full address/);
+    await expect(updateSearchSettings({ actorId: ann, siteId: site, settings: {} })).rejects.toThrow(AccessError);
   });
 });

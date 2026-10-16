@@ -59,3 +59,32 @@ test("defaults come from the content; the client's words win; hidden pages leave
   const adminSitemap = await (await request.get(base + "/sitemap.xml", { headers: { host: "admin.localhost" } })).text();
   expect(adminSitemap).not.toContain("<loc>");
 });
+
+test("site-wide: the title pattern, the business for Google, and hiding the whole site", async ({ page, request }) => {
+  await signInAsOwner(page);
+  await page.goto(admin + "/settings/search");
+  await page.getByLabel("How page titles read").fill("[Site name] — [Page name]");
+  await page.getByLabel("Business name").fill("Demo Site Co");
+  await page.getByLabel("Instagram").fill("https://www.instagram.com/demosite");
+  await expect(page.getByTestId("search-save-status")).toHaveText("Saved");
+
+  const home = await (await request.get(base + "/", { headers: { host: "demo.localhost" } })).text();
+  expect(home).toContain('"@type":"Organization"');
+  expect(home).toContain('"name":"Demo Site Co"');
+  expect(home).toContain('"sameAs":["https://www.instagram.com/demosite"]');
+  const journal = await (await request.get(base + "/journal", { headers: { host: "demo.localhost" } })).text();
+  expect(journal).toContain("<title>Demo site — Journal</title>");
+
+  await page.getByRole("switch", { name: "Hide the whole site from Google" }).click();
+  await expect(page.getByTestId("search-save-status")).toHaveText("Saved");
+  await page.goto(admin + "/");
+  await expect(page.getByTestId("hidden-banner")).toBeVisible();
+  const hidden = await (await request.get(base + "/", { headers: { host: "demo.localhost" } })).text();
+  expect(hidden).toMatch(/<meta name="robots" content="noindex, nofollow"/);
+  const sitemap = await (await request.get(base + "/sitemap.xml", { headers: { host: "demo.localhost" } })).text();
+  expect(sitemap).not.toContain("<loc>");
+
+  await page.goto(admin + "/settings/search");
+  await page.getByRole("switch", { name: "Hide the whole site from Google" }).click();
+  await expect(page.getByTestId("search-save-status")).toHaveText("Saved");
+});

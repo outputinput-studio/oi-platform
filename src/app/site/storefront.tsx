@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { siteFromHost, siteTheme } from "@/modules/sites/server";
+import { siteFromHost, siteSearch, siteTheme } from "@/modules/sites/server";
+import { socialLinks } from "@/modules/sites/search";
+import { mediaUrl } from "@/modules/media/server";
 import { themeVars } from "@/modules/sites/theme";
 import { HOME_SLUG, publishedPage, publishedPages } from "@/modules/pages/server";
 import { hasPublishedArticles } from "@/modules/articles/server";
@@ -31,10 +33,29 @@ export async function Storefront({ slug }: { slug: string }) {
 
   return (
     <Frame site={site} menu={menu} current={slug}>
+      {slug === HOME_SLUG && <OrganizationSchema site={site} host={host} />}
       <h1 className="sr-only">{page.title}</h1>
       <RenderSections sections={page.sections} />
     </Frame>
   );
+}
+
+/** What Google is told about the business, on the front page only: schema.org Organization. */
+function OrganizationSchema({ site, host }: { site: Site; host: string }) {
+  const b = siteSearch(site).business;
+  const data: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: b.name || site.name,
+    url: `https://${host}/`,
+  };
+  if (b.description) data.description = b.description;
+  if (b.logo) data.logo = mediaUrl(b.logo.key);
+  if (b.phone) data.telephone = b.phone;
+  if (b.email) data.email = b.email;
+  const same = socialLinks(b);
+  if (same.length) data.sameAs = same;
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data).replace(/</g, "\\u003c") }} />;
 }
 
 /** <head> for a storefront page: the client's words, or ones from the sections. Nothing for a page that isn't live. */

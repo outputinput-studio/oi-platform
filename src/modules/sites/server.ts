@@ -4,6 +4,7 @@ import { db, withSite } from "@/db/client";
 import { sites, type Site } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { parseTheme, readTheme, type Theme } from "./theme";
+import { readSearchSettings, searchSettingsSchema, type SearchSettings } from "./search";
 
 /**
  * A site's own settings. Everything here runs inside withSite(), so the
@@ -57,4 +58,18 @@ export async function siteFromHost(host: string): Promise<Site | null> {
   if (!id) return null;
   const [site] = await withSite(id, (tx) => tx.select().from(sites).limit(1));
   return site ?? null;
+}
+
+/** The site's search-engine settings, with defaults filled in. */
+export function siteSearch(site: Pick<Site, "search">): SearchSettings {
+  return readSearchSettings(site.search);
+}
+
+/** Owners change how the site is found. */
+export async function updateSearchSettings(p: { actorId: string; siteId: string; settings: unknown }): Promise<SearchSettings> {
+  await assertAccess(p.actorId, p.siteId, "owner");
+  const settings = searchSettingsSchema.parse(p.settings);
+  const [site] = await withSite(p.siteId, (tx) => tx.update(sites).set({ search: settings }).where(eq(sites.id, p.siteId)).returning());
+  if (!site) throw new AccessError("That site doesn't exist.");
+  return settings;
 }
