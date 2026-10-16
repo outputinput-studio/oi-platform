@@ -69,7 +69,7 @@ export default async function PaymentsPage() {
                   In Stripe, go to <b>Developers → API keys → Create restricted key</b>. Give it write access to <b>Checkout Sessions</b>, <b>Coupons</b> and <b>Refunds</b>, and read access to <b>Balance</b>. (Your standard secret key also works.)
                 </li>
                 <li>
-                  Go to <b>Developers → Webhooks → Add endpoint</b>. Paste the address below, pick the events <b>checkout.session.completed</b> and <b>checkout.session.async_payment_succeeded</b>, then copy its <b>Signing secret</b>.
+                  Go to <b>Developers → Webhooks → Add endpoint</b>. Paste the address below, pick the events <b>checkout.session.completed</b>, <b>checkout.session.async_payment_succeeded</b> and <b>checkout.session.async_payment_failed</b>, then copy its <b>Signing secret</b>.
                 </li>
                 <li>Paste both here and save. We check the key with Stripe, then keep it encrypted — nobody can read it back, us included.</li>
               </ol>
