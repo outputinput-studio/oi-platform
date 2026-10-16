@@ -4,6 +4,7 @@ import { withSite } from "@/db/client";
 import { media, type Media } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { storage } from "@/lib/storage";
+import { checkSvg } from "@/lib/svg";
 
 /**
  * The media library: a site's images. Bytes go to storage (src/lib/storage),
@@ -23,6 +24,8 @@ const CONTENT_TYPES: Record<string, string> = {
   "image/png": "png",
   "image/webp": "webp",
   "image/gif": "gif",
+  // Logos and icons. Checked line by line before it's stored (src/lib/svg.ts).
+  "image/svg+xml": "svg",
 };
 
 export type MediaItem = Media & { url: string };
@@ -71,12 +74,14 @@ export async function uploadMedia(p: {
   if (!s) throw new Error("Images aren't set up on this site yet. Ask us to switch them on.");
 
   const ext = CONTENT_TYPES[p.contentType];
-  if (!ext) throw new Error("Use a JPG, PNG, WebP or GIF image.");
+  if (!ext) throw new Error("Use a JPG, PNG, WebP, GIF or SVG image.");
   if (p.bytes.byteLength === 0) throw new Error("That file is empty.");
   if (p.bytes.byteLength > MAX_BYTES) throw new Error("That image is too big. Keep it under 4 MB.");
+  // An SVG's size comes from the file itself, after it's been checked; never from the browser.
+  const svg = ext === "svg" ? checkSvg(new TextDecoder("utf-8", { fatal: false }).decode(p.bytes)) : null;
   const side = z.number().int().min(1).max(MAX_SIDE);
-  const width = side.parse(p.width);
-  const height = side.parse(p.height);
+  const width = side.parse(svg?.width ?? p.width);
+  const height = side.parse(svg?.height ?? p.height);
   const filename = z.string().trim().min(1).max(200).parse(p.filename || "image");
   const alt = altSchema.parse(p.alt ?? "");
 

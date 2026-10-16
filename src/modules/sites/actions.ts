@@ -3,19 +3,19 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
-import { renameSite, setEnquiryForm, updateBusiness, updateMessages, updateSearchSettings, updateSending, updateShipping, updateShopSettings, updateStatusNames, updateTheme } from "./server";
+import { renameSite, setEnquiryForm, updateBusiness, updateFooter, updateMessages, updateSearchSettings, updateSending, updateShipping, updateShopSettings, updateStatusNames, updateTheme } from "./server";
 
 export type SettingsFormState = { ok?: string; error?: string };
 
-export async function updateThemeAction(_prev: SettingsFormState, form: FormData): Promise<SettingsFormState> {
+/** Settings · Branding: logo, favicon and the three colours. */
+export async function saveBrandingAction(brand: { accent: string; text: string; background: string; logo: unknown; favicon: unknown }): Promise<SettingsFormState> {
   const { user, site } = await requireSiteAccess();
   try {
-    await updateTheme({ actorId: user.id, siteId: site.id, theme: { mode: form.get("mode"), accent: form.get("accent") } });
+    await updateTheme({ actorId: user.id, siteId: site.id, theme: { accent: brand.accent, text: brand.text, background: brand.background, logo: brand.logo ?? null, favicon: brand.favicon ?? null } });
     revalidatePath("/", "layout");
     return { ok: "Saved" };
   } catch (err) {
-    if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "That doesn't look right." };
-    return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+    return failed(err);
   }
 }
 
@@ -149,6 +149,18 @@ export async function sendTestEmailAction(key: string, template: { subject: stri
     const { sendTemplateTest } = await import("@/modules/orders/admin");
     const r = await sendTemplateTest({ actorId: user.id, siteId: site.id, to: user.email, key, template });
     return { ok: r.delivered ? `Sent to ${user.email}` : "Email isn't set up here, so it was written to the server log instead." };
+  } catch (err) {
+    return failed(err);
+  }
+}
+
+/** Settings · Footer: the newsletter form and the social links. */
+export async function saveFooterAction(p: { footer: unknown; social: unknown }): Promise<SettingsFormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await updateFooter({ actorId: user.id, siteId: site.id, ...p });
+    revalidatePath("/", "layout");
+    return { ok: "Saved" };
   } catch (err) {
     return failed(err);
   }

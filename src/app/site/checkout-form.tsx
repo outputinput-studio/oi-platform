@@ -201,7 +201,7 @@ export function CheckoutForm({
       )}
       {(quote ? quoteState.error : state.error) && <p className="rounded-[6px] border border-[var(--border)] px-4 py-3 text-[14px]">{quote ? quoteState.error : state.error}</p>}
       {quote ? (
-        <button type="submit" disabled={quoting || !canQuote} className="h-12 w-full rounded-[6px] bg-[var(--accent)] text-[15px] font-medium text-white hover:opacity-90 disabled:opacity-60">
+        <button type="submit" disabled={quoting || !canQuote} className="h-12 w-full rounded-[6px] bg-[var(--accent)] text-[15px] font-medium text-[var(--accent-fg)] hover:opacity-90 disabled:opacity-60">
           {quoting ? "Sending…" : "Ask for a quote"}
         </button>
       ) : (
@@ -209,7 +209,7 @@ export function CheckoutForm({
           <button
             type="submit"
             disabled={pending || (needsAddress && rates.length === 0)}
-            className="h-12 w-full rounded-[6px] bg-[var(--accent)] text-[15px] font-medium text-white hover:opacity-90 disabled:opacity-60"
+            className="h-12 w-full rounded-[6px] bg-[var(--accent)] text-[15px] font-medium text-[var(--accent-fg)] hover:opacity-90 disabled:opacity-60"
           >
             {pending ? "One moment…" : testMode ? "Continue to test payment" : "Continue to payment"}
           </button>

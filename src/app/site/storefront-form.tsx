@@ -76,7 +76,7 @@ export function StorefrontForm({ form, about }: { form: { id: string; fields: Fi
       <button
         type="submit"
         disabled={pending}
-        className="h-12 rounded-[6px] bg-[var(--accent)] px-6 text-[16px] font-medium text-white hover:opacity-90 disabled:opacity-60"
+        className="h-12 rounded-[6px] bg-[var(--accent)] px-6 text-[16px] font-medium text-[var(--accent-fg)] hover:opacity-90 disabled:opacity-60"
       >
         {pending ? "Sending…" : form.buttonText}
       </button>

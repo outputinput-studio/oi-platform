@@ -4,6 +4,7 @@ import { paymentsStatus } from "@/modules/payments/server";
 import { listForms } from "@/modules/forms/server";
 import { businessOf, senderFor } from "@/modules/sites/business";
 import { statusNames } from "@/modules/sites/shop";
+import { siteColours, type Theme } from "@/modules/sites/theme";
 import { readMessages, splitList, type Messages } from "@/modules/sites/messages";
 import { Label, PageHeader, Row, Rows } from "../../ui";
 
@@ -48,13 +49,14 @@ export default async function SettingsPage() {
           <Label>Your business</Label>
           <Rows>
             <Row title="Business profile" detail={[profile.tradingName || site.name, profile.businessNumber].filter(Boolean).join(" · ")} href="/settings/business" />
+            <Row title="Branding" detail={brandingLine(siteTheme(site))} href="/settings/branding" />
+            <Row title="Footer" detail="Newsletter form and social links" href="/settings/footer" />
           </Rows>
         </section>
         <section>
           <Label>Your site</Label>
           <Rows>
             <Row title="Site name" detail={site.name} href="/settings/site" />
-            <Row title="Theme" detail={`${siteTheme(site).mode === "light" ? "Light" : "Dark"} · accent ${siteTheme(site).accent}`} href="/settings/theme" />
             <Row title="Address" detail={`${site.slug} · your own domain arrives in a later stage`} />
             <Row title="Search engines" detail={siteSearch(site).hideFromSearch ? "Hidden from Google" : "Sitemap, title pattern, sharing image"} href="/settings/search" />
             <Row title="Redirects" detail="Old addresses, pointed somewhere useful" href="/settings/redirects" />
@@ -83,4 +85,9 @@ function notifyLine(m: Messages): string {
   if (!o.on) return "New orders: nobody is emailed";
   const to = splitList(o.to);
   return `New orders to ${to.length ? to.join(", ") : "the owners"}${o.cc || o.bcc ? " · with copies" : ""}`;
+}
+
+function brandingLine(t: Theme): string {
+  const c = siteColours(t);
+  return [t.logo ? "Logo" : "No logo yet", t.favicon ? "favicon" : "", `${c.background} · ${t.accent}`].filter(Boolean).join(" · ");
 }

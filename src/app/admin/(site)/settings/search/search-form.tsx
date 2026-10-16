@@ -18,7 +18,6 @@ export function SearchForm({
   siteName,
   siteHost,
   shareImageUrl,
-  logoUrl,
   mediaAvailable,
   canEdit,
 }: {
@@ -26,7 +25,6 @@ export function SearchForm({
   siteName: string;
   siteHost: string;
   shareImageUrl?: string;
-  logoUrl?: string;
   mediaAvailable: boolean;
   canEdit: boolean;
 }) {
@@ -110,31 +108,19 @@ export function SearchForm({
           <Link href="/settings/business" className="underline underline-offset-2">
             Business profile
           </Link>
+          , your logo from{" "}
+          <Link href="/settings/branding" className="underline underline-offset-2">
+            Branding
+          </Link>{" "}
+          and your social links from{" "}
+          <Link href="/settings/footer" className="underline underline-offset-2">
+            Footer
+          </Link>
           .
         </p>
         <Field label="One-line description" htmlFor="b-desc">
           <Input id="b-desc" value={s.business.description} maxLength={300} readOnly={ro} onChange={(e) => business({ description: e.target.value })} />
         </Field>
-        <div>
-          <p className="mb-1.5 text-[13.5px] text-body">Logo</p>
-          <ImagePicker id="b-logo" value={s.business.logo ?? undefined} url={logoUrl} available={mediaAvailable && canEdit} onChange={(next) => business({ logo: next ?? null })} />
-        </div>
-        <p className="label !mt-6">Social profiles</p>
-        {(
-          [
-            ["facebook", "Facebook", "https://www.facebook.com/yourpage"],
-            ["instagram", "Instagram", "https://www.instagram.com/yourname"],
-            ["x", "X", "https://x.com/yourname"],
-            ["linkedin", "LinkedIn", "https://www.linkedin.com/company/yourname"],
-            ["youtube", "YouTube", "https://www.youtube.com/@yourname"],
-            ["tiktok", "TikTok", "https://www.tiktok.com/@yourname"],
-            ["line", "Line", "https://line.me/R/ti/p/@yourid"],
-          ] as const
-        ).map(([key, label, ph]) => (
-          <Field key={key} label={label} htmlFor={`b-${key}`}>
-            <Input id={`b-${key}`} type="url" value={s.business[key]} placeholder={ph} maxLength={300} readOnly={ro} autoComplete="off" onChange={(e) => business({ [key]: e.target.value })} />
-          </Field>
-        ))}
       </section>
 
       <section className="space-y-4">

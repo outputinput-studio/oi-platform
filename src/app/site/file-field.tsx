@@ -61,7 +61,7 @@ export function FileField({ formId, field, inputClass }: { formId: string; field
         required={field.required && files.length === 0}
         disabled={files.length >= MAX_FILES_PER_FIELD}
         onChange={(e) => void add(e.target.files)}
-        className={`${inputClass} h-12 py-2.5 file:mr-3 file:rounded-[5px] file:border-0 file:bg-[var(--accent)] file:px-3 file:py-1.5 file:text-[14px] file:text-white`}
+        className={`${inputClass} h-12 py-2.5 file:mr-3 file:rounded-[5px] file:border-0 file:bg-[var(--accent)] file:px-3 file:py-1.5 file:text-[14px] file:text-[var(--accent-fg)]`}
       />
       {(files.length > 0 || busy > 0) && (
         <ul className="mt-2 space-y-1.5" aria-label="Files added">

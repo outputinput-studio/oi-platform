@@ -103,13 +103,24 @@ test("a PNG with transparency stays a PNG", async ({ page }) => {
   await expect(thumb).toHaveAttribute("src", /\.png$/);
 });
 
-test("a wrong kind of file is refused in plain words", async ({ page }) => {
+test("an SVG logo uploads as it is; one carrying a script is refused in plain words", async ({ page }) => {
   await signInAsOwner(page);
   await page.goto(admin + "/media");
   await page.getByLabel("Choose images to upload").setInputFiles({
-    name: "logo.svg",
+    name: "wordmark - white.svg",
     mimeType: "image/svg+xml",
-    buffer: Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>"),
+    buffer: Buffer.from("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 60'><path d='M0 0h240v60H0z' fill='#fff'/></svg>"),
   });
-  await expect(page.getByText("Use a JPG, PNG, WebP or GIF image.")).toBeVisible();
+  const thumb = page.getByTestId("image-grid").getByRole("button").first().locator("img");
+  await expect(thumb).toHaveAttribute("src", /\.svg$/);
+
+  await page.getByLabel("Choose images to upload").setInputFiles({
+    name: "sneaky.svg",
+    mimeType: "image/svg+xml",
+    buffer: Buffer.from("<svg xmlns='http://www.w3.org/2000/svg' onload='alert(1)'/>"),
+  });
+  await expect(page.getByText(/That SVG can't be used: it has code that runs on events/)).toBeVisible();
+
+  await page.getByLabel("Choose images to upload").setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hi") });
+  await expect(page.getByText("That isn't an image.")).toBeVisible();
 });

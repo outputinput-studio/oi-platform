@@ -3,8 +3,10 @@ import { headers } from "next/headers";
 import { notFound, permanentRedirect } from "next/navigation";
 import { recordNotFound, redirectFor } from "@/modules/redirects/server";
 import { siteFromHost, siteSearch, siteTheme } from "@/modules/sites/server";
-import { businessOf } from "@/modules/sites/business";
-import { socialLinks } from "@/modules/sites/search";
+import { businessOf, tradingName } from "@/modules/sites/business";
+import { publicForm } from "@/modules/forms/server";
+import { StorefrontForm } from "./storefront-form";
+import { SOCIAL_NETWORKS, socialLinks } from "@/modules/sites/search";
 import { mediaUrl } from "@/modules/media/server";
 import { themeVars } from "@/modules/sites/theme";
 import { HOME_SLUG, publishedPage } from "@/modules/pages/server";
@@ -55,7 +57,8 @@ function OrganizationSchema({ site, host }: { site: Site; host: string }) {
     url: `https://${host}/`,
   };
   if (b.description) data.description = b.description;
-  if (b.logo) data.logo = mediaUrl(b.logo.key);
+  const logo = siteTheme(site).logo ?? b.logo;
+  if (logo) data.logo = mediaUrl(logo.key);
   if (profile.phone) data.telephone = profile.phone;
   if (profile.email) data.email = profile.email;
   if (profile.address) data.address = profile.address.replace(/\s*\n\s*/g, ", ");
@@ -107,13 +110,20 @@ export function Frame({
 }) {
   const theme = siteTheme(site);
   const A = preview ? PreviewLink : Link;
+  const b = siteSearch(site).business;
+  const social = SOCIAL_NETWORKS.map(([k, name]) => [name, b[k]] as const).filter(([, href]) => href);
   const on = (href: string) => href === current || (href !== "/" && current.startsWith(href + "/"));
   return (
     <div data-surface="site" data-theme={theme.mode} style={themeVars(theme) as React.CSSProperties} className="flex min-h-screen flex-col bg-[var(--bg)] text-[var(--text)]">
       <header className="border-b border-[var(--border)]">
         <div className="mx-auto flex min-h-16 w-full max-w-5xl items-center justify-between gap-6 px-5 py-3 md:px-8">
           <A href="/" className="flex-none text-[17px] font-semibold tracking-[-0.2px]">
-            {site.name}
+            {theme.logo ? (
+              // eslint-disable-next-line @next/next/no-img-element -- served straight from the bucket
+              <img src={mediaUrl(theme.logo.key)} alt={theme.logo.alt || site.name} width={theme.logo.width} height={theme.logo.height} className="block h-9 w-auto max-w-[200px] object-contain" />
+            ) : (
+              site.name
+            )}
           </A>
           <div className="flex items-center gap-5">
           {menus.header.length > 0 && (
@@ -149,9 +159,20 @@ export function Frame({
             ))}
           </div>
         )}
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-5 py-6 text-[13px] text-[var(--text-muted)] md:px-8">
-          <span>{site.name}</span>
-          <span>© {new Date().getFullYear()}</span>
+        {!preview && theme.footer.newsletterFormId && <FooterForm siteId={site.id} formId={theme.footer.newsletterFormId} heading={theme.footer.newsletterHeading} />}
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-5 py-6 text-[13px] text-[var(--text-muted)] md:px-8">
+          <span>
+            © {new Date().getFullYear()} {tradingName(site)}
+          </span>
+          {social.length > 0 && (
+            <nav aria-label="Social" className="flex flex-wrap gap-x-4 gap-y-1">
+              {social.map(([name, href]) => (
+                <a key={name} href={href} target="_blank" rel="noopener noreferrer" className="hover:text-[var(--text)]">
+                  {name}
+                </a>
+              ))}
+            </nav>
+          )}
         </div>
       </footer>
     </div>
@@ -215,5 +236,17 @@ function ComingSoon({ site }: { site: Site }) {
         <p className="mt-2 text-[var(--text-muted)]">Something is on its way.</p>
       </div>
     </main>
+  );
+}
+
+/** The form at the foot of every page (Settings · Footer), usually a newsletter signup. Nothing if it's gone. */
+async function FooterForm({ siteId, formId, heading }: { siteId: string; formId: string; heading: string }) {
+  const form = await publicForm({ siteId, formId });
+  if (!form) return null;
+  return (
+    <section data-testid="footer-form" className="mx-auto w-full max-w-5xl px-5 pt-8 md:px-8">
+      {heading && <h2 className="mb-3 text-[18px] font-medium">{heading}</h2>}
+      <StorefrontForm form={{ id: form.id, fields: form.fields, buttonText: form.buttonText, afterMessage: form.afterMessage }} />
+    </section>
   );
 }

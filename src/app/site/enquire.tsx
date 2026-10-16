@@ -24,7 +24,7 @@ export function Enquire({ form, productId, sold }: { form: { id: string; fields:
       Want something like this? Enquire
     </button>
   ) : (
-    <button type="button" onClick={() => setOpen(true)} className="mt-5 h-12 w-full rounded-[6px] bg-[var(--accent)] text-[15px] font-medium text-white hover:opacity-90">
+    <button type="button" onClick={() => setOpen(true)} className="mt-5 h-12 w-full rounded-[6px] bg-[var(--accent)] text-[15px] font-medium text-[var(--accent-fg)] hover:opacity-90">
       Enquire about this
     </button>
   );

@@ -29,21 +29,58 @@ test("light with a brand colour, seen on the storefront with its menu", async ({
 
   await signInAsOwner(page);
   await goTo(page, "Settings");
-  await page.getByRole("link", { name: /^Theme/ }).click();
-  const save = page.getByTestId("save-bar").getByRole("button", { name: "Save" });
+  await page.getByRole("link", { name: /^Branding/ }).click();
+  const save = page.getByRole("button", { name: "Saved" });
   await expect(save).toBeDisabled();
-  await page.getByRole("radio", { name: "light" }).click();
-  await page.getByLabel("Colour", { exact: true }).fill("#CC3333");
-  await expect(save).toBeEnabled();
-  await save.click();
-  await expect(page.getByTestId("save-bar")).toContainText("Saved");
-  await expect(save).toBeDisabled();
+  await page.getByRole("button", { name: "Start from light" }).click();
+  await page.getByLabel("Accent", { exact: true }).fill("#CC3333");
+  await expect(page.getByTestId("brand-sample")).toBeVisible();
+  await page.getByRole("button", { name: "Save branding" }).click();
+  await expect(page.getByRole("button", { name: "Saved" })).toBeDisabled();
+
+  // Old links to Theme land on Branding.
+  await page.goto(admin + "/settings/theme");
+  await expect(page).toHaveURL(admin + "/settings/branding");
 
   await page.goto(demo + "/");
   const root = page.locator("[data-surface=site]");
   await expect(root).toHaveAttribute("data-theme", "light");
   await expect(root).toHaveCSS("--accent", "#cc3333");
+  await expect(root).toHaveCSS("--bg", "#faf9f5");
   const menu = page.getByRole("navigation", { name: "Pages" });
   await expect(menu.getByRole("link", { name: "About us" })).toHaveAttribute("href", "/about-us");
   await expect(menu.getByRole("link", { name: "Home" })).toHaveCount(0);
+});
+
+test("hard-to-read colours are flagged before they're saved", async ({ page }) => {
+  await signInAsOwner(page);
+  await page.goto(admin + "/settings/branding");
+  await page.getByLabel("Text", { exact: true }).fill("#eeeeee");
+  await expect(page.getByText("The text may be hard to read")).toBeVisible();
+  await page.getByLabel("Text", { exact: true }).fill("#1b1a17");
+  await expect(page.getByText("The text may be hard to read")).toHaveCount(0);
+});
+
+test("the footer: a newsletter form and social links on every page", async ({ page }) => {
+  await signInAsOwner(page);
+  await page.goto(admin + "/settings");
+  await page.getByRole("link", { name: /^Footer/ }).click();
+  await page.getByRole("radio", { name: /^Enquiry/ }).click(); // made by site-forms.spec
+  await page.getByLabel("Heading above it").fill("Join the list");
+  await page.getByLabel("Instagram").fill("https://www.instagram.com/demosite");
+  await page.getByRole("button", { name: "Save footer" }).click();
+  await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
+
+  await page.goto(demo + "/about-us");
+  const footer = page.locator("footer");
+  await expect(footer.getByTestId("footer-form")).toContainText("Join the list");
+  await expect(footer.getByRole("navigation", { name: "Social" }).getByRole("link", { name: "Instagram" })).toHaveAttribute("href", "https://www.instagram.com/demosite");
+
+  // None takes it out again.
+  await page.goto(admin + "/settings/footer");
+  await page.getByRole("radio", { name: /^None/ }).click();
+  await page.getByRole("button", { name: "Save footer" }).click();
+  await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
+  await page.goto(demo + "/about-us");
+  await expect(page.getByTestId("footer-form")).toHaveCount(0);
 });

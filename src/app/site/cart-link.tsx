@@ -19,7 +19,7 @@ export async function CartLink({ site }: { site: Site }) {
         <path d="M9 7a3 3 0 0 1 6 0" />
       </svg>
       {n > 0 && (
-        <span data-testid="cart-count" aria-hidden className="absolute -right-2 -top-1.5 flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[10.5px] font-semibold leading-none text-white">
+        <span data-testid="cart-count" aria-hidden className="absolute -right-2 -top-1.5 flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[10.5px] font-semibold leading-none text-[var(--accent-fg)]">
           {n}
         </span>
       )}

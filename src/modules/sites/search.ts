@@ -10,12 +10,19 @@ import { imageRef } from "@/modules/pages/registry";
  */
 const url = z.string().trim().max(300).refine((s) => s === "" || /^https?:\/\/\S+$/.test(s), "Paste the full address, starting with https://");
 
-const businessSchema = z.object({
-  name: z.string().trim().max(120).default(""),
-  description: z.string().trim().max(300).default(""),
-  logo: imageRef.nullable().default(null),
-  phone: z.string().trim().max(40).default(""),
-  email: z.string().trim().max(200).refine((s) => s === "" || z.string().email().safeParse(s).success, "That doesn't look like an email address.").default(""),
+/** Social profiles: shown in the footer (Settings · Footer) and given to Google as the business's other homes. */
+export const SOCIAL_NETWORKS = [
+  ["instagram", "Instagram", "https://www.instagram.com/yourname"],
+  ["facebook", "Facebook", "https://www.facebook.com/yourpage"],
+  ["tiktok", "TikTok", "https://www.tiktok.com/@yourname"],
+  ["youtube", "YouTube", "https://www.youtube.com/@yourchannel"],
+  ["x", "X", "https://x.com/yourname"],
+  ["linkedin", "LinkedIn", "https://www.linkedin.com/company/yours"],
+  ["line", "LINE", "https://line.me/R/ti/p/@yourid"],
+] as const;
+export type SocialNetwork = (typeof SOCIAL_NETWORKS)[number][0];
+
+export const socialSchema = z.object({
   facebook: url.default(""),
   instagram: url.default(""),
   x: url.default(""),
@@ -23,6 +30,16 @@ const businessSchema = z.object({
   youtube: url.default(""),
   tiktok: url.default(""),
   line: url.default(""),
+});
+
+const businessSchema = z.object({
+  /** Older sites: name, phone and email now live in Settings · Business profile, the logo in Branding. */
+  name: z.string().trim().max(120).default(""),
+  description: z.string().trim().max(300).default(""),
+  logo: imageRef.nullable().default(null),
+  phone: z.string().trim().max(40).default(""),
+  email: z.string().trim().max(200).refine((s) => s === "" || z.string().email().safeParse(s).success, "That doesn't look like an email address.").default(""),
+  ...socialSchema.shape,
 });
 export type Business = z.infer<typeof businessSchema>;
 
