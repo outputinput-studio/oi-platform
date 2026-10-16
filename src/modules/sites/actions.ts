@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
-import { renameSite, setEnquiryForm, updateSearchSettings, updateShipping, updateShopSettings, updateTheme } from "./server";
+import { renameSite, setEnquiryForm, updateBusiness, updateSearchSettings, updateSending, updateShipping, updateShopSettings, updateStatusNames, updateTheme } from "./server";
 
 export type SettingsFormState = { ok?: string; error?: string };
 
@@ -84,5 +84,48 @@ export async function saveEnquiryFormAction(formId: string | null): Promise<Sett
   } catch (err) {
     if (err instanceof z.ZodError) return { error: "Pick one of your forms." };
     return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+  }
+}
+
+function failed(err: unknown): SettingsFormState {
+  if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "That doesn't look right." };
+  return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+}
+
+/** Settings · Business profile. */
+export async function updateBusinessAction(_prev: SettingsFormState, form: FormData): Promise<SettingsFormState> {
+  const { user, site } = await requireSiteAccess();
+  const s = (k: string) => String(form.get(k) ?? "");
+  try {
+    await updateBusiness({ actorId: user.id, siteId: site.id, business: { tradingName: s("tradingName"), businessNumber: s("businessNumber"), phone: s("phone"), email: s("email"), address: s("address"), hours: s("hours") } });
+    revalidatePath("/", "layout");
+    return { ok: "Saved" };
+  } catch (err) {
+    return failed(err);
+  }
+}
+
+/** Settings · Sending. */
+export async function updateSendingAction(_prev: SettingsFormState, form: FormData): Promise<SettingsFormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await updateSending({ actorId: user.id, siteId: site.id, sending: { fromName: String(form.get("fromName") ?? ""), replyTo: String(form.get("replyTo") ?? "") } });
+    revalidatePath("/", "layout");
+    return { ok: "Saved" };
+  } catch (err) {
+    return failed(err);
+  }
+}
+
+/** Settings · Order statuses. */
+export async function updateStatusNamesAction(_prev: SettingsFormState, form: FormData): Promise<SettingsFormState> {
+  const { user, site } = await requireSiteAccess();
+  const s = (k: string) => String(form.get(k) ?? "");
+  try {
+    await updateStatusNames({ actorId: user.id, siteId: site.id, names: { new: s("new"), inProgress: s("inProgress"), sent: s("sent"), done: s("done") } });
+    revalidatePath("/", "layout");
+    return { ok: "Saved" };
+  } catch (err) {
+    return failed(err);
   }
 }

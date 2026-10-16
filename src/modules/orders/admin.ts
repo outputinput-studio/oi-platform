@@ -7,6 +7,7 @@ import { AccessError, assertAccess } from "@/modules/auth/access";
 import type { OrderItem } from "./server";
 import { siteStripe } from "@/modules/payments/server";
 import { formatPrice, type Currency } from "@/modules/sites/shop";
+import { senderFor } from "@/modules/sites/business";
 
 /**
  * Orders for the team: the queue (New → In progress → Sent → Done), one
@@ -17,7 +18,6 @@ import { formatPrice, type Currency } from "@/modules/sites/shop";
 
 const VISIBLE = ["paid", "refunded"] as const;
 
-export const STATUS_LABEL: Record<OrderStatus, string> = { new: "New", inProgress: "In progress", sent: "Sent", done: "Done" };
 
 export async function listOrders(p: { actorId: string; siteId: string; status?: OrderStatus }): Promise<Order[]> {
   await assertAccess(p.actorId, p.siteId);
@@ -102,7 +102,7 @@ export async function moveOrder(p: { actorId: string; siteId: string; orderId: s
       .where(eq(orders.id, cur.id))
       .returning(),
   );
-  if (c.email) await sendEmail({ to: updated.email, subject: c.email.subject, text: c.email.message });
+  if (c.email) await sendEmail({ to: updated.email, subject: c.email.subject, text: c.email.message, ...senderFor(await siteFor(p.siteId)) });
   return updated;
 }
 
@@ -136,9 +136,10 @@ export function trackingUrl(t: Partial<Tracking>): string | null {
   return null;
 }
 
-export async function siteNameFor(siteId: string): Promise<string> {
-  const [s] = await withSite(siteId, (tx) => tx.select({ name: sites.name }).from(sites).limit(1));
-  return s?.name ?? "";
+/** The site's row, for how its emails are sent (Settings · Sending). */
+async function siteFor(siteId: string): Promise<{ name: string; business: unknown; messages: unknown; search: unknown }> {
+  const [s] = await withSite(siteId, (tx) => tx.select({ name: sites.name, business: sites.business, messages: sites.messages, search: sites.search }).from(sites).limit(1));
+  return s ?? { name: "", business: {}, messages: {}, search: {} };
 }
 
 // ───────────────────────── refunds ─────────────────────────
@@ -205,6 +206,6 @@ export async function refundOrder(p: { actorId: string; siteId: string; orderId:
       .returning();
     return row;
   });
-  if (r.email) await sendEmail({ to: o.email, subject: r.email.subject, text: r.email.message }).catch((err) => console.error("refund email failed", err));
+  if (r.email) await sendEmail({ to: o.email, subject: r.email.subject, text: r.email.message, ...senderFor(await siteFor(p.siteId)) }).catch((err) => console.error("refund email failed", err));
   return updated;
 }

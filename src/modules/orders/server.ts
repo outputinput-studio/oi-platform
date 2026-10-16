@@ -7,6 +7,7 @@ import { COUNTRY_CODES, countryName } from "@/lib/countries";
 import { upsertFromSubmission } from "@/modules/contacts/server";
 import { customerView, makeLine, readPhotos } from "@/modules/products/catalogue";
 import { readShopSettings, formatPrice, type Currency } from "@/modules/sites/shop";
+import { businessOf, senderFor, tradingName } from "@/modules/sites/business";
 import { quoteFor, ratesFor, readShipping } from "@/modules/sites/shipping";
 import { countUse, discountFor } from "@/modules/discounts/server";
 import { taxOn, type CartLine } from "./cart";
@@ -320,13 +321,30 @@ async function sendOrderEmails(site: Site, o: Order, adminUrl?: string) {
       to,
       subject: `New order ${o.number} — ${formatPrice(o.total, cur)} from ${o.name}`,
       text: `${o.name} (${o.email}${o.phone ? `, ${o.phone}` : ""}) just paid for order ${o.number}.\n\n${orderLines(o)}${o.note ? `\n\nTheir note: ${o.note}` : ""}${adminUrl ? `\n\nOpen it: ${adminUrl}/orders/${o.id}` : ""}`,
+      // Hitting reply writes to the customer.
+      replyTo: o.email,
     });
   }
-  await sendEmail({
-    to: o.email,
-    subject: `Thanks ${o.name.split(" ")[0]}, we have your order (${o.number})`,
-    text: `Hi ${o.name.split(" ")[0]},\n\nThanks for your order from ${site.name}. Here's what you bought:\n\n${orderLines(o)}\n\nWe'll be in touch as it moves along.\n\n${site.name}`,
-  });
+  await sendEmail({ to: o.email, ...receiptEmail(site, o), ...senderFor(site) });
+}
+
+/**
+ * The customer's confirmation. With a business number (Settings ·
+ * Business profile) it reads as a tax invoice; a pickup order gets the
+ * address and hours.
+ */
+export function receiptEmail(site: Pick<Site, "name" | "business" | "search">, o: Order): { subject: string; text: string } {
+  const b = businessOf(site);
+  const name = tradingName(site);
+  const first = o.name.split(" ")[0];
+  const pickup = (o.shipping as { kind?: string } | null)?.kind === "pickup" && b.address ? `\n\nPick up from:\n${b.address}${b.hours ? `\n${b.hours}` : ""}` : "";
+  const date = (o.paidAt ?? o.createdAt).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" });
+  const invoice = b.businessNumber ? `\n\nTax invoice · ${name} · ${b.businessNumber}\nOrder ${o.number} · ${date}` : "";
+  const contact = [b.phone, b.email].filter(Boolean).join(" · ");
+  return {
+    subject: `Thanks ${first}, we have your order (${o.number})`,
+    text: `Hi ${first},\n\nThanks for your order from ${name}. Here's what you bought:\n\n${orderLines(o)}${pickup}\n\nWe'll be in touch as it moves along.${invoice}\n\n${name}${contact ? `\n${contact}` : ""}`,
+  };
 }
 
 /** Owners' addresses. Platform tables, so outside withSite(). */

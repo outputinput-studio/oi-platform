@@ -78,3 +78,28 @@ describe("search engines", () => {
     await expect(updateSearchSettings({ actorId: ann, siteId: site, settings: {} })).rejects.toThrow(AccessError);
   });
 });
+
+describe("business profile, sending and order statuses", () => {
+  test("owners only; the profile takes over Search engines' name, phone and email; each save leaves the rest alone", async () => {
+    const { updateBusiness, updateSending, updateStatusNames, updateShopSettings, siteFromHost: fromHost } = await import("@/modules/sites/server");
+    const { readSearchSettings } = await import("@/modules/sites/search");
+    const { readShopSettings } = await import("@/modules/sites/shop");
+    const { AccessError: Denied } = await import("@/modules/auth/access");
+    const ownerId = bob;
+    const staffId = ann;
+    const slug = "theme-a";
+
+    await expect(updateBusiness({ actorId: staffId, siteId: site, business: { tradingName: "Nope" } })).rejects.toBeInstanceOf(Denied);
+    await updateSending({ actorId: ownerId, siteId: site, sending: { fromName: "Theme A", replyTo: "hello@themea.example" } });
+    await expect(updateSending({ actorId: ownerId, siteId: site, sending: { replyTo: "nope" } })).rejects.toThrow(/doesn't look right/);
+    await updateBusiness({ actorId: ownerId, siteId: site, business: { tradingName: "Theme A Pty", businessNumber: "ABN 1", email: "Shop@ThemeA.example" } });
+    await updateStatusNames({ actorId: ownerId, siteId: site, names: { new: "", inProgress: "Making it", sent: "", done: "" } });
+    await updateShopSettings({ actorId: ownerId, siteId: site, settings: { currency: "AUD", pricesIncludeTax: true, taxName: "GST", taxRate: 10 } });
+
+    const s = (await fromHost(`${slug}.localhost`))!;
+    expect(s.business).toMatchObject({ tradingName: "Theme A Pty", businessNumber: "ABN 1", email: "shop@themea.example" });
+    expect(s.messages).toMatchObject({ sending: { fromName: "Theme A", replyTo: "hello@themea.example" } });
+    expect(readSearchSettings(s.search).business).toMatchObject({ name: "", phone: "", email: "", instagram: "https://www.instagram.com/themea" });
+    expect(readShopSettings(s.shop).statusNames).toEqual({ new: "", inProgress: "Making it", sent: "", done: "" });
+  });
+});

@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { notFound, permanentRedirect } from "next/navigation";
 import { recordNotFound, redirectFor } from "@/modules/redirects/server";
 import { siteFromHost, siteSearch, siteTheme } from "@/modules/sites/server";
+import { businessOf } from "@/modules/sites/business";
 import { socialLinks } from "@/modules/sites/search";
 import { mediaUrl } from "@/modules/media/server";
 import { themeVars } from "@/modules/sites/theme";
@@ -46,16 +47,18 @@ export async function Storefront({ slug, requestPath }: { slug: string | null; r
 /** What Google is told about the business, on the front page only: schema.org Organization. */
 function OrganizationSchema({ site, host }: { site: Site; host: string }) {
   const b = siteSearch(site).business;
+  const profile = businessOf(site);
   const data: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: b.name || site.name,
+    name: profile.tradingName || site.name,
     url: `https://${host}/`,
   };
   if (b.description) data.description = b.description;
   if (b.logo) data.logo = mediaUrl(b.logo.key);
-  if (b.phone) data.telephone = b.phone;
-  if (b.email) data.email = b.email;
+  if (profile.phone) data.telephone = profile.phone;
+  if (profile.email) data.email = profile.email;
+  if (profile.address) data.address = profile.address.replace(/\s*\n\s*/g, ", ");
   const same = socialLinks(b);
   if (same.length) data.sameAs = same;
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data).replace(/</g, "\\u003c") }} />;

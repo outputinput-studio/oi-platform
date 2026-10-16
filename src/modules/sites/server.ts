@@ -7,6 +7,7 @@ import { parseTheme, readTheme, type Theme } from "./theme";
 import { readSearchSettings, searchSettingsSchema, type SearchSettings } from "./search";
 import { readShopSettings, shopSettingsSchema, type ShopSettings } from "./shop";
 import { readShipping, shippingSchema, type Shipping } from "./shipping";
+import { businessSchema, sendingSchema, type Business, type Sending } from "./business";
 
 /**
  * A site's own settings. Everything here runs inside withSite(), so the
@@ -84,7 +85,7 @@ export function siteShop(site: Pick<Site, "shop">): ShopSettings {
 /** Owners set the currency and tax: it changes what every price means. The enquiry form is kept as it was. */
 export async function updateShopSettings(p: { actorId: string; siteId: string; settings: unknown }): Promise<ShopSettings> {
   await assertAccess(p.actorId, p.siteId, "owner");
-  const patch = shopSettingsSchema.omit({ enquiryFormId: true }).parse(p.settings);
+  const patch = shopSettingsSchema.omit({ enquiryFormId: true, statusNames: true }).parse(p.settings);
   return withSite(p.siteId, async (tx) => {
     const [cur] = await tx.select({ shop: sites.shop }).from(sites).where(eq(sites.id, p.siteId)).limit(1);
     if (!cur) throw new AccessError("That site doesn't exist.");
@@ -123,4 +124,49 @@ export async function updateShipping(p: { actorId: string; siteId: string; setti
   const [site] = await withSite(p.siteId, (tx) => tx.update(sites).set({ shipping: settings }).where(eq(sites.id, p.siteId)).returning());
   if (!site) throw new AccessError("That site doesn't exist.");
   return settings;
+}
+
+/** Owners rename the four order stages. Empty puts a stage back to its default name. */
+export async function updateStatusNames(p: { actorId: string; siteId: string; names: unknown }): Promise<ShopSettings> {
+  await assertAccess(p.actorId, p.siteId, "owner");
+  const names = shopSettingsSchema.shape.statusNames.parse(p.names);
+  return withSite(p.siteId, async (tx) => {
+    const [cur] = await tx.select({ shop: sites.shop }).from(sites).where(eq(sites.id, p.siteId)).limit(1);
+    if (!cur) throw new AccessError("That site doesn't exist.");
+    const settings = { ...readShopSettings(cur.shop), statusNames: names };
+    await tx.update(sites).set({ shop: settings }).where(eq(sites.id, p.siteId));
+    return settings;
+  });
+}
+
+/** Owners keep the business profile: it signs emails, makes receipts tax invoices, and tells Google who runs the site. */
+export async function updateBusiness(p: { actorId: string; siteId: string; business: unknown }): Promise<Business> {
+  await assertAccess(p.actorId, p.siteId, "owner");
+  const business = businessSchema.parse(p.business);
+  return withSite(p.siteId, async (tx) => {
+    const [cur] = await tx.select({ search: sites.search }).from(sites).where(eq(sites.id, p.siteId)).limit(1);
+    if (!cur) throw new AccessError("That site doesn't exist.");
+    // The profile now owns name, phone and email; Search engines' old copies stop standing in.
+    const search = readSearchSettings(cur.search);
+    await tx
+      .update(sites)
+      .set({ business, search: { ...search, business: { ...search.business, name: "", phone: "", email: "" } } })
+      .where(eq(sites.id, p.siteId));
+    return business;
+  });
+}
+
+/** Owners set how the site's emails read: the name they're from and where replies go. */
+export async function updateSending(p: { actorId: string; siteId: string; sending: unknown }): Promise<Sending> {
+  await assertAccess(p.actorId, p.siteId, "owner");
+  const sending = sendingSchema.parse(p.sending);
+  return withSite(p.siteId, async (tx) => {
+    const [cur] = await tx.select({ messages: sites.messages }).from(sites).where(eq(sites.id, p.siteId)).limit(1);
+    if (!cur) throw new AccessError("That site doesn't exist.");
+    await tx
+      .update(sites)
+      .set({ messages: { ...(cur.messages ?? {}), sending } })
+      .where(eq(sites.id, p.siteId));
+    return sending;
+  });
 }
