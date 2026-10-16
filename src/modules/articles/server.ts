@@ -8,6 +8,8 @@ import { slugFromTitle } from "@/modules/pages/slug";
 import { seoSchema, type Seo } from "@/modules/pages/seo";
 import { autoRedirect } from "@/modules/redirects/server";
 import { readSearchSettings } from "@/modules/sites/search";
+import { articleIsLive, isLive } from "@/modules/pages/live";
+import { scheduleTime } from "@/modules/pages/server";
 
 /**
  * Articles: the site's journal. Same shape as pages — soft delete,
@@ -120,7 +122,7 @@ export async function updateArticle(p: { actorId: string; siteId: string; articl
     // A live article whose address changed — new slug or new main category — keeps its old link working.
     const was = articlePath(row(before));
     const now = articlePath(row(after));
-    if (was !== now && a.status === "published") {
+    if (was !== now && isLive(a)) {
       const [site] = await tx.select({ search: sites.search }).from(sites).limit(1);
       if (!site || readSearchSettings(site.search).autoRedirect) await autoRedirect(tx, { siteId: p.siteId, from: was, to: now });
     }
@@ -128,13 +130,14 @@ export async function updateArticle(p: { actorId: string; siteId: string; articl
   });
 }
 
-export async function setArticleStatus(p: { actorId: string; siteId: string; articleId: string; status: "draft" | "published" }): Promise<ArticleRow> {
+export async function setArticleStatus(p: { actorId: string; siteId: string; articleId: string; status: "draft" | "published" | "scheduled"; at?: Date }): Promise<ArticleRow> {
   await assertAccess(p.actorId, p.siteId);
+  const at = scheduleTime(p.status, p.at);
   return withSite(p.siteId, async (tx) => {
     const a = await load(tx, p.articleId);
     await tx
       .update(articles)
-      .set({ status: p.status, publishedAt: p.status === "published" ? (a.publishedAt ?? new Date()) : a.publishedAt, updatedAt: new Date() })
+      .set({ status: p.status, publishedAt: p.status === "scheduled" ? at : p.status === "published" ? (a.publishedAt ?? new Date()) : a.publishedAt, updatedAt: new Date() })
       .where(eq(articles.id, a.id));
     const [j] = await joined(tx).where(eq(articles.id, a.id)).limit(1);
     return row(j);
@@ -157,8 +160,7 @@ export async function publishedArticles(p: { siteId: string; categoryId?: string
     joined(tx)
       .where(
         and(
-          eq(articles.status, "published"),
-          isNull(articles.deletedAt),
+          articleIsLive(),
           p.categoryId ? sql`(${articles.categoryId} = ${p.categoryId} or ${articles.categoryIds} ? ${p.categoryId})` : undefined,
         ),
       )
@@ -171,7 +173,7 @@ export async function publishedArticles(p: { siteId: string; categoryId?: string
 export async function publishedArticle(p: { siteId: string; slug: string }): Promise<ArticleRow | null> {
   const [j] = await withSite(p.siteId, (tx) =>
     joined(tx)
-      .where(and(eq(articles.slug, p.slug), eq(articles.status, "published"), isNull(articles.deletedAt)))
+      .where(and(eq(articles.slug, p.slug), articleIsLive()))
       .limit(1),
   );
   return j ? row(j) : null;
@@ -180,7 +182,7 @@ export async function publishedArticle(p: { siteId: string; slug: string }): Pro
 /** Whether the storefront menu should show Journal at all. */
 export async function hasPublishedArticles(p: { siteId: string }): Promise<boolean> {
   const [a] = await withSite(p.siteId, (tx) =>
-    tx.select({ id: articles.id }).from(articles).where(and(eq(articles.status, "published"), isNull(articles.deletedAt))).limit(1),
+    tx.select({ id: articles.id }).from(articles).where(articleIsLive()).limit(1),
   );
   return !!a;
 }

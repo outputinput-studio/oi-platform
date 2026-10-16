@@ -5,6 +5,7 @@ import { HOME_SLUG, listPages } from "@/modules/pages/server";
 import { Card, Chips, PageHeader, Pill } from "../../ui";
 import { CONTENT_TABS } from "../content-tabs";
 import { AddPage } from "./add-page";
+import { LocalTime } from "../local-time";
 
 export const dynamic = "force-dynamic";
 
@@ -37,10 +38,18 @@ export default async function PagesPage() {
                   <Card className="p-[14px] hover:bg-hover">
                     <div className="flex items-center justify-between gap-2.5">
                       <span className="truncate text-[15px] font-medium">{p.title}</span>
-                      {p.status === "published" ? <Pill tone="success">Live</Pill> : <Pill tone="neutral">Draft</Pill>}
+                      {p.status === "published" ? <Pill tone="success">Live</Pill> : p.status === "scheduled" ? <Pill tone="warning">Scheduled</Pill> : <Pill tone="neutral">Draft</Pill>}
                     </div>
                     <p className="mt-1.5 font-mono text-[12.5px] text-muted">{p.slug === HOME_SLUG ? "/" : `/${p.slug}`}</p>
-                    <p className="mt-1.5 text-[12px] text-muted">Edited {timeAgo(p.updatedAt)}</p>
+                    <p className="mt-1.5 text-[12px] text-muted">
+                      {p.status === "scheduled" && p.publishedAt ? (
+                        <>
+                          Goes live <LocalTime iso={p.publishedAt.toISOString()} />
+                        </>
+                      ) : (
+                        `Edited ${timeAgo(p.updatedAt)}`
+                      )}
+                    </p>
                   </Card>
                 </Link>
               </li>

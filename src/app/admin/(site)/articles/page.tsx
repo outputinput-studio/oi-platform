@@ -6,6 +6,7 @@ import { mediaUrl } from "@/modules/media/server";
 import { Card, Chips, PageHeader, Pill } from "../../ui";
 import { CONTENT_TABS } from "../content-tabs";
 import { AddArticle } from "./add-article";
+import { LocalTime } from "../local-time";
 
 export const dynamic = "force-dynamic";
 
@@ -47,11 +48,19 @@ export default async function ArticlesPage() {
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center justify-between gap-2.5">
                           <span className="truncate text-[15px] font-medium">{a.title}</span>
-                          {a.status === "published" ? <Pill tone="success">Live</Pill> : <Pill tone="neutral">Draft</Pill>}
+                          {a.status === "published" ? <Pill tone="success">Live</Pill> : a.status === "scheduled" ? <Pill tone="warning">Scheduled</Pill> : <Pill tone="neutral">Draft</Pill>}
                         </span>
                         <span className="mt-1.5 block truncate font-mono text-[12.5px] text-muted">{articlePath(a)}</span>
                         <span className="mt-1.5 block text-[12px] text-muted">
-                          {a.publishedAt ? date(a.publishedAt) : `Edited ${timeAgo(a.updatedAt)}`}
+                          {a.status === "scheduled" && a.publishedAt ? (
+                            <>
+                              Goes live <LocalTime iso={a.publishedAt.toISOString()} />
+                            </>
+                          ) : a.publishedAt ? (
+                            date(a.publishedAt)
+                          ) : (
+                            `Edited ${timeAgo(a.updatedAt)}`
+                          )}
                         </span>
                       </span>
                     </Card>

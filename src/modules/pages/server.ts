@@ -5,6 +5,7 @@ import { pages, sections, sites, type Page, type Section } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { isSectionType, parseSectionData, type SectionType } from "./registry";
 import { slugFromTitle } from "./slug";
+import { isLive, pageIsLive } from "./live";
 import { seoSchema, type Seo } from "./seo";
 import { autoRedirect } from "@/modules/redirects/server";
 import { readSearchSettings } from "@/modules/sites/search";
@@ -92,7 +93,7 @@ export async function updatePage(p: {
       .where(eq(pages.id, page.id))
       .returning();
     // A live page renamed: keep the old link working, unless the owner turned that off.
-    if (patch.slug && patch.slug !== page.slug && page.status === "published" && (await wantsAutoRedirect(tx))) {
+    if (patch.slug && patch.slug !== page.slug && isLive(page) && (await wantsAutoRedirect(tx))) {
       await autoRedirect(tx, { siteId: p.siteId, from: `/${page.slug}`, to: patch.slug === HOME_SLUG ? "/" : `/${patch.slug}` });
     }
     return updated;
@@ -103,16 +104,19 @@ export async function setPageStatus(p: {
   actorId: string;
   siteId: string;
   pageId: string;
-  status: "draft" | "published";
+  status: "draft" | "published" | "scheduled";
+  /** For scheduled: when it goes live. Must be in the future. */
+  at?: Date;
 }): Promise<Page> {
   await assertAccess(p.actorId, p.siteId);
+  const at = scheduleTime(p.status, p.at);
   return withSite(p.siteId, async (tx) => {
     const page = await loadPage(tx, p.pageId);
     const [updated] = await tx
       .update(pages)
       .set({
         status: p.status,
-        publishedAt: p.status === "published" ? (page.publishedAt ?? new Date()) : page.publishedAt,
+        publishedAt: p.status === "scheduled" ? at : p.status === "published" ? (page.publishedAt ?? new Date()) : page.publishedAt,
         updatedAt: new Date(),
       })
       .where(eq(pages.id, page.id))
@@ -244,7 +248,7 @@ export async function publishedPage(p: { siteId: string; slug: string }): Promis
     const [page] = await tx
       .select()
       .from(pages)
-      .where(and(eq(pages.slug, p.slug), eq(pages.status, "published"), isNull(pages.deletedAt)))
+      .where(and(eq(pages.slug, p.slug), pageIsLive()))
       .limit(1);
     if (!page) return null;
     const secs = await liveSections(tx, page.id);
@@ -258,7 +262,7 @@ export async function publishedPages(p: { siteId: string }): Promise<Pick<Page, 
     tx
       .select({ id: pages.id, slug: pages.slug, title: pages.title })
       .from(pages)
-      .where(and(eq(pages.status, "published"), isNull(pages.deletedAt)))
+      .where(pageIsLive())
       .orderBy(asc(pages.position), asc(pages.createdAt)),
   );
 }
@@ -309,4 +313,12 @@ async function assertSlugFree(tx: Tx, slug: string) {
 async function wantsAutoRedirect(tx: Tx): Promise<boolean> {
   const [site] = await tx.select({ search: sites.search }).from(sites).limit(1);
   return site ? readSearchSettings(site.search).autoRedirect : true;
+}
+
+/** A scheduled time has to be real and ahead of us; other statuses carry none. */
+export function scheduleTime(status: string, at?: Date): Date | undefined {
+  if (status !== "scheduled") return undefined;
+  if (!at || Number.isNaN(at.getTime())) throw new Error("Pick a date and time.");
+  if (at.getTime() <= Date.now()) throw new Error("That time has already passed. Pick one ahead, or just publish it now.");
+  return at;
 }

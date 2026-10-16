@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { saveArticleAction } from "@/modules/articles/actions";
+import { publishArticleAction, saveArticleAction } from "@/modules/articles/actions";
+import { PublishingCard, type PublishStatus } from "../../publishing-card";
 import type { ImageRef } from "@/modules/pages/registry";
 import { slugFromTitle } from "@/modules/pages/slug";
 import type { Seo } from "@/modules/pages/seo";
@@ -38,7 +39,7 @@ export function ArticleEditor({
   categories,
   actions,
 }: {
-  article: Draft & { id: string; coverUrl?: string; live: boolean; path: string };
+  article: Draft & { id: string; coverUrl?: string; status: PublishStatus; scheduledAt: string | null; path: string };
   categories: { id: string; name: string; slug: string }[];
   seo: { initial: Seo; imageUrl?: string; fallback: { title: string; description: string; imageUrl?: string } };
   siteName: string;
@@ -103,12 +104,12 @@ export function ArticleEditor({
             </span>
             <form action={actions.setStatus} className="flex items-center gap-2">
               <input type="hidden" name="articleId" value={article.id} />
-              <input type="hidden" name="status" value={article.live ? "draft" : "published"} />
+              <input type="hidden" name="status" value={(article.status === "published") ? "draft" : "published"} />
               <span data-testid="article-status" className="sr-only">
-                {article.live ? "Live" : "Draft"}
+                {article.status === "published" ? "Live" : article.status === "scheduled" ? "Scheduled" : "Draft"}
               </span>
-              <Button type="submit" size="sm" variant={article.live ? "secondary" : "primary"}>
-                {article.live ? "Unpublish" : "Publish"}
+              <Button type="submit" size="sm" variant={(article.status === "published") ? "secondary" : "primary"}>
+                {(article.status === "published") ? "Unpublish" : "Publish"}
               </Button>
             </form>
           </>
@@ -123,7 +124,7 @@ export function ArticleEditor({
               maxLength={160}
               onChange={(e) => {
                 const title = e.target.value;
-                change(slugTouched || article.live ? { title } : { title, slug: slugFromTitle(title) });
+                change(slugTouched || (article.status === "published") ? { title } : { title, slug: slugFromTitle(title) });
               }}
             />
           </Field>
@@ -217,10 +218,13 @@ export function ArticleEditor({
                 }}
               />
             </Field>
-            {article.live && <p className="mt-2 text-[12.5px] text-warning">It&apos;s live: changing the address breaks any link already shared.</p>}
+            {(article.status === "published") && <p className="mt-2 text-[12.5px] text-warning">It&apos;s live: changing the address breaks any link already shared.</p>}
           </div>
 
           <div className="mt-6">
+            <PublishingCard status={article.status} scheduledAt={article.scheduledAt} onChange={(st, at) => publishArticleAction(article.id, st, at)} />
+          </div>
+          <div className="mt-3">
             <SeoCard
               initial={seo.initial}
               imageUrl={seo.imageUrl}

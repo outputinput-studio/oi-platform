@@ -32,7 +32,8 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
       page={{ id: page.id, title: page.title, slug: page.slug }}
       sections={sections}
       isHome={page.slug === HOME_SLUG}
-      live={page.status === "published"}
+      status={page.status}
+      scheduledAt={page.status === "scheduled" && page.publishedAt ? page.publishedAt.toISOString() : null}
       mediaAvailable={mediaAvailable()}
       forms={forms.map((f) => ({ id: f.id, name: f.name }))}
       siteUrl={siteUrl}

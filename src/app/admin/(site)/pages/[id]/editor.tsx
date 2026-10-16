@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { reorderSectionsAction, savePageSeoAction, savePageTitleAction } from "@/modules/pages/actions";
+import { publishPageAction, reorderSectionsAction, savePageSeoAction, savePageTitleAction } from "@/modules/pages/actions";
+import { PublishingCard, type PublishStatus } from "../../publishing-card";
 import type { Seo } from "@/modules/pages/seo";
 import { SeoCard } from "../../seo-card";
 import { SortableItem, SortableList } from "../../../sortable";
@@ -26,7 +27,8 @@ export function Editor({
   page,
   sections,
   isHome,
-  live,
+  status,
+  scheduledAt,
   mediaAvailable,
   forms,
   siteUrl,
@@ -36,7 +38,8 @@ export function Editor({
   page: { id: string; title: string; slug: string };
   sections: EditorSection[];
   isHome: boolean;
-  live: boolean;
+  status: PublishStatus;
+  scheduledAt: string | null;
   mediaAvailable: boolean;
   /** The site's forms, for the Form section to pick from. */
   forms: FormOption[];
@@ -126,12 +129,12 @@ export function Editor({
             <SaveStatus status={overall} />
             <form action={actions.setStatus} className="flex items-center gap-2">
               <input type="hidden" name="pageId" value={page.id} />
-              <input type="hidden" name="status" value={live ? "draft" : "published"} />
+              <input type="hidden" name="status" value={status === "published" ? "draft" : "published"} />
               <span data-testid="page-status" className="sr-only">
-                {live ? "Live" : "Draft"}
+                {status === "published" ? "Live" : status === "scheduled" ? "Scheduled" : "Draft"}
               </span>
-              <Button type="submit" size="sm" variant={live ? "secondary" : "primary"}>
-                {live ? "Unpublish" : "Publish"}
+              <Button type="submit" size="sm" variant={status === "published" ? "secondary" : "primary"}>
+                {status === "published" ? "Unpublish" : "Publish"}
               </Button>
             </form>
           </>
@@ -177,6 +180,9 @@ export function Editor({
         </section>
 
         <div className="mt-6">
+          <PublishingCard status={status} scheduledAt={scheduledAt} onChange={(st, at) => publishPageAction(page.id, st, at)} />
+        </div>
+        <div className="mt-3">
           <SeoCard
             initial={seo.initial}
             imageUrl={seo.imageUrl}

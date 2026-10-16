@@ -1,3 +1,4 @@
+import { isLive } from "@/modules/pages/live";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { listMedia } from "@/modules/media/server";
 import { listPages } from "@/modules/pages/server";
@@ -17,7 +18,7 @@ export default async function AdminHome() {
     listPages({ actorId: user.id, siteId: site.id }),
     listMedia({ actorId: user.id, siteId: site.id }),
   ]);
-  const live = pages.filter((p) => p.status === "published").length;
+  const live = pages.filter((p) => isLive(p)).length;
   const drafts = pages.length - live;
 
   return (

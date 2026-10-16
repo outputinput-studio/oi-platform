@@ -41,7 +41,7 @@ test("write an article, publish it, read it", async ({ page }) => {
   const res = await page.request.get(base + "/journal/our-first-delivery-to-krabi", { headers: { host: "demo.localhost" } });
   expect(res.status()).toBe(404);
 
-  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByTestId("article-status")).toHaveText("Live");
 
   await page.goto(demo + "/");

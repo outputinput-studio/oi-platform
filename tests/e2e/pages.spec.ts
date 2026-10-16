@@ -56,7 +56,7 @@ test("build the front page and publish it", async ({ page }) => {
   expect(res.status()).toBe(200);
   expect(await res.text()).not.toContain("Welcome to the demo");
 
-  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByTestId("page-status")).toHaveText("Live");
 
   // Live: the storefront shows both sections, statement first.
@@ -78,7 +78,7 @@ test("a second page at its own address; a wrong address has a way out", async ({
   await page.getByRole("dialog").getByRole("button", { name: /^Text/ }).click();
   await page.getByTestId("section-0").getByLabel("Text").fill("Founded in a shed.\n\nStill in the shed.");
   await expect(page.getByTestId("section-0").getByTestId("save-status")).toHaveText("Saved");
-  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByTestId("page-status")).toHaveText("Live");
 
   await page.goto(demo + "/about-us");
@@ -122,6 +122,30 @@ test("sections can be dragged into a new order", async ({ page }) => {
   await dragDown(page, page.getByTestId("section-0").getByRole("button", { name: "Drag to reorder" }));
   await expect(page.getByTestId("section-0")).toContainText("Statement");
   await expect(page.getByTestId("page-save-status")).toHaveText("✓ Saved");
+});
+
+test("a page can be scheduled, and waits", async ({ page, request }) => {
+  await signInAsOwner(page);
+  await page.goto(admin + "/pages");
+  await page.getByTestId("page-about-us").click();
+  await page.getByRole("button", { name: "Publishing" }).click();
+  await page.getByRole("radio", { name: "Scheduled" }).click();
+  const tomorrow = new Date(Date.now() + 86_400_000);
+  await page.getByLabel("Date").fill(tomorrow.toISOString().slice(0, 10));
+  await page.getByLabel("Time").fill("09:00");
+  await page.getByRole("button", { name: "Schedule it" }).click();
+  await expect(page.getByTestId("publish-summary")).toContainText("Goes live");
+  await expect(page.getByTestId("page-status")).toHaveText("Scheduled");
+  // Not on the site yet, and no longer in the menu.
+  const res = await request.get(base + "/about-us", { headers: { host: "demo.localhost" }, maxRedirects: 0 });
+  expect(res.status()).toBe(404);
+  await page.goto(admin + "/pages");
+  await expect(page.getByTestId("page-about-us")).toContainText("Scheduled");
+  await expect(page.getByTestId("page-about-us")).toContainText("Goes live");
+  // Back to live for the tests that follow.
+  await page.getByTestId("page-about-us").click();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(page.getByTestId("page-status")).toHaveText("Live");
 });
 
 test("a wrong save shows Retry, not silence", async ({ page }) => {
