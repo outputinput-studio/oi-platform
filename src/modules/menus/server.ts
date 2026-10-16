@@ -1,7 +1,7 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { withSite, type Tx } from "@/db/client";
-import { articleCategories, articles, menus, pages, type Menu, type MenuKind } from "@/db/schema";
+import { articleCategories, articles, menus, pages, productCategories, products, type Menu, type MenuKind } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { HOME_SLUG } from "@/modules/pages/server";
 import { isLive } from "@/modules/pages/live";
@@ -13,7 +13,7 @@ import { menuSettingsSchema, menuSummary, navTree, newItemId, readItems, type Li
  * can add more, and each extra one is another column in the footer.
  *
  * A header nobody has touched has no row: the site shows the automatic
- * menu (every live page, then Journal when there's something to read),
+ * menu (every live page, then Shop and Journal when they have something in them),
  * and the editor opens with those same items so what you see is what's
  * live. The first save makes it the team's own. "Back to automatic"
  * removes the row again.
@@ -44,7 +44,7 @@ export async function listMenus(p: { actorId: string; siteId: string }): Promise
     const views = [fixed(rows, "header", targets), fixed(rows, "footer", targets), ...rows.filter((r) => r.kind === "custom").map(view)];
     return views.map((v) => {
       const s = menuSummary(v.items, targets);
-      return { ...v, summary: v.automatic ? "Automatic · every live page, then Journal" : s.text, broken: s.broken };
+      return { ...v, summary: v.automatic ? "Automatic · every live page, then Shop and Journal" : s.text, broken: s.broken };
     });
   });
 }
@@ -167,16 +167,17 @@ function fixed(rows: Menu[], kind: "header" | "footer", t: LinkTargets): MenuVie
   return { key: "header", kind, name: FIXED_NAMES.header, items: automaticItems(t), automatic: true };
 }
 
-/** Every live page except the front page, in the Pages order; then Journal when there's a live article. */
+/** Every live page except the front page, in the Pages order; then Shop when there's a visible product, Journal when there's a live article. */
 function automaticItems(t: LinkTargets): MenuItem[] {
   const items: MenuItem[] = t.pages.filter((pg) => pg.live && pg.path !== "/").map((pg) => ({ id: newItemId(), label: "", link: { type: "page", pageId: pg.id }, depth: 0 }));
+  if (t.products.some((p) => p.live)) items.push({ id: newItemId(), label: "", link: { type: "shop" }, depth: 0 });
   if (t.articles.some((a) => a.live)) items.push({ id: newItemId(), label: "", link: { type: "journal" }, depth: 0 });
   return items;
 }
 
 /** Everything a menu can point at on this site, with whether it's live. Deleted things aren't here, so links to them read as gone. */
 async function linkTargets(tx: Tx): Promise<LinkTargets> {
-  const [pg, cats, arts] = await Promise.all([
+  const [pg, cats, arts, pcats, prods] = await Promise.all([
     tx
       .select({ id: pages.id, title: pages.title, slug: pages.slug, status: pages.status, publishedAt: pages.publishedAt })
       .from(pages)
@@ -193,6 +194,12 @@ async function linkTargets(tx: Tx): Promise<LinkTargets> {
       .leftJoin(articleCategories, and(eq(articleCategories.id, articles.categoryId), isNull(articleCategories.deletedAt)))
       .where(isNull(articles.deletedAt))
       .orderBy(asc(articles.title)),
+    tx
+      .select({ id: productCategories.id, name: productCategories.name, slug: productCategories.slug })
+      .from(productCategories)
+      .where(isNull(productCategories.deletedAt))
+      .orderBy(asc(productCategories.position), asc(productCategories.createdAt)),
+    tx.select({ id: products.id, name: products.name, slug: products.slug, visible: products.visible }).from(products).where(isNull(products.deletedAt)).orderBy(asc(products.name)),
   ]);
   return {
     pages: pg.map((x) => ({ id: x.id, title: x.title, path: x.slug === HOME_SLUG ? "/" : `/${x.slug}`, live: isLive(x) })),
@@ -203,5 +210,7 @@ async function linkTargets(tx: Tx): Promise<LinkTargets> {
       path: articlePath({ slug: a.slug, category: a.catId && a.catSlug && a.catName ? { id: a.catId, slug: a.catSlug, name: a.catName } : null }),
       live: isLive(a),
     })),
+    productCategories: pcats.map((c) => ({ id: c.id, name: c.name, path: `/shop/${c.slug}` })),
+    products: prods.map((p) => ({ id: p.id, title: p.name, path: `/shop/${p.slug}`, live: p.visible })),
   };
 }

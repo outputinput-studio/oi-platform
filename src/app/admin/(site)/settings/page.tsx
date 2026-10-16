@@ -1,5 +1,5 @@
 import { requireSiteAccess } from "@/modules/auth/access";
-import { siteSearch, siteTheme } from "@/modules/sites/server";
+import { siteSearch, siteShop, siteTheme } from "@/modules/sites/server";
 import { Label, PageHeader, Row, Rows } from "../../ui";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +23,12 @@ export default async function SettingsPage() {
             <Row title="Search engines" detail={siteSearch(site).hideFromSearch ? "Hidden from Google" : "Sitemap, title pattern, sharing image"} href="/settings/search" />
             <Row title="Redirects" detail="Old addresses, pointed somewhere useful" href="/settings/redirects" />
             <Row title="Team" detail={role === "owner" ? "Who can sign in, and as what" : "Who can sign in"} href="/team" />
+          </Rows>
+        </section>
+        <section>
+          <Label>Selling</Label>
+          <Rows>
+            <Row title="Tax and currency" detail={`${siteShop(site).currency} · prices ${siteShop(site).pricesIncludeTax ? "include" : "don't include"} ${siteShop(site).taxName}`} href="/settings/shop" />
           </Rows>
         </section>
         <section>

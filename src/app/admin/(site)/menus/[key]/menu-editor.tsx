@@ -127,7 +127,7 @@ export function MenuEditor({
       <div className="max-w-[640px] pt-5 md:pt-6">
         {isAutomatic && (
           <p data-testid="automatic-note" className="mb-5 rounded-card border border-line bg-sunken px-4 py-3 text-[13px] leading-[1.5] text-body">
-            This is the automatic menu: every live page, then Journal. Change anything and it&apos;s yours — after that, new pages wait for you to add them here.
+            This is the automatic menu: every live page, then Shop and Journal when they have something in them. Change anything and it&apos;s yours — after that, new pages wait for you to add them here.
           </p>
         )}
         <Field label="Menu name" htmlFor="menu-name" hint={fixedName ? "This one always exists, so the name stays." : "The heading of its column in the footer."}>
@@ -217,7 +217,7 @@ export function MenuEditor({
               <Button type="submit" variant="quiet" size="sm">
                 Back to automatic
               </Button>
-              <p className="mt-2 text-[12.5px] text-muted">Every live page, then Journal — and new pages join by themselves again. What&apos;s here now is thrown away.</p>
+              <p className="mt-2 text-[12.5px] text-muted">Every live page, then Shop and Journal — and new pages join by themselves again. What&apos;s here now is thrown away.</p>
             </form>
           </>
         )}

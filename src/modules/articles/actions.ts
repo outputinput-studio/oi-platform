@@ -71,7 +71,7 @@ export async function deleteArticleAction(form: FormData): Promise<void> {
 export async function createCategoryAction(_prev: FormState, form: FormData): Promise<FormState> {
   const { user, site } = await requireSiteAccess();
   try {
-    const c = await createCategory({ actorId: user.id, siteId: site.id, name: String(form.get("name") ?? ""), slug: String(form.get("slug") ?? "") });
+    const c = await createCategory({ actorId: user.id, siteId: site.id, name: String(form.get("name") ?? ""), slug: String(form.get("slug") ?? ""), description: String(form.get("description") ?? "") });
     revalidatePath("/articles/categories");
     return { ok: `${c.name} added.` };
   } catch (err) {

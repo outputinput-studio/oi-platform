@@ -29,7 +29,7 @@ const useFolded = () => useSyncExternalStore(subscribe, readFolded, () => false)
  * Primary navigation, following design/admin.html.
  *
  * Laptop: a sidebar with the wordmark, one row per area, and the signed-in
- * person at the bottom. Phone: a tab bar with Home, Content, Images and
+ * person at the bottom. Phone: a tab bar with Home, Content, Inbox, Products and
  * More, where More opens a sheet with the rest. One <nav>, two lists,
  * CSS picks which shows, so there is exactly one "Team" link on the page.
  *
@@ -41,9 +41,10 @@ const primary: Item[] = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/pages", label: "Content", icon: ContentIcon, hint: "Pages" },
   { href: "/inbox", label: "Inbox", icon: InboxIcon },
-  { href: "/media", label: "Images", icon: ImageIcon },
+  { href: "/products", label: "Products", icon: TagIcon },
 ];
 const secondary: Item[] = [
+  { href: "/media", label: "Images", icon: ImageIcon },
   { href: "/contacts", label: "Contacts", icon: ContactsIcon },
   { href: "/team", label: "Team", icon: PeopleIcon },
   { href: "/settings", label: "Settings", icon: CogIcon },
@@ -297,6 +298,14 @@ function InboxIcon({ size }: IconProps) {
   );
 }
 
+function TagIcon({ size }: IconProps) {
+  return (
+    <svg {...svg(size)}>
+      <path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z" />
+      <circle cx="7.5" cy="7.5" r="1.5" />
+    </svg>
+  );
+}
 function ImageIcon({ size }: IconProps) {
   return (
     <svg {...svg(size)}>

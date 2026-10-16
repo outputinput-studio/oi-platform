@@ -19,6 +19,9 @@ export const linkSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("journal") }),
   z.object({ type: z.literal("articleCategory"), categoryId: uuid }),
   z.object({ type: z.literal("article"), articleId: uuid }),
+  z.object({ type: z.literal("shop") }),
+  z.object({ type: z.literal("productCategory"), categoryId: uuid }),
+  z.object({ type: z.literal("product"), productId: uuid }),
   z.object({
     type: z.literal("url"),
     url: z
@@ -73,6 +76,9 @@ export type LinkTargets = {
   pages: { id: string; title: string; path: string; live: boolean }[];
   categories: { id: string; name: string; path: string }[];
   articles: { id: string; title: string; path: string; live: boolean }[];
+  productCategories: { id: string; name: string; path: string }[];
+  /** live: visible on the site. */
+  products: { id: string; title: string; path: string; live: boolean }[];
 };
 
 export type Described = {
@@ -106,6 +112,18 @@ export function describeLink(link: MenuLink, t: LinkTargets): Described {
       const a = t.articles.find((x) => x.id === link.articleId);
       if (!a) return { kind: "Article", title: "", href: null, external: false, newTab: false, problem: "gone" };
       return { kind: "Article", title: a.title, href: a.path, external: false, newTab: false, problem: a.live ? undefined : "notLive" };
+    }
+    case "shop":
+      return { kind: "Shop", title: "Shop", href: "/shop", external: false, newTab: false };
+    case "productCategory": {
+      const c = t.productCategories.find((x) => x.id === link.categoryId);
+      if (!c) return { kind: "Product category", title: "", href: null, external: false, newTab: false, problem: "gone" };
+      return { kind: "Product category", title: c.name, href: c.path, external: false, newTab: false };
+    }
+    case "product": {
+      const p = t.products.find((x) => x.id === link.productId);
+      if (!p) return { kind: "Product", title: "", href: null, external: false, newTab: false, problem: "gone" };
+      return { kind: "Product", title: p.title, href: p.path, external: false, newTab: false, problem: p.live ? undefined : "notLive" };
     }
     case "url":
       return { kind: "Web address", title: link.url.replace(/^(https?:\/\/|mailto:|tel:)/i, "").replace(/\/$/, ""), href: link.url, external: true, newTab: link.newTab };

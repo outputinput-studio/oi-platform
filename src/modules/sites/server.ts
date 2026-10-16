@@ -5,6 +5,7 @@ import { sites, type Site } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { parseTheme, readTheme, type Theme } from "./theme";
 import { readSearchSettings, searchSettingsSchema, type SearchSettings } from "./search";
+import { readShopSettings, shopSettingsSchema, type ShopSettings } from "./shop";
 
 /**
  * A site's own settings. Everything here runs inside withSite(), so the
@@ -70,6 +71,20 @@ export async function updateSearchSettings(p: { actorId: string; siteId: string;
   await assertAccess(p.actorId, p.siteId, "owner");
   const settings = searchSettingsSchema.parse(p.settings);
   const [site] = await withSite(p.siteId, (tx) => tx.update(sites).set({ search: settings }).where(eq(sites.id, p.siteId)).returning());
+  if (!site) throw new AccessError("That site doesn't exist.");
+  return settings;
+}
+
+/** The site's currency and tax, with defaults filled in. */
+export function siteShop(site: Pick<Site, "shop">): ShopSettings {
+  return readShopSettings(site.shop);
+}
+
+/** Owners set the currency and tax: it changes what every price means. */
+export async function updateShopSettings(p: { actorId: string; siteId: string; settings: unknown }): Promise<ShopSettings> {
+  await assertAccess(p.actorId, p.siteId, "owner");
+  const settings = shopSettingsSchema.parse(p.settings);
+  const [site] = await withSite(p.siteId, (tx) => tx.update(sites).set({ shop: settings }).where(eq(sites.id, p.siteId)).returning());
   if (!site) throw new AccessError("That site doesn't exist.");
   return settings;
 }

@@ -8,7 +8,7 @@ import { SortableItem, SortableList } from "../../../sortable";
 
 export type CategoryCard = { id: string; name: string; slug: string; description: string; articleCount: number };
 
-/** "Add category": name, with the address suggested from it. */
+/** "Add category": name, address (suggested from the name) and description, all in one go. */
 export function AddCategory() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -58,6 +58,9 @@ export function AddCategory() {
                   setSlug(e.target.value);
                 }}
               />
+            </Field>
+            <Field label="Description" htmlFor="c-desc" hint="A line under the heading on the category's page. Optional.">
+              <Textarea id="c-desc" name="description" rows={2} maxLength={300} />
             </Field>
             <Notice error={state.error} />
             <Button type="submit" disabled={pending} className="w-full">
