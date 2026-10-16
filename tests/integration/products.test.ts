@@ -5,10 +5,11 @@
 import { beforeAll, afterAll, describe, expect, test } from "vitest";
 import { Pool } from "pg";
 import { AccessError } from "@/modules/auth/access";
-import { createProduct, deleteProduct, getProduct, hasPublishedProducts, listProducts, publishedProduct, publishedProducts, updateProduct } from "@/modules/products/server";
+import { createProduct, deleteProduct, detailRowUsage, getProduct, hasPublishedProducts, listProducts, publishedProduct, publishedProducts, updateProduct } from "@/modules/products/server";
 import { createProductCategory, deleteProductCategory, listProductCategories, publishedProductCategories, updateProductCategory } from "@/modules/products/categories";
 import { redirectFor } from "@/modules/redirects/server";
-import { updateShopSettings } from "@/modules/sites/server";
+import { siteFromHost, siteShop, updateDetailRows, updateShopSettings } from "@/modules/sites/server";
+import { readProductDetails, resolveDetails } from "@/modules/products/details";
 
 const owner = new Pool({ connectionString: process.env.MIGRATE_DATABASE_URL, max: 1 });
 let siteA = "";
@@ -92,5 +93,40 @@ describe("products", () => {
 
     await deleteProduct({ actorId: ann, siteId: siteA, productId: bikini });
     expect(await publishedProducts({ siteId: siteA })).toEqual([]);
+  });
+});
+
+describe("product details", () => {
+  const rows = [
+    { id: "materials", title: "Materials", text: "Thermo-pine and stainless steel." },
+    { id: "delivery", kind: "delivery", title: "Delivery" },
+  ];
+
+  test("only owners write the rows; ids are unique and one delivery row is enough", async () => {
+    await expect(updateDetailRows({ actorId: ann, siteId: siteA, rows })).rejects.toBeInstanceOf(AccessError);
+    await expect(updateDetailRows({ actorId: bob, siteId: siteB, rows: [rows[0], { ...rows[0], title: "Again" }] })).rejects.toThrow(/share an id/);
+    await expect(updateDetailRows({ actorId: bob, siteId: siteB, rows: [rows[1], { ...rows[1], id: "post" }] })).rejects.toThrow(/One delivery row/);
+    await expect(updateDetailRows({ actorId: bob, siteId: siteB, rows: [{ id: "x", title: "" }] })).rejects.toThrow();
+    expect((await updateDetailRows({ actorId: bob, siteId: siteB, rows })).detailRows.map((r) => r.id)).toEqual(["materials", "delivery"]);
+    // Saving the shop's money settings leaves the rows alone.
+    await updateShopSettings({ actorId: bob, siteId: siteB, settings: { currency: "AUD", taxName: "GST", taxRate: 10 } });
+    const site = await siteFromHost("products-b.localhost");
+    expect(site && siteShop(site).detailRows.map((r) => r.title)).toEqual(["Materials", "Delivery"]);
+  });
+
+  test("a product changes or hides a row for itself; the settings screen counts who did", async () => {
+    const sauna = await createProduct({ actorId: bob, siteId: siteB, name: "Barrel sauna" });
+    const other = await createProduct({ actorId: bob, siteId: siteB, name: "Cold plunge" });
+    await updateProduct({ actorId: bob, siteId: siteB, productId: sauna.id, edit: { visible: true, details: { materials: { mode: "custom", text: "Red cedar." }, delivery: { mode: "hidden" } } } });
+    await updateProduct({ actorId: bob, siteId: siteB, productId: other.id, edit: { details: { materials: { mode: "hidden" } } } });
+    await expect(updateProduct({ actorId: bob, siteId: siteB, productId: other.id, edit: { details: { materials: { mode: "explode" } } } })).rejects.toThrow();
+
+    const shown = await publishedProduct({ siteId: siteB, slug: "barrel-sauna" });
+    const site = await siteFromHost("products-b.localhost");
+    expect(resolveDetails(siteShop(site!).detailRows, readProductDetails(shown?.details), "Posted soon.")).toEqual([{ id: "materials", title: "Materials", text: "Red cedar." }]);
+
+    const usage = await detailRowUsage({ actorId: bob, siteId: siteB });
+    expect(usage.rows).toEqual({ materials: { custom: 1, hidden: 1 }, delivery: { custom: 0, hidden: 1 } });
+    await expect(detailRowUsage({ actorId: ann, siteId: siteB })).rejects.toBeInstanceOf(AccessError);
   });
 });

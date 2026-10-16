@@ -31,6 +31,7 @@ export default async function SettingsPage() {
           <Label>Selling</Label>
           <Rows>
             <Row title="Shipping" detail={shipping.zones.length ? `${shipping.zones.length} zone${shipping.zones.length === 1 ? "" : "s"} · posted within ${shipping.dispatchDays} business days` : "Free delivery everywhere until you add a zone"} href="/settings/shipping" />
+            <Row title="Product details" detail={shop.detailRows.length ? `${shop.detailRows.map((r) => r.title).join(", ")} · on every product page` : "Rows every product page opens up: materials, care, delivery"} href="/settings/product-details" />
             <Row title="Order statuses" detail={Object.values(statusNames(shop)).join(" · ")} href="/settings/statuses" />
             <Row title="Tax and currency" detail={`${shop.currency} · prices ${shop.pricesIncludeTax ? "include" : "don't include"} ${shop.taxName}`} href="/settings/shop" />
             <Row title="Payments" detail={paymentsLine(paymentsStatus(site))} href="/settings/payments" />

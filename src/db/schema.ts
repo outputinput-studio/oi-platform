@@ -541,6 +541,8 @@ export const products = pgTable(
     availability: text("availability", { enum: PRODUCT_AVAILABILITY }).notNull().default("forSale"),
     /** For sale through the cart, by an emailed quote, or either. */
     buyWith: text("buy_with", { enum: PRODUCT_BUY_WITH }).notNull().default("cart"),
+    /** Product details rows changed or hidden on this product, by row id. See modules/products/details.ts. */
+    details: jsonb("details").notNull().$type<Record<string, unknown>>().default({}),
     visible: boolean("visible").notNull().default(false),
     photos: jsonb("photos").notNull().$type<unknown[]>().default([]),
     code: text("code").notNull().default(""),

@@ -12,6 +12,10 @@ import { parsePrice, priceInput, type Currency } from "@/modules/sites/shop";
 import { Button, Field, Input, Label, PageHeader, Select, Switch, Textarea } from "../../../ui";
 import { SeoCard } from "../../seo-card";
 import { Photos } from "./photos";
+import { DetailRows } from "./detail-rows";
+import { deliveryText, type ProductDetails } from "@/modules/products/details";
+import type { DetailRow } from "@/modules/sites/shop";
+import type { Shipping } from "@/modules/sites/shipping";
 import { NewCategorySheet } from "../categories/category-forms";
 
 /**
@@ -38,6 +42,7 @@ export type ProductDraft = {
   visible: boolean;
   photos: ImageRef[];
   code: string;
+  details: ProductDetails;
 };
 
 const AVAILABILITY_HINT: Record<ProductAvailability, string> = {
@@ -60,6 +65,8 @@ export function ProductEditor({
   deleteAction,
   hasEnquiryForm,
   paymentsReady,
+  detailRows,
+  shipping,
 }: {
   product: ProductDraft & { id: string };
   photoUrls: Record<string, string>;
@@ -75,6 +82,9 @@ export function ProductEditor({
   hasEnquiryForm: boolean;
   /** The site can take payments, so Add to cart shows. */
   paymentsReady: boolean;
+  /** Settings · Product details rows, and Shipping for the delivery row. */
+  detailRows: DetailRow[];
+  shipping: Shipping;
 }) {
   const [d, setD] = useState<ProductDraft>(product);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -332,6 +342,8 @@ export function ProductEditor({
         <Field label="Description" htmlFor="p-desc" hint="Leave an empty line between paragraphs.">
           <Textarea id="p-desc" value={d.description} rows={7} onChange={(e) => change({ description: e.target.value })} />
         </Field>
+
+        <DetailRows rows={detailRows} value={d.details} delivery={deliveryText(shipping, currency, d)} onChange={(details) => change({ details })} />
 
         <Field label="Product code" htmlFor="p-code" hint="Your own reference. Optional; not shown on the site.">
           <Input id="p-code" value={d.code} maxLength={60} className="max-w-[240px] font-mono" onChange={(e) => change({ code: e.target.value })} />
