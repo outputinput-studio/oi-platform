@@ -11,6 +11,7 @@ import { CART_COOKIE, addLine, cartCount, readCart, setLine, writeCart, type Car
 import { markOrderPaid, orderForCustomer, priceCart } from "./server";
 import { startCheckout } from "./checkout";
 import { moveOrder } from "./admin";
+import { discountFor } from "@/modules/discounts/server";
 import { requireSiteAccess } from "@/modules/auth/access";
 
 /**
@@ -74,6 +75,7 @@ export async function checkoutAction(_prev: CartState, form: FormData): Promise<
       note: s("note"),
       address: hasAddress ? { line1: s("line1"), line2: s("line2"), city: s("city"), state: s("state"), postcode: s("postcode"), country: s("country") } : undefined,
       rate: s("rate"),
+      code: s("code"),
     };
     to = (await startCheckout({ site, host, cart, details })).redirect;
   } catch (err) {
@@ -113,5 +115,17 @@ export async function moveOrderAction(orderId: string, change: unknown): Promise
   } catch (err) {
     if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "Check the details and try again." };
     return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+  }
+}
+
+/** Checkout's "Apply": what a code would take off this cart, before anything is placed. */
+export async function previewCodeAction(code: string, email: string): Promise<{ ok?: true; off?: number; freeShipping?: boolean; code?: string; error?: string }> {
+  try {
+    const { site } = await here();
+    const priced = await priceCart({ site, cart: readCart((await cookies()).get(CART_COOKIE)?.value) });
+    const r = await discountFor({ siteId: site.id, code: String(code).slice(0, 40), lines: priced.lines, currency: priced.currency, email: String(email).slice(0, 200) || undefined });
+    return r.ok ? { ok: true, off: r.off, freeShipping: r.freeShipping, code: r.code } : { error: r.reason };
+  } catch {
+    return { error: "Couldn't check that code. Try again." };
   }
 }

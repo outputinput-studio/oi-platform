@@ -226,3 +226,38 @@ test("shipping: a zone with postage and a pickup, chosen at checkout", async ({ 
   await page.getByRole("button", { name: "Pay $392 (test)" }).click();
   await expect(page.getByTestId("done-heading")).toHaveText("Thank you, Sam");
 });
+
+test("a discount code: made in the admin, used at checkout, counted", async ({ page }) => {
+  await signInAsOwner(page);
+  await page.goto(admin + "/products");
+  await page.getByRole("link", { name: /Discount codes/ }).click();
+  await expect(page.getByText("No codes yet")).toBeVisible();
+  await page.getByRole("link", { name: "Add code" }).click();
+  await page.getByLabel("Code").fill("save10");
+  await expect(page.getByLabel("Code")).toHaveValue("SAVE10");
+  await page.getByRole("button", { name: "Save code" }).click();
+  await expect(page).toHaveURL(/\/products\/discounts\/[0-9a-f-]{36}$/);
+  await page.goto(admin + "/products/discounts");
+  await expect(page.getByTestId("code-SAVE10")).toContainText("10% off everything");
+  await expect(page.getByTestId("code-SAVE10")).toContainText("Active");
+
+  await page.goto(demo + "/shop/teal-crystal-bikini");
+  await page.getByRole("button", { name: "Add to cart" }).click();
+  await page.getByRole("link", { name: "Added — view your cart" }).click();
+  await page.getByRole("link", { name: "Checkout" }).click();
+  await page.getByLabel("Discount code").fill("nope");
+  await page.getByRole("button", { name: "Apply" }).click();
+  await expect(page.getByText("NOPE isn't a code here.")).toBeVisible();
+  await page.getByLabel("Discount code").fill("save10");
+  await page.getByRole("button", { name: "Apply" }).click();
+  await expect(page.getByTestId("code-off")).toHaveText("−$38");
+  await expect(page.getByTestId("checkout-total")).toHaveText("$342"); // picked up: no postage
+  await page.getByLabel("Name").fill("Bec Code");
+  await page.getByLabel("Email").fill("bec@example.com");
+  await page.getByRole("button", { name: "Continue to test payment" }).click();
+  await page.getByRole("button", { name: "Pay $342 (test)" }).click();
+  await expect(page.getByTestId("done-heading")).toHaveText("Thank you, Bec");
+
+  await page.goto(admin + "/products/discounts");
+  await expect(page.getByTestId("code-SAVE10")).toContainText("1 used");
+});

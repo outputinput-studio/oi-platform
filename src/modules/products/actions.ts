@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { createProduct, deleteProduct, updateProduct } from "./server";
+import { deleteCode, saveCode } from "@/modules/discounts/server";
 import { createProductCategory, deleteProductCategory, reorderProductCategories, updateProductCategory } from "./categories";
 
 export type ProductFormState = { ok?: string; error?: string };
@@ -99,4 +100,24 @@ export async function reorderProductCategoriesAction(order: string[]): Promise<P
   } catch (err) {
     return { error: message(err) };
   }
+}
+
+// ───────────────────────── discount codes ─────────────────────────
+
+export async function saveCodeAction(codeId: string | undefined, edit: unknown): Promise<ProductFormState & { id?: string }> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    const c = await saveCode({ actorId: user.id, siteId: site.id, codeId, edit });
+    revalidatePath("/products/discounts");
+    return { ok: "Saved", id: c.id };
+  } catch (err) {
+    return { error: message(err) };
+  }
+}
+
+export async function deleteCodeAction(form: FormData): Promise<void> {
+  const { user, site } = await requireSiteAccess();
+  await deleteCode({ actorId: user.id, siteId: site.id, codeId: String(form.get("codeId")) });
+  revalidatePath("/products/discounts");
+  redirect("/products/discounts");
 }

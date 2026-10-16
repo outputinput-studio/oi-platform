@@ -9,6 +9,8 @@ import { paymentsStatus } from "@/modules/payments/server";
 import { formatPrice } from "@/modules/sites/shop";
 import { Card, Chevron, Chips, PageHeader } from "../../ui";
 import { AddProduct } from "./add-product";
+import { listCodes } from "@/modules/discounts/server";
+import { codeState } from "@/modules/discounts/rules";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +22,8 @@ export const dynamic = "force-dynamic";
 export default async function ProductsPage({ searchParams }: { searchParams: Promise<{ category?: string }> }) {
   const { category } = await searchParams;
   const { user, site } = await requireSiteAccess();
-  const [all, cats] = await Promise.all([listProducts({ actorId: user.id, siteId: site.id }), listProductCategories({ actorId: user.id, siteId: site.id })]);
+  const [all, cats, codes] = await Promise.all([listProducts({ actorId: user.id, siteId: site.id }), listProductCategories({ actorId: user.id, siteId: site.id }), listCodes({ actorId: user.id, siteId: site.id })]);
+  const activeCodes = codes.filter((c) => codeState(c) === "active").length;
   const { currency } = siteShop(site);
   const current = cats.find((c) => c.slug === category);
   const shown = current ? all.filter((p) => p.categoryId === current.id) : all;
@@ -50,6 +53,13 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
           <span className="text-[14.5px]">Categories</span>
           <span className="flex items-center gap-1 text-[13px] text-muted">
             {cats.length}
+            <Chevron />
+          </span>
+        </Link>
+        <Link href="/products/discounts" className="mt-2 flex items-center justify-between rounded-card border border-line bg-surface px-4 py-3 hover:bg-hover">
+          <span className="text-[14.5px]">Discount codes</span>
+          <span className="flex items-center gap-1 text-[13px] text-muted">
+            {activeCodes ? `${activeCodes} active` : codes.length ? "None active" : "None yet"}
             <Chevron />
           </span>
         </Link>

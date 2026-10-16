@@ -8,6 +8,7 @@ import { upsertFromSubmission } from "@/modules/contacts/server";
 import { customerView, makeLine, readPhotos } from "@/modules/products/catalogue";
 import { readShopSettings, formatPrice, type Currency } from "@/modules/sites/shop";
 import { ratesFor, readShipping } from "@/modules/sites/shipping";
+import { countUse, discountFor } from "@/modules/discounts/server";
 import { taxOn, type CartLine } from "./cart";
 
 /**
@@ -31,6 +32,7 @@ export type PricedLine = {
   photo: string | null;
   note: string;
   digital: boolean;
+  categoryId: string | null;
 };
 
 export type PricedCart = {
@@ -76,7 +78,7 @@ export async function priceCart(p: { site: Site; cart: CartLine[] }): Promise<Pr
     const max = prod.make === "oneOnly" ? 1 : prod.make === "ready" && prod.stock !== null ? prod.stock : 20;
     const unit = prod.salePrice !== null && prod.price !== null && prod.salePrice < prod.price ? prod.salePrice : prod.price!;
     const photos = readPhotos(prod.photos);
-    lines.push({ productId: prod.id, name: prod.name, slug: prod.slug, unit, qty: Math.min(l.q, max), max, photo: photos[0]?.key ?? null, note: makeLine(prod), digital: prod.digital });
+    lines.push({ productId: prod.id, name: prod.name, slug: prod.slug, unit, qty: Math.min(l.q, max), max, photo: photos[0]?.key ?? null, note: makeLine(prod), digital: prod.digital, categoryId: prod.categoryId });
   }
   const subtotal = lines.reduce((n, l) => n + l.unit * l.qty, 0);
   const t = taxOn(subtotal, shop.taxRate, shop.pricesIncludeTax);
@@ -118,6 +120,8 @@ export const checkoutSchema = z.object({
   address: addressSchema.optional(),
   /** The delivery rate they picked (an id from Settings · Shipping). */
   rate: z.string().max(40).default(""),
+  /** A discount code, as typed. */
+  code: z.string().trim().max(40).default(""),
 });
 export type CheckoutDetails = z.infer<typeof checkoutSchema>;
 
@@ -129,7 +133,7 @@ export async function placeOrder(p: { site: Site; cart: CartLine[]; details: unk
   if (priced.lines.length === 0) throw new Error("Your cart is empty — nothing in it can be bought right now.");
 
   // Delivery: the rate they picked must be one this address and total can have. A pickup needs no street address.
-  const raw = (p.details ?? {}) as { address?: { country?: string; postcode?: string }; rate?: string };
+  const raw = (p.details ?? {}) as { address?: { country?: string; postcode?: string }; rate?: string; code?: string; email?: string };
   let shipping: { name: string; kind: string; estimate: string } | null = null;
   let shippingPrice = 0;
   let pickupCountry = "";
@@ -147,7 +151,18 @@ export async function placeOrder(p: { site: Site; cart: CartLine[]; details: unk
   }
   const details = checkoutSchema.parse(p.details);
   if (priced.needsAddress && !details.address && shipping?.kind !== "pickup") throw new Error("Where should it go? Fill in the address.");
-  const t = taxOn(priced.subtotal + shippingPrice, priced.taxRate, priced.pricesIncludeTax);
+
+  // A discount code, checked again here whatever the page showed.
+  let off = 0;
+  let code = "";
+  if (details.code) {
+    const applied = await discountFor({ siteId: p.site.id, code: details.code, lines: priced.lines, currency: priced.currency, email: details.email });
+    if (!applied.ok) throw new Error(applied.reason);
+    off = applied.off;
+    code = applied.code ?? "";
+    if (applied.freeShipping) shippingPrice = 0;
+  }
+  const t = taxOn(priced.subtotal - off + shippingPrice, priced.taxRate, priced.pricesIncludeTax);
   const items: OrderItem[] = priced.lines.map((l) => ({ productId: l.productId, name: l.name, slug: l.slug, unit: l.unit, qty: l.qty, photo: l.photo, note: l.note, digital: l.digital }));
   return withSite(p.site.id, async (tx) => {
     const number = await nextNumber(tx);
@@ -166,6 +181,8 @@ export async function placeOrder(p: { site: Site; cart: CartLine[]; details: unk
         subtotal: priced.subtotal,
         shipping,
         shippingPrice,
+        discountCode: code,
+        discount: off,
         tax: t.tax,
         taxName: priced.taxName,
         taxRate: Math.round(priced.taxRate),
@@ -220,6 +237,7 @@ export async function markOrderPaid(p: { siteId: string; orderId: string; adminU
         })
         .where(eq(products.id, it.productId));
     }
+    await countUse(tx, o.discountCode);
     const contactId = await upsertFromSubmission(tx, { siteId: p.siteId, name: o.name, email: o.email, phone: o.phone });
     const [paid] = await tx.update(orders).set({ paymentStatus: "paid", paidAt: new Date(), contactId, updatedAt: new Date() }).where(eq(orders.id, o.id)).returning();
     const [site] = await tx.select().from(sites).limit(1);
@@ -238,6 +256,7 @@ export function orderLines(o: Order): string {
   const where = addr.line1 ? [addr.line1, addr.line2, [addr.city, addr.state, addr.postcode].filter(Boolean).join(" "), addr.country ? countryName(addr.country) : ""].filter(Boolean).join("\n") : "";
   return [
     ...items,
+    o.discount ? `Code ${o.discountCode} — −${formatPrice(o.discount, cur)}` : "",
     o.shipping ? `${String((o.shipping as { name?: string }).name ?? "Delivery")} — ${o.shippingPrice ? formatPrice(o.shippingPrice, cur) : "included"}` : "",
     `Total — ${formatPrice(o.total, cur)}${o.tax ? ` (includes ${o.taxName} ${formatPrice(o.tax, cur)})` : ""}`,
     where ? `\nDeliver to:\n${o.name}\n${where}` : (o.shipping as { kind?: string } | null)?.kind === "pickup" ? "\nPicking up." : "",

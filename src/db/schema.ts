@@ -1,6 +1,7 @@
 import { pgTable, uuid, text, timestamp, boolean, index, uniqueIndex, integer, jsonb } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { PRODUCT_AVAILABILITY, PRODUCT_MAKES } from "../modules/products/kinds";
+import { DISCOUNT_KINDS, DISCOUNT_SCOPES } from "../modules/discounts/kinds";
 
 /**
  * Two kinds of table live here.
@@ -584,6 +585,9 @@ export const orders = pgTable(
     taxName: text("tax_name").notNull().default(""),
     taxRate: integer("tax_rate").notNull().default(0),
     total: integer("total").notNull(),
+    /** The discount code used, as typed (upper case), and what it took off the pieces. */
+    discountCode: text("discount_code").notNull().default(""),
+    discount: integer("discount").notNull().default(0),
     /** "stripe" or "test" (outside production only). */
     provider: text("provider").notNull(),
     /** Stripe's checkout session id. */
@@ -597,3 +601,39 @@ export const orders = pgTable(
   (t) => [uniqueIndex("orders_site_number_idx").on(t.siteId, t.number), index("orders_site_id_idx").on(t.siteId), index("orders_provider_ref_idx").on(t.providerRef)],
 );
 export type Order = typeof orders.$inferSelect;
+
+export { DISCOUNT_KINDS, DISCOUNT_SCOPES };
+
+/**
+ * Discount codes, as in design/admin.html: percentage off, an amount off,
+ * or free postage; on everything, one category or picked pieces; with an
+ * optional minimum spend, use limits and dates. `uses` counts paid orders.
+ */
+export const discountCodes = pgTable(
+  "discount_codes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    /** Upper case, what the customer types. */
+    code: text("code").notNull(),
+    kind: text("kind", { enum: DISCOUNT_KINDS }).notNull().default("percent"),
+    /** Percent (1–100) or whole cents, by kind. Unused for free postage. */
+    value: integer("value").notNull().default(0),
+    appliesTo: text("applies_to", { enum: DISCOUNT_SCOPES }).notNull().default("all"),
+    categoryId: uuid("category_id"),
+    productIds: jsonb("product_ids").notNull().$type<string[]>().default([]),
+    minSpend: integer("min_spend"),
+    maxUses: integer("max_uses"),
+    perPerson: integer("per_person"),
+    startsAt: timestamp("starts_at", { withTimezone: true }),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    active: boolean("active").notNull().default(true),
+    uses: integer("uses").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("discount_codes_site_code_idx").on(t.siteId, t.code).where(sql`${t.deletedAt} is null`), index("discount_codes_site_id_idx").on(t.siteId)],
+);
+export type DiscountCode = typeof discountCodes.$inferSelect;
