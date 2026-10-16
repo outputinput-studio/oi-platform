@@ -8,6 +8,8 @@ import { customerView, effectiveAvailability } from "@/modules/products/catalogu
 import { productCategoryBySlug, publishedProductCategories } from "@/modules/products/categories";
 import { productPath, publishedProduct, publishedProducts, type ProductRow } from "@/modules/products/server";
 import { siteShop } from "@/modules/sites/server";
+import { paymentsStatus } from "@/modules/payments/server";
+import { AddToCart } from "./add-to-cart";
 import { Placeholder } from "@/lib/placeholder";
 import { Frame, missing } from "./storefront";
 import { hostAndSite, storefrontMetadata } from "./metadata";
@@ -15,8 +17,7 @@ import { hostAndSite, storefrontMetadata } from "./metadata";
 /**
  * The shop: /shop lists every visible piece, /shop/<category> one
  * category's, /shop/<product> a piece of its own. Same frame and theme
- * as the pages. No cart yet: the price and how it can be had are shown,
- * and buying arrives with payments.
+ * as the pages. Add to cart shows once the site can take payments.
  */
 export async function Shop({ category }: { category?: ProductCategory } = {}) {
   const { site } = await hostAndSite();
@@ -138,6 +139,7 @@ function ProductPage({ product: p, site }: { product: ProductRow; site: Site }) 
         <p data-testid="product-note" className="mt-1 text-[14px] text-[var(--text-muted)]">
           {v.note}
         </p>
+        {v.buyable && paymentsStatus(site).ready && <AddToCart productId={p.id} />}
         {p.description && (
           <div className="mt-6 space-y-4 text-[16px] leading-[1.65] text-[var(--text-body)]">
             {p.description

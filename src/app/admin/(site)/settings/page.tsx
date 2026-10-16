@@ -1,5 +1,6 @@
 import { requireSiteAccess } from "@/modules/auth/access";
 import { siteSearch, siteShop, siteTheme } from "@/modules/sites/server";
+import { paymentsStatus } from "@/modules/payments/server";
 import { Label, PageHeader, Row, Rows } from "../../ui";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,7 @@ export default async function SettingsPage() {
         <section>
           <Label>Selling</Label>
           <Rows>
+            <Row title="Payments" detail={paymentsLine(paymentsStatus(site))} href="/settings/payments" />
             <Row title="Tax and currency" detail={`${siteShop(site).currency} · prices ${siteShop(site).pricesIncludeTax ? "include" : "don't include"} ${siteShop(site).taxName}`} href="/settings/shop" />
           </Rows>
         </section>
@@ -40,4 +42,11 @@ export default async function SettingsPage() {
       </div>
     </>
   );
+}
+
+function paymentsLine(s: ReturnType<typeof paymentsStatus>): string {
+  if (s.provider === "test") return "Test payments (no Stripe keys here)";
+  if (s.provider === null) return "Not switched on yet";
+  if (!s.stripeAccountId) return "Connect Stripe to take payments";
+  return s.chargesEnabled ? `Stripe connected${s.livemode ? "" : " · test mode"}` : "Stripe still has questions";
 }

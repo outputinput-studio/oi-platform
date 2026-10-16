@@ -42,6 +42,16 @@ const schema = z.object({
   R2_PUBLIC_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
   /** Local-disk fallback directory (default .media-local in the project). */
   MEDIA_LOCAL_DIR: z.string().optional(),
+
+  /**
+   * Payments: Output/Input's own Stripe platform account (Connect). Each
+   * client connects their own Stripe account to it and is paid directly.
+   * Not set → outside production, checkout uses test payments (nothing
+   * real moves); in production, Add to cart stays hidden.
+   */
+  STRIPE_SECRET_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().startsWith("sk_", "should start with sk_").optional()),
+  /** The signing secret of the Connect webhook endpoint (/api/payments/stripe). */
+  STRIPE_WEBHOOK_SECRET: z.preprocess((v) => (v === "" ? undefined : v), z.string().startsWith("whsec_", "should start with whsec_").optional()),
 });
 
 export type Env = z.infer<typeof schema>;

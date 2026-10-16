@@ -29,6 +29,8 @@ export const sites = pgTable("sites", {
   search: jsonb("search").notNull().$type<Record<string, unknown>>().default({}),
   /** Selling: currency and tax. See shopSettingsSchema in modules/sites/shop.ts. */
   shop: jsonb("shop").notNull().$type<Record<string, unknown>>().default({}),
+  /** Taking payments: the client's own Stripe account (Connect). See modules/payments. */
+  payments: jsonb("payments").notNull().$type<Record<string, unknown>>().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -540,3 +542,56 @@ export const products = pgTable(
   ],
 );
 export type Product = typeof products.$inferSelect;
+
+/** Where an order is in the team's own process. Renamable later (Settings · Order statuses). */
+export const ORDER_STATUSES = ["new", "inProgress", "sent", "done"] as const;
+export type OrderStatus = (typeof ORDER_STATUSES)[number];
+/** Where the money is. */
+export const PAYMENT_STATUSES = ["pending", "paid", "failed", "refunded"] as const;
+
+/**
+ * Orders. Everything a customer bought is copied in at checkout (name,
+ * price, photo), so an order still reads right after a product changes
+ * or goes. Money is whole cents in the order's currency. `number` is the
+ * site's own order number (1001, 1002…), shown to the customer.
+ */
+export const orders = pgTable(
+  "orders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    number: integer("number").notNull(),
+    status: text("status", { enum: ORDER_STATUSES }).notNull().default("new"),
+    paymentStatus: text("payment_status", { enum: PAYMENT_STATUSES }).notNull().default("pending"),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    phone: text("phone").notNull().default(""),
+    /** { line1, line2, city, state, postcode, country } — empty for digital-only orders. */
+    address: jsonb("address").notNull().$type<Record<string, unknown>>().default({}),
+    note: text("note").notNull().default(""),
+    items: jsonb("items").notNull().$type<unknown[]>().default([]),
+    currency: text("currency").notNull(),
+    subtotal: integer("subtotal").notNull(),
+    /** { name, price, estimate } of the rate they picked; null when nothing ships. */
+    shipping: jsonb("shipping").$type<Record<string, unknown> | null>(),
+    shippingPrice: integer("shipping_price").notNull().default(0),
+    /** The tax in the total: worked out of it when prices include tax, added on when not. */
+    tax: integer("tax").notNull().default(0),
+    taxName: text("tax_name").notNull().default(""),
+    taxRate: integer("tax_rate").notNull().default(0),
+    total: integer("total").notNull(),
+    /** "stripe" or "test" (outside production only). */
+    provider: text("provider").notNull(),
+    /** Stripe's checkout session id. */
+    providerRef: text("provider_ref").notNull().default(""),
+    contactId: uuid("contact_id"),
+    tracking: jsonb("tracking").notNull().$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("orders_site_number_idx").on(t.siteId, t.number), index("orders_site_id_idx").on(t.siteId), index("orders_provider_ref_idx").on(t.providerRef)],
+);
+export type Order = typeof orders.$inferSelect;

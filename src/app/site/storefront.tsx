@@ -9,6 +9,7 @@ import { themeVars } from "@/modules/sites/theme";
 import { HOME_SLUG, publishedPage } from "@/modules/pages/server";
 import { siteMenus, type SiteMenus } from "@/modules/menus/server";
 import type { NavLink } from "@/modules/menus/items";
+import { CartLink } from "./cart-link";
 import { RenderSections } from "@/modules/pages/render";
 import { Placeholder } from "@/lib/placeholder";
 import type { Site } from "@/db/schema";
@@ -111,6 +112,7 @@ export function Frame({
           <A href="/" className="flex-none text-[17px] font-semibold tracking-[-0.2px]">
             {site.name}
           </A>
+          <div className="flex items-center gap-5">
           {menus.header.length > 0 && (
             <nav aria-label="Pages" className="flex flex-wrap items-center justify-end gap-x-5 gap-y-1.5 text-[14px]">
               {menus.header.map((l, i) =>
@@ -122,6 +124,8 @@ export function Frame({
               )}
             </nav>
           )}
+          {!preview && <CartLink site={site} />}
+          </div>
         </div>
       </header>
       <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-6 md:px-8 md:py-10">{children}</main>
