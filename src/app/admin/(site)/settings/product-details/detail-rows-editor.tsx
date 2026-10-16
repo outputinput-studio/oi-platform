@@ -68,7 +68,7 @@ export function DetailRowsEditor({
                         </svg>
                       </button>
                     )}
-                    <Input aria-label={`Row ${i + 1} title`} value={r.title} maxLength={60} readOnly={!canEdit} placeholder="Title" className="!h-10 min-w-0 flex-1 font-medium" onChange={(e) => set(r.id, { title: e.target.value })} />
+                    <Input aria-label={`Row ${i + 1} title`} data-field={`rows.${i}.title`} value={r.title} maxLength={60} readOnly={!canEdit} placeholder="Title" className="!h-10 min-w-0 flex-1 font-medium" onChange={(e) => set(r.id, { title: e.target.value })} />
                     {canEdit && (
                       <button type="button" aria-label={`Remove ${r.title || "row"}`} onClick={() => setRows((cur) => cur.filter((x) => x.id !== r.id))} className="flex h-10 w-10 flex-none items-center justify-center rounded-button text-muted hover:bg-hover hover:text-alert">
                         ×
@@ -88,7 +88,7 @@ export function DetailRowsEditor({
                         <p className="mt-1.5 whitespace-pre-line text-[13px] text-body">{deliveryPreview}</p>
                       </div>
                     ) : (
-                      <Textarea aria-label={`Row ${i + 1} text`} value={r.text} rows={3} maxLength={2000} readOnly={!canEdit} placeholder="What every product says here. Leave an empty line between paragraphs." onChange={(e) => set(r.id, { text: e.target.value })} />
+                      <Textarea aria-label={`Row ${i + 1} text`} data-field={`rows.${i}.text`} value={r.text} rows={3} maxLength={2000} readOnly={!canEdit} placeholder="What every product says here. Leave an empty line between paragraphs." onChange={(e) => set(r.id, { text: e.target.value })} />
                     )}
                     <p className="mt-1.5 text-[12px] text-muted">{usageLine(r)}</p>
                   </div>

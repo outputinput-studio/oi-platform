@@ -10,6 +10,7 @@ import { formatPrice, type Currency } from "@/modules/sites/shop";
 import { senderFor, tradingName } from "@/modules/sites/business";
 import { DEFAULT_TEMPLATES, TEMPLATE_KEYS, customerMail, readMessages, templateFor } from "@/modules/sites/messages";
 import { draftFrom, orderVars, trackingText, trackingUrl } from "./emails";
+import { FieldError } from "@/lib/form-error";
 
 /**
  * Orders for the team: the queue (New → In progress → Sent → Done), one
@@ -185,7 +186,7 @@ export async function refundOrder(p: { actorId: string; siteId: string; orderId:
   const left = o.total - o.refunded;
   if (left <= 0) throw new Error("This order has already been refunded in full.");
   const amount = r.amount ?? left;
-  if (amount > left) throw new Error(`At most ${formatPrice(left, o.currency as Currency)} can go back.`);
+  if (amount > left) throw new FieldError("amount", `At most ${formatPrice(left, o.currency as Currency)} can go back.`);
 
   if (o.provider === "stripe") await (p.refunder ?? ((ord, a) => stripeRefund(p.siteId, ord, a)))(o, amount);
 

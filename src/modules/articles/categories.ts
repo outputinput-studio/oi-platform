@@ -7,6 +7,7 @@ import { slugFromTitle } from "@/modules/pages/slug";
 import { autoRedirect } from "@/modules/redirects/server";
 import { readSearchSettings } from "@/modules/sites/search";
 import { articleIsLive } from "@/modules/pages/live";
+import { FieldError, named } from "@/lib/form-error";
 
 /**
  * Article categories. Each is a page at /journal/<slug>; an article's
@@ -31,9 +32,9 @@ export async function listCategories(p: { actorId: string; siteId: string }): Pr
 
 export async function createCategory(p: { actorId: string; siteId: string; name: string; slug?: string; description?: string }): Promise<ArticleCategory> {
   await assertAccess(p.actorId, p.siteId);
-  const name = nameSchema.parse(p.name);
-  const description = z.string().trim().max(300).parse(p.description ?? "");
-  const slug = slugSchema.parse(p.slug?.trim() ? p.slug : slugFromTitle(name));
+  const name = named("name", nameSchema, p.name);
+  const description = named("description", z.string().trim().max(300), p.description ?? "");
+  const slug = named("slug", slugSchema, p.slug?.trim() ? p.slug : slugFromTitle(name));
   return withSite(p.siteId, async (tx) => {
     await assertFree(tx, slug);
     const [{ next }] = await tx.select({ next: sql<number>`coalesce(max(${articleCategories.position}), -1) + 1` }).from(articleCategories).where(isNull(articleCategories.deletedAt));
@@ -45,9 +46,9 @@ export async function createCategory(p: { actorId: string; siteId: string; name:
 export async function updateCategory(p: { actorId: string; siteId: string; categoryId: string; name?: string; slug?: string; description?: string }): Promise<ArticleCategory> {
   await assertAccess(p.actorId, p.siteId);
   const patch: Partial<ArticleCategory> = {};
-  if (p.name !== undefined) patch.name = nameSchema.parse(p.name);
-  if (p.slug !== undefined) patch.slug = slugSchema.parse(p.slug);
-  if (p.description !== undefined) patch.description = z.string().trim().max(300).parse(p.description);
+  if (p.name !== undefined) patch.name = named("name", nameSchema, p.name);
+  if (p.slug !== undefined) patch.slug = named("slug", slugSchema, p.slug);
+  if (p.description !== undefined) patch.description = named("description", z.string().trim().max(300), p.description);
   return withSite(p.siteId, async (tx) => {
     const c = await load(tx, p.categoryId);
     if (patch.slug && patch.slug !== c.slug) await assertFree(tx, patch.slug, c.id);
@@ -133,6 +134,6 @@ async function assertFree(tx: Tx, slug: string, exceptId?: string) {
     .from(articleCategories)
     .where(and(eq(articleCategories.slug, slug), isNull(articleCategories.deletedAt), exceptId ? sql`${articleCategories.id} <> ${exceptId}` : undefined))
     .limit(1);
-  if (clash) throw new AccessError(`There's already a category at /journal/${slug}. Pick another address.`);
+  if (clash) throw new FieldError("slug", `There's already a category at /journal/${slug}. Pick another address.`);
 }
 

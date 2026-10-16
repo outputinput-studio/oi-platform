@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FieldErrors } from "@/lib/field-errors";
 
 /**
  * The primitives the admin is built from, following design/admin.html.
@@ -29,11 +30,14 @@ export function Button({
   );
 }
 
+/** A field at fault: outlined in red, focused or not. */
+const INVALID = "aria-[invalid=true]:!border-alert user-invalid:!border-alert";
+
 export function Input({ className = "", ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`block h-11 w-full rounded-button border border-control bg-transparent px-3.5 text-[15px] text-text outline-none placeholder:text-faint focus:border-accent read-only:border-line read-only:text-body ${className}`}
+      className={`block h-11 w-full rounded-button border border-control bg-transparent px-3.5 text-[15px] text-text outline-none placeholder:text-faint focus:border-accent read-only:border-line read-only:text-body ${INVALID} ${className}`}
     />
   );
 }
@@ -42,7 +46,7 @@ export function Textarea({ className = "", ...props }: React.TextareaHTMLAttribu
   return (
     <textarea
       {...props}
-      className={`block w-full rounded-button border border-control bg-transparent px-3.5 py-3 text-[15px] leading-relaxed text-text outline-none placeholder:text-faint focus:border-accent ${className}`}
+      className={`block w-full rounded-button border border-control bg-transparent px-3.5 py-3 text-[15px] leading-relaxed text-text outline-none placeholder:text-faint focus:border-accent ${INVALID} ${className}`}
     />
   );
 }
@@ -52,7 +56,7 @@ export function Select({ className = "", children, ...props }: React.SelectHTMLA
   return (
     <select
       {...props}
-      className={`block h-11 w-full appearance-none rounded-button border border-control bg-transparent bg-[url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")] bg-[length:16px] bg-[right_12px_center] bg-no-repeat pl-3.5 pr-10 text-[15px] text-text outline-none focus:border-accent ${className}`}
+      className={`block h-11 w-full appearance-none rounded-button border border-control bg-transparent bg-[url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")] bg-[length:16px] bg-[right_12px_center] bg-no-repeat pl-3.5 pr-10 text-[15px] text-text outline-none focus:border-accent ${INVALID} ${className}`}
     >
       {children}
     </select>
@@ -215,12 +219,14 @@ export function Chevron({ className = "" }: { className?: string }) {
   );
 }
 
-export function Notice({ ok, error }: { ok?: string; error?: string }) {
+/** Saved, or what went wrong. An error that names fields outlines them and scrolls to the top one. */
+export function Notice({ ok, error, fields }: { ok?: string; error?: string; fields?: string[] }) {
   if (!ok && !error) return null;
   return (
     <p role={error ? "alert" : "status"} className={`text-[13px] ${error ? "text-alert" : "text-success"}`}>
       {ok && !error && <span className="mr-1">✓</span>}
       {error ?? ok}
+      {error && <FieldErrors fields={fields} />}
     </p>
   );
 }
@@ -232,7 +238,7 @@ export function Notice({ ok, error }: { ok?: string; error?: string }) {
  * sits beside the button. On a phone it rests on top of the bottom
  * navigation; on a laptop it's flush with the bottom edge.
  */
-export function SaveBar({ dirty, pending, state }: { dirty: boolean; pending: boolean; state: { ok?: string; error?: string } }) {
+export function SaveBar({ dirty, pending, state }: { dirty: boolean; pending: boolean; state: { ok?: string; error?: string; fields?: string[] } }) {
   return (
     <>
       {/* Keeps the end of the page clear of the bar. */}
@@ -242,7 +248,7 @@ export function SaveBar({ dirty, pending, state }: { dirty: boolean; pending: bo
         className="fixed inset-x-0 bottom-[84px] z-10 flex items-center justify-center gap-4 border-t border-line bg-bg px-4 py-3 shadow-[0_-8px_24px_var(--shadow)] md:bottom-0 md:left-[var(--sidebar)]"
       >
         {!dirty && !pending && <Notice {...state} />}
-        {dirty && !pending && state.error && <Notice error={state.error} />}
+        {dirty && !pending && state.error && <Notice error={state.error} fields={state.fields} />}
         <Button type="submit" disabled={!dirty || pending}>
           {pending ? "Saving…" : "Save"}
         </Button>

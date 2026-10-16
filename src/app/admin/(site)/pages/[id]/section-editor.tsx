@@ -5,6 +5,7 @@ import { saveSectionAction } from "@/modules/pages/actions";
 import { emptySection, type ImageRef, type SectionData, type SectionType } from "@/modules/pages/registry";
 import { Field, Input, Select, Textarea } from "../../../ui";
 import { ImagePicker } from "./image-picker";
+import { FieldErrors } from "@/lib/field-errors";
 
 /**
  * Edit one section's fields. Autosaves a moment after typing stops and
@@ -12,7 +13,7 @@ import { ImagePicker } from "./image-picker";
  * Nothing is lost on a dropped connection: the text stays on screen and
  * the next change saves it all over again.
  */
-export type Status = { kind: "idle" } | { kind: "saving" } | { kind: "saved" } | { kind: "error"; message: string };
+export type Status = { kind: "idle" } | { kind: "saving" } | { kind: "saved" } | { kind: "error"; message: string; fields?: string[] };
 
 export function SectionEditor({
   sectionId,
@@ -50,7 +51,7 @@ export function SectionEditor({
       setStatus({ kind: "saving" });
       try {
         const r = await saveSectionAction(sectionId, snapshot);
-        setStatus(r.error ? { kind: "error", message: r.error } : { kind: "saved" });
+        setStatus(r.error ? { kind: "error", message: r.error, fields: r.fields } : { kind: "saved" });
       } catch {
         // The request itself failed (offline, server away). Keep the text; offer a retry.
         setStatus({ kind: "error", message: "couldn't reach the server" });
@@ -71,7 +72,8 @@ export function SectionEditor({
   }, []);
 
   return (
-    <div className="space-y-3">
+    // data-form: a problem outlines a field in this section, not the same field in another.
+    <div data-form className="space-y-3">
       <Fields type={type} data={data as SectionData} onChange={change} id={sectionId} imageUrl={imageUrl} mediaAvailable={mediaAvailable} forms={forms} />
       <p className="text-right text-[12px] text-muted" aria-live="polite" data-testid="save-status">
         {status.kind === "saving" && "Saving…"}
@@ -81,6 +83,7 @@ export function SectionEditor({
             Retry — {status.message}
           </button>
         )}
+        {status.kind === "error" && <FieldErrors fields={status.fields} />}
       </p>
     </div>
   );
@@ -107,7 +110,9 @@ function Fields({
   const str = (k: string) => (typeof d[k] === "string" ? (d[k] as string) : "");
   const image = d.image && typeof d.image === "object" ? (d.image as ImageRef) : undefined;
   const picker = (
-    <ImagePicker id={id} value={image} url={imageUrl} available={mediaAvailable} onChange={(next) => onChange({ image: next })} />
+    <div data-field="image">
+      <ImagePicker id={id} value={image} url={imageUrl} available={mediaAvailable} onChange={(next) => onChange({ image: next })} />
+    </div>
   );
 
   switch (type) {
@@ -115,13 +120,13 @@ function Fields({
       return (
         <>
           <Field label="Label" htmlFor={`${id}-label`} hint="Small text above the headline. Leave empty to hide it.">
-            <Input id={`${id}-label`} value={str("label")} maxLength={60} onChange={(e) => onChange({ label: e.target.value })} />
+            <Input id={`${id}-label`} data-field="label" value={str("label")} maxLength={60} onChange={(e) => onChange({ label: e.target.value })} />
           </Field>
           <Field label="Headline" htmlFor={`${id}-heading`}>
-            <Input id={`${id}-heading`} value={str("heading")} maxLength={120} onChange={(e) => onChange({ heading: e.target.value })} />
+            <Input id={`${id}-heading`} data-field="heading" value={str("heading")} maxLength={120} onChange={(e) => onChange({ heading: e.target.value })} />
           </Field>
           <Field label="Line underneath" htmlFor={`${id}-text`} hint="One or two sentences. Leave empty to hide it.">
-            <Textarea id={`${id}-text`} value={str("text")} rows={2} maxLength={500} onChange={(e) => onChange({ text: e.target.value })} />
+            <Textarea id={`${id}-text`} data-field="text" value={str("text")} rows={2} maxLength={500} onChange={(e) => onChange({ text: e.target.value })} />
           </Field>
           {picker}
         </>
@@ -130,30 +135,30 @@ function Fields({
       return (
         <>
           <Field label="Label" htmlFor={`${id}-label`} hint="Small text above the heading. Leave empty to hide it.">
-            <Input id={`${id}-label`} value={str("label")} maxLength={60} onChange={(e) => onChange({ label: e.target.value })} />
+            <Input id={`${id}-label`} data-field="label" value={str("label")} maxLength={60} onChange={(e) => onChange({ label: e.target.value })} />
           </Field>
           <Field label="Heading" htmlFor={`${id}-heading`}>
-            <Input id={`${id}-heading`} value={str("heading")} maxLength={120} onChange={(e) => onChange({ heading: e.target.value })} />
+            <Input id={`${id}-heading`} data-field="heading" value={str("heading")} maxLength={120} onChange={(e) => onChange({ heading: e.target.value })} />
           </Field>
           <Field label="Text" htmlFor={`${id}-body`} hint="Leave an empty line between paragraphs.">
-            <Textarea id={`${id}-body`} value={str("body")} rows={6} onChange={(e) => onChange({ body: e.target.value })} />
+            <Textarea id={`${id}-body`} data-field="body" value={str("body")} rows={6} onChange={(e) => onChange({ body: e.target.value })} />
           </Field>
         </>
       );
     case "statement":
       return (
         <Field label="The line" htmlFor={`${id}-text`} hint="One sentence, big. Make it count.">
-          <Textarea id={`${id}-text`} value={str("text")} rows={2} maxLength={300} onChange={(e) => onChange({ text: e.target.value })} />
+          <Textarea id={`${id}-text`} data-field="text" value={str("text")} rows={2} maxLength={300} onChange={(e) => onChange({ text: e.target.value })} />
         </Field>
       );
     case "pictureAndWords":
       return (
         <>
           <Field label="Heading" htmlFor={`${id}-heading`}>
-            <Input id={`${id}-heading`} value={str("heading")} maxLength={120} onChange={(e) => onChange({ heading: e.target.value })} />
+            <Input id={`${id}-heading`} data-field="heading" value={str("heading")} maxLength={120} onChange={(e) => onChange({ heading: e.target.value })} />
           </Field>
           <Field label="Text" htmlFor={`${id}-body`} hint="Leave an empty line between paragraphs.">
-            <Textarea id={`${id}-body`} value={str("body")} rows={5} onChange={(e) => onChange({ body: e.target.value })} />
+            <Textarea id={`${id}-body`} data-field="body" value={str("body")} rows={5} onChange={(e) => onChange({ body: e.target.value })} />
           </Field>
           <fieldset>
             <legend className="mb-1.5 block text-[13.5px] text-body">Image on the</legend>
@@ -180,7 +185,7 @@ function Fields({
       return (
         <>
           <Field label="Which form" htmlFor={`${id}-form`} hint={forms.length ? undefined : "You don't have a form yet. Make one under Content → Forms, then pick it here."}>
-            <Select id={`${id}-form`} value={str("formId")} onChange={(e) => onChange({ formId: e.target.value })}>
+            <Select id={`${id}-form`} data-field="formId" value={str("formId")} onChange={(e) => onChange({ formId: e.target.value })}>
               <option value="">{forms.length ? "Pick a form" : "No forms yet"}</option>
               {forms.map((f) => (
                 <option key={f.id} value={f.id}>
@@ -190,10 +195,10 @@ function Fields({
             </Select>
           </Field>
           <Field label="Heading" htmlFor={`${id}-heading`} hint="Above the form. Leave empty to hide it.">
-            <Input id={`${id}-heading`} value={str("heading")} maxLength={120} onChange={(e) => onChange({ heading: e.target.value })} />
+            <Input id={`${id}-heading`} data-field="heading" value={str("heading")} maxLength={120} onChange={(e) => onChange({ heading: e.target.value })} />
           </Field>
           <Field label="Line underneath" htmlFor={`${id}-text`} hint="A sentence or two before the fields. Optional.">
-            <Textarea id={`${id}-text`} value={str("text")} rows={2} maxLength={500} onChange={(e) => onChange({ text: e.target.value })} />
+            <Textarea id={`${id}-text`} data-field="text" value={str("text")} rows={2} maxLength={500} onChange={(e) => onChange({ text: e.target.value })} />
           </Field>
         </>
       );
@@ -203,13 +208,14 @@ function Fields({
       return (
         <>
           <Field label="Heading" htmlFor={`${id}-heading`}>
-            <Input id={`${id}-heading`} value={str("heading")} maxLength={120} onChange={(e) => onChange({ heading: e.target.value })} />
+            <Input id={`${id}-heading`} data-field="heading" value={str("heading")} maxLength={120} onChange={(e) => onChange({ heading: e.target.value })} />
           </Field>
           {items.map((it, i) => (
-            <div key={i} className="rounded-card border border-line-soft bg-bg p-3">
+            <div key={i} data-field={`items.${i}`} className="rounded-card border border-line-soft bg-bg p-3">
               <Field label={`Question ${i + 1}`} htmlFor={`${id}-q-${i}`}>
                 <Input
                   id={`${id}-q-${i}`}
+                  data-field={`items.${i}.question`}
                   value={it.question}
                   maxLength={300}
                   onChange={(e) => setItems(items.map((x, j) => (j === i ? { ...x, question: e.target.value } : x)))}
@@ -219,6 +225,7 @@ function Fields({
                 <Field label="Answer" htmlFor={`${id}-a-${i}`}>
                   <Textarea
                     id={`${id}-a-${i}`}
+                    data-field={`items.${i}.answer`}
                     value={it.answer}
                     rows={3}
                     onChange={(e) => setItems(items.map((x, j) => (j === i ? { ...x, answer: e.target.value } : x)))}

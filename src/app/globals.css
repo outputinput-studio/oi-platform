@@ -116,3 +116,11 @@ body {
   text-transform: uppercase;
   color: var(--text);
 }
+
+/* A group at fault that isn't a single control (a list of countries, a zone card): outlined in red.
+   Controls get a red border from their own classes in admin/ui.tsx. */
+[data-field][aria-invalid="true"]:not(input, textarea, select) {
+  outline: 1px solid var(--color-alert);
+  outline-offset: 3px;
+  border-radius: var(--radius-card);
+}

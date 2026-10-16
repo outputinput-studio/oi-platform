@@ -36,7 +36,7 @@ export function ShippingEditor({
   const [s, setS] = useState<Shipping>(initial);
   const [saved, setSaved] = useState(JSON.stringify(initial));
   const [open, setOpen] = useState<string | null>(null);
-  const [state, setState] = useState<{ ok?: string; error?: string }>({});
+  const [state, setState] = useState<{ ok?: string; error?: string; fields?: string[] }>({});
   const [pending, start] = useTransition();
   const dirty = JSON.stringify(s) !== saved;
   const fmt = (c: number) => formatPrice(c, currency);
@@ -60,6 +60,9 @@ export function ShippingEditor({
       const r = await saveShippingAction(s).catch(() => ({ error: "couldn't reach the server" }));
       setState(r);
       if (!r.error) setSaved(JSON.stringify(s));
+      // A problem inside a folded zone: open it, so the field can be shown.
+      const at = "fields" in r ? r.fields?.map((f) => /^zones\.(\d+)/.exec(f)?.[1]).find(Boolean) : undefined;
+      if (at !== undefined && s.zones[Number(at)]) setOpen(s.zones[Number(at)].id);
     });
 
   return (
@@ -70,6 +73,7 @@ export function ShippingEditor({
           Posted within
           <Input
             aria-label="Business days"
+            data-field="dispatchDays"
             inputMode="numeric"
             className="!h-10 w-[70px] font-mono"
             value={String(s.dispatchDays)}
@@ -90,7 +94,7 @@ export function ShippingEditor({
         )}
         <ul className="space-y-2">
           {s.zones.map((z, i) => (
-            <li key={z.id} data-testid={`zone-${i}`} className="rounded-card border border-line bg-surface">
+            <li key={z.id} data-testid={`zone-${i}`} data-field={`zones.${i}`} className="rounded-card border border-line bg-surface">
               <div className="flex items-center gap-2 p-3 pl-4">
                 <button type="button" onClick={() => setOpen(open === z.id ? null : z.id)} aria-expanded={open === z.id} className="min-w-0 flex-1 text-left">
                   <span className="block text-[15px] font-medium">{z.name}</span>
@@ -110,7 +114,7 @@ export function ShippingEditor({
                 )}
               </div>
               <ZoneGaps zone={z} fmt={fmt} />
-              {open === z.id && <ZoneEditor zone={z} countries={countries} canEdit={canEdit} hasEnquiryForm={hasEnquiryForm} fmt={fmt} onChange={(patch) => setZone(z.id, patch)} onDelete={() => setS((cur) => ({ ...cur, zones: cur.zones.filter((x) => x.id !== z.id) }))} />}
+              {open === z.id && <ZoneEditor path={`zones.${i}`} zone={z} countries={countries} canEdit={canEdit} hasEnquiryForm={hasEnquiryForm} fmt={fmt} onChange={(patch) => setZone(z.id, patch)} onDelete={() => setS((cur) => ({ ...cur, zones: cur.zones.filter((x) => x.id !== z.id) }))} />}
             </li>
           ))}
         </ul>
@@ -142,6 +146,7 @@ export function ShippingEditor({
 }
 
 function ZoneEditor({
+  path,
   zone: z,
   countries,
   canEdit,
@@ -150,6 +155,8 @@ function ZoneEditor({
   onChange,
   onDelete,
 }: {
+  /** Where this zone sits in the saved settings, for pointing at a field with a problem. */
+  path: string;
   zone: Zone;
   countries: { code: string; name: string }[];
   canEdit: boolean;
@@ -164,11 +171,11 @@ function ZoneEditor({
   return (
     <div className="space-y-4 border-t border-line-soft p-4">
       <Field label="Zone name" htmlFor={`z-name-${z.id}`} hint="Only you see this. Customers see the rate names.">
-        <Input id={`z-name-${z.id}`} value={z.name} maxLength={60} readOnly={!canEdit} onChange={(e) => onChange({ name: e.target.value })} />
+        <Input id={`z-name-${z.id}`} data-field={`${path}.name`} value={z.name} maxLength={60} readOnly={!canEdit} onChange={(e) => onChange({ name: e.target.value })} />
       </Field>
       <Switch checked={z.everywhere} disabled={!canEdit} onChange={(everywhere) => onChange({ everywhere, countries: everywhere ? [] : z.countries })} label="Every other country" hint="Catches any address no zone above it matched." />
       {!z.everywhere && (
-        <fieldset>
+        <fieldset data-field={`${path}.countries`}>
           <legend className="mb-1.5 text-[13.5px] text-body">Places it covers</legend>
           <Input aria-label="Find a country" placeholder="Find a country" value={filter} onChange={(e) => setFilter(e.target.value)} className="!h-10 text-[14px]" />
           <div className="mt-2 flex max-h-[180px] flex-wrap gap-1.5 overflow-y-auto">
@@ -192,6 +199,7 @@ function ZoneEditor({
             <Field label="What they read at checkout" htmlFor={`z-quote-${z.id}`}>
               <Textarea
                 id={`z-quote-${z.id}`}
+                data-field={`${path}.quoteMessage`}
                 rows={2}
                 maxLength={300}
                 value={z.quoteMessage}
@@ -211,11 +219,11 @@ function ZoneEditor({
       </div>
 
       {!z.quote && (
-      <div>
+      <div data-field={`${path}.rates`}>
         <p className="mb-1.5 text-[13.5px] text-body">Rates</p>
         <div className="space-y-2">
-          {z.rates.map((r) => (
-            <RateEditor key={r.id} rate={r} canEdit={canEdit} fmt={fmt} onChange={(patch) => setRate(r.id, patch)} onRemove={() => onChange({ rates: z.rates.filter((x) => x.id !== r.id) })} />
+          {z.rates.map((r, j) => (
+            <RateEditor key={r.id} path={`${path}.rates.${j}`} rate={r} canEdit={canEdit} fmt={fmt} onChange={(patch) => setRate(r.id, patch)} onRemove={() => onChange({ rates: z.rates.filter((x) => x.id !== r.id) })} />
           ))}
         </div>
         <p className="mt-1.5 text-[12.5px] text-muted">The customer picks one of these at checkout, cheapest first.</p>
@@ -235,7 +243,7 @@ function ZoneEditor({
   );
 }
 
-function RateEditor({ rate: r, canEdit, fmt, onChange, onRemove }: { rate: Rate; canEdit: boolean; fmt: (c: number) => string; onChange: (patch: Partial<Rate>) => void; onRemove: () => void }) {
+function RateEditor({ path, rate: r, canEdit, fmt, onChange, onRemove }: { path: string; rate: Rate; canEdit: boolean; fmt: (c: number) => string; onChange: (patch: Partial<Rate>) => void; onRemove: () => void }) {
   const [price, setPrice] = useState(priceInput(r.price));
   const [min, setMin] = useState(priceInput(r.minTotal));
   const [max, setMax] = useState(priceInput(r.maxTotal));
@@ -251,8 +259,17 @@ function RateEditor({ rate: r, canEdit, fmt, onChange, onRemove }: { rate: Rate;
     }
   };
   const conditional = r.minTotal !== null || r.maxTotal !== null;
+  // A price that won't read is outlined straight away, before any save.
+  const bad = (text: string) => {
+    try {
+      parsePrice(text);
+      return false;
+    } catch {
+      return true;
+    }
+  };
   return (
-    <div className="space-y-3 rounded-card border border-line-soft bg-sunken p-3">
+    <div data-field={path} className="space-y-3 rounded-card border border-line-soft bg-sunken p-3">
       <div role="radiogroup" aria-label="Kind of rate" className="flex rounded-[6px] border border-line bg-bg p-[3px]">
         {RATE_KINDS.map((k) => (
           <button key={k} type="button" role="radio" aria-checked={r.kind === k} disabled={!canEdit} onClick={() => onChange({ kind: k })} className={`h-9 flex-1 rounded-button px-1 text-[13px] ${r.kind === k ? "bg-accent text-text" : "text-muted hover:text-text"}`}>
@@ -263,20 +280,21 @@ function RateEditor({ rate: r, canEdit, fmt, onChange, onRemove }: { rate: Rate;
       <p className="text-[12px] text-muted">{KIND_NOTE[r.kind]}</p>
       <div className="grid grid-cols-[1fr_120px] gap-2">
         <Field label="Name they see" htmlFor={`r-name-${r.id}`}>
-          <Input id={`r-name-${r.id}`} value={r.name} maxLength={60} readOnly={!canEdit} onChange={(e) => onChange({ name: e.target.value })} />
+          <Input id={`r-name-${r.id}`} data-field={`${path}.name`} value={r.name} maxLength={60} readOnly={!canEdit} onChange={(e) => onChange({ name: e.target.value })} />
         </Field>
         <Field label="Price" htmlFor={`r-price-${r.id}`}>
-          <Input id={`r-price-${r.id}`} inputMode="decimal" className="font-mono" value={price} readOnly={!canEdit} onChange={(e) => money(e.target.value, setPrice, (c) => onChange({ price: c ?? 0 }))} />
+          <Input id={`r-price-${r.id}`} data-field={`${path}.price`} aria-invalid={bad(price) || undefined} inputMode="decimal" className="font-mono" value={price} readOnly={!canEdit} onChange={(e) => money(e.target.value, setPrice, (c) => onChange({ price: c ?? 0 }))} />
         </Field>
       </div>
       <p className="-mt-1 text-[12px] text-muted">At {fmt(0)} checkout shows it as Included.</p>
       <Field label="Delivery estimate" htmlFor={`r-est-${r.id}`} hint="Plain words. Worth filling in — it's the question everyone asks.">
-        <Input id={`r-est-${r.id}`} value={r.estimate} maxLength={80} placeholder="3–5 business days" readOnly={!canEdit} onChange={(e) => onChange({ estimate: e.target.value })} />
+        <Input id={`r-est-${r.id}`} data-field={`${path}.estimate`} value={r.estimate} maxLength={80} placeholder="3–5 business days" readOnly={!canEdit} onChange={(e) => onChange({ estimate: e.target.value })} />
       </Field>
       {r.kind === "local" && (
         <Field label="Postcodes you deliver to" htmlFor={`r-pc-${r.id}`} hint={r.postcodes.length ? "Separated by commas." : "Separated by commas. With none listed, this rate never shows at checkout."}>
           <Textarea
             id={`r-pc-${r.id}`}
+            data-field={`${path}.postcodes`}
             rows={2}
             value={pcText}
             readOnly={!canEdit}
@@ -305,10 +323,10 @@ function RateEditor({ rate: r, canEdit, fmt, onChange, onRemove }: { rate: Rate;
       {conditional && (
         <div className="grid grid-cols-2 gap-2">
           <Field label="From" htmlFor={`r-min-${r.id}`}>
-            <Input id={`r-min-${r.id}`} inputMode="decimal" className="font-mono" value={min} readOnly={!canEdit} onChange={(e) => money(e.target.value, setMin, (c) => onChange({ minTotal: c }))} />
+            <Input id={`r-min-${r.id}`} data-field={`${path}.minTotal`} aria-invalid={bad(min) || undefined} inputMode="decimal" className="font-mono" value={min} readOnly={!canEdit} onChange={(e) => money(e.target.value, setMin, (c) => onChange({ minTotal: c }))} />
           </Field>
           <Field label="Up to (not including)" htmlFor={`r-max-${r.id}`}>
-            <Input id={`r-max-${r.id}`} inputMode="decimal" className="font-mono" value={max} placeholder="No limit" readOnly={!canEdit} onChange={(e) => money(e.target.value, setMax, (c) => onChange({ maxTotal: c }))} />
+            <Input id={`r-max-${r.id}`} data-field={`${path}.maxTotal`} aria-invalid={bad(max) || undefined} inputMode="decimal" className="font-mono" value={max} placeholder="No limit" readOnly={!canEdit} onChange={(e) => money(e.target.value, setMax, (c) => onChange({ maxTotal: c }))} />
           </Field>
         </div>
       )}

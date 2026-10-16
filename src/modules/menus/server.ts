@@ -7,6 +7,7 @@ import { HOME_SLUG } from "@/modules/pages/server";
 import { isLive } from "@/modules/pages/live";
 import { articlePath } from "@/modules/articles/server";
 import { menuSettingsSchema, menuSummary, navTree, newItemId, readItems, type LinkTargets, type MenuItem, type NavLink } from "./items";
+import { named } from "@/lib/form-error";
 
 /**
  * Menus. Every site has a header and a footer ("always here"); the team
@@ -92,7 +93,7 @@ export async function saveMenu(p: { actorId: string; siteId: string; key: string
 
 export async function createMenu(p: { actorId: string; siteId: string; name: string }): Promise<MenuView> {
   await assertAccess(p.actorId, p.siteId);
-  const name = z.string().trim().min(1, "Give the menu a name.").max(60).parse(p.name);
+  const name = named("name", z.string().trim().min(1, "Give the menu a name.").max(60), p.name);
   const [row] = await withSite(p.siteId, (tx) => tx.insert(menus).values({ siteId: p.siteId, kind: "custom", name }).returning());
   return view(row);
 }

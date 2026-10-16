@@ -9,6 +9,7 @@ import { isLive, pageIsLive } from "./live";
 import { seoSchema, type Seo } from "./seo";
 import { autoRedirect } from "@/modules/redirects/server";
 import { readSearchSettings } from "@/modules/sites/search";
+import { FieldError, named } from "@/lib/form-error";
 
 /**
  * Pages and their sections. Every function authorises the actor, then
@@ -58,8 +59,8 @@ export async function getPage(p: { actorId: string; siteId: string; pageId: stri
 
 export async function createPage(p: { actorId: string; siteId: string; title: string; slug?: string }): Promise<Page> {
   await assertAccess(p.actorId, p.siteId);
-  const title = titleSchema.parse(p.title);
-  const slug = slugSchema.parse(p.slug?.trim() ? p.slug : slugFromTitle(title));
+  const title = named("title", titleSchema, p.title);
+  const slug = named("slug", slugSchema, p.slug?.trim() ? p.slug : slugFromTitle(title));
   return withSite(p.siteId, async (tx) => {
     await assertSlugFree(tx, slug);
     const [{ next }] = await tx
@@ -81,9 +82,9 @@ export async function updatePage(p: {
 }): Promise<Page> {
   await assertAccess(p.actorId, p.siteId);
   const patch: Partial<Pick<Page, "title" | "slug" | "seo">> = {};
-  if (p.title !== undefined) patch.title = titleSchema.parse(p.title);
-  if (p.slug !== undefined) patch.slug = slugSchema.parse(p.slug);
-  if (p.seo !== undefined) patch.seo = seoSchema.parse(p.seo) as Seo;
+  if (p.title !== undefined) patch.title = named("title", titleSchema, p.title);
+  if (p.slug !== undefined) patch.slug = named("slug", slugSchema, p.slug);
+  if (p.seo !== undefined) patch.seo = named("seo", seoSchema, p.seo) as Seo;
   return withSite(p.siteId, async (tx) => {
     const page = await loadPage(tx, p.pageId);
     if (patch.slug && patch.slug !== page.slug) await assertSlugFree(tx, patch.slug);
@@ -306,7 +307,7 @@ async function touch(tx: Tx, pageId: string) {
 
 async function assertSlugFree(tx: Tx, slug: string) {
   const [clash] = await tx.select({ id: pages.id }).from(pages).where(and(eq(pages.slug, slug), isNull(pages.deletedAt))).limit(1);
-  if (clash) throw new AccessError(`There's already a page at ${slug}. Pick another address.`);
+  if (clash) throw new FieldError("slug", `There's already a page at ${slug}. Pick another address.`);
 }
 
 /** Settings · Redirects → "Redirect automatically when I rename a page". */
@@ -318,7 +319,7 @@ async function wantsAutoRedirect(tx: Tx): Promise<boolean> {
 /** A scheduled time has to be real and ahead of us; other statuses carry none. */
 export function scheduleTime(status: string, at?: Date): Date | undefined {
   if (status !== "scheduled") return undefined;
-  if (!at || Number.isNaN(at.getTime())) throw new Error("Pick a date and time.");
-  if (at.getTime() <= Date.now()) throw new Error("That time has already passed. Pick one ahead, or just publish it now.");
+  if (!at || Number.isNaN(at.getTime())) throw new FieldError("at", "Pick a date and time.");
+  if (at.getTime() <= Date.now()) throw new FieldError("at", "That time has already passed. Pick one ahead, or just publish it now.");
   return at;
 }

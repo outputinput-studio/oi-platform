@@ -11,6 +11,7 @@ import { Button, Field, Input, Label, PageHeader, Select, Textarea } from "../..
 import { SeoCard } from "../../seo-card";
 import { DateField } from "../../../date-picker";
 import { ImagePicker } from "../../pages/[id]/image-picker";
+import { FieldErrors } from "@/lib/field-errors";
 
 /**
  * The article editor, as in design/admin.html: title, cover, body,
@@ -51,6 +52,7 @@ export function ArticleEditor({
   const [d, setD] = useState<Draft>(article);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState("");
+  const [fields, setFields] = useState<string[]>();
   const [version, setVersion] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<Partial<Draft>>({});
@@ -65,6 +67,7 @@ export function ArticleEditor({
     if (r.error) {
       pending.current = { ...patch, ...pending.current };
       setError(r.error);
+      setFields("fields" in r ? r.fields : undefined);
       setStatus("error");
     } else {
       setStatus("saved");
@@ -102,6 +105,7 @@ export function ArticleEditor({
                   Retry — {error}
                 </button>
               )}
+              {status === "error" && <FieldErrors fields={fields} />}
             </span>
             <form action={actions.setStatus} className="flex items-center gap-2">
               <input type="hidden" name="articleId" value={article.id} />
@@ -121,6 +125,7 @@ export function ArticleEditor({
           <Field label="Title" htmlFor="a-title">
             <Input
               id="a-title"
+              data-field="title"
               value={d.title}
               maxLength={160}
               onChange={(e) => {
@@ -140,16 +145,18 @@ export function ArticleEditor({
             />
           </div>
           <Field label="Body" htmlFor="a-body" hint="Leave an empty line between paragraphs.">
-            <Textarea id="a-body" value={d.body} rows={14} onChange={(e) => change({ body: e.target.value })} />
+            <Textarea id="a-body" data-field="body" value={d.body} rows={14} onChange={(e) => change({ body: e.target.value })} />
           </Field>
           <Field label="Excerpt" htmlFor="a-excerpt" hint="Shown in the journal list and when the link is shared.">
-            <Textarea id="a-excerpt" value={d.excerpt} rows={2} maxLength={300} onChange={(e) => change({ excerpt: e.target.value })} />
+            <Textarea id="a-excerpt" data-field="excerpt" value={d.excerpt} rows={2} maxLength={300} onChange={(e) => change({ excerpt: e.target.value })} />
           </Field>
           <Field label="Publish date" htmlFor="a-date" hint="Shown on the article and sets its place in the journal. Set for you when it first goes live.">
-            <DateField id="a-date" value={d.publishedOn} onChange={(v) => change({ publishedOn: v })} />
+            <div data-field="publishedOn">
+              <DateField id="a-date" value={d.publishedOn} onChange={(v) => change({ publishedOn: v })} />
+            </div>
           </Field>
           <Field label="Written by" htmlFor="a-author" hint={`Shows under the title. ${siteName} unless you put a person here.`}>
-            <Input id="a-author" value={d.author} maxLength={80} placeholder={siteName} onChange={(e) => change({ author: e.target.value })} />
+            <Input id="a-author" data-field="author" value={d.author} maxLength={80} placeholder={siteName} onChange={(e) => change({ author: e.target.value })} />
           </Field>
 
           <Label className="mt-9" right={<Link href="/articles/categories" className="text-accent-text">Manage</Link>}>
@@ -169,6 +176,7 @@ export function ArticleEditor({
                 <Field label="Main category" htmlFor="a-category" hint="Sets this article's web address.">
                   <Select
                     id="a-category"
+                    data-field="categoryId"
                     value={d.categoryId ?? ""}
                     onChange={(e) => {
                       const id = e.target.value || null;
@@ -210,6 +218,7 @@ export function ArticleEditor({
             <Field label="Web address" htmlFor="a-slug" hint={`${siteHost}${path}`}>
               <Input
                 id="a-slug"
+                data-field="slug"
                 value={d.slug}
                 maxLength={80}
                 className="font-mono"

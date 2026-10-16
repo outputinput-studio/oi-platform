@@ -2,8 +2,10 @@
 
 import { useActionState, useState } from "react";
 import { productQuoteAction, type CartState } from "@/modules/orders/actions";
+import { FieldErrors } from "@/lib/field-errors";
+import { INVALID } from "./storefront-form";
 
-const input = "block h-12 w-full rounded-[6px] border border-[var(--border)] bg-transparent px-3.5 text-[16px] outline-none focus:border-[var(--accent)]";
+const input = `block h-12 w-full rounded-[6px] border border-[var(--border)] bg-transparent px-3.5 text-[16px] outline-none focus:border-[var(--accent)] ${INVALID}`;
 
 /**
  * Email quote on a product page: on its own (the main button) or beside
@@ -71,7 +73,12 @@ export function EmailQuote({ productId, productName, alone, countries, defaultCo
         <label htmlFor={`website_quote_${productId}`}>Website</label>
         <input id={`website_quote_${productId}`} name="website" type="text" tabIndex={-1} autoComplete="off" />
       </div>
-      {state.error && <p className="rounded-[6px] border border-[var(--border)] px-4 py-3 text-[14px]">{state.error}</p>}
+      {state.error && (
+        <p className="rounded-[6px] border border-[var(--border)] px-4 py-3 text-[14px]">
+          {state.error}
+          <FieldErrors fields={state.fields} />
+        </p>
+      )}
       <button type="submit" disabled={pending} className="h-12 w-full rounded-[6px] bg-[var(--accent)] text-[15px] font-medium text-[var(--accent-fg)] hover:opacity-90 disabled:opacity-60">
         {pending ? "Sending…" : "Send for a quote"}
       </button>

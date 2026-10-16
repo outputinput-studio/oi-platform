@@ -5,6 +5,7 @@ import type { Seo } from "@/modules/pages/seo";
 import { summarise } from "@/modules/pages/seo";
 import { Field, Input, Switch, Textarea } from "../ui";
 import { ImagePicker } from "./pages/[id]/image-picker";
+import { FieldErrors } from "@/lib/field-errors";
 
 /**
  * "Search and sharing", as in design/admin.html: a fold-out card with a
@@ -30,12 +31,13 @@ export function SeoCard({
   /** The current sharing image's address, when one is set. */
   imageUrl?: string;
   mediaAvailable: boolean;
-  onSave: (seo: Seo) => Promise<{ ok?: string; error?: string }>;
+  onSave: (seo: Seo) => Promise<{ ok?: string; error?: string; fields?: string[] }>;
 }) {
   const [open, setOpen] = useState(false);
   const [seo, setSeo] = useState<Seo>(initial);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState("");
+  const [fields, setFields] = useState<string[]>();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const save = async (snapshot: Seo) => {
@@ -43,6 +45,7 @@ export function SeoCard({
     const r = await onSave(snapshot).catch(() => ({ error: "couldn't reach the server" }));
     if (r.error) {
       setError(r.error);
+      setFields("fields" in r ? r.fields : undefined);
       setStatus("error");
     } else setStatus("saved");
   };
@@ -88,10 +91,10 @@ export function SeoCard({
             </div>
           </div>
           <Field label="Search title" htmlFor="seo-title" hint={`${seo.title.length} / 60 · empty uses "${fallback.title}".`}>
-            <Input id="seo-title" value={seo.title} maxLength={120} placeholder={fallback.title} onChange={(e) => change({ title: e.target.value })} />
+            <Input id="seo-title" data-field="seo.title" value={seo.title} maxLength={120} placeholder={fallback.title} onChange={(e) => change({ title: e.target.value })} />
           </Field>
           <Field label="Search description" htmlFor="seo-description" hint={`${seo.description.length} / 160 · empty uses the first words on the page.`}>
-            <Textarea id="seo-description" value={seo.description} rows={3} maxLength={320} onChange={(e) => change({ description: e.target.value })} />
+            <Textarea id="seo-description" data-field="seo.description" value={seo.description} rows={3} maxLength={320} onChange={(e) => change({ description: e.target.value })} />
           </Field>
           <div>
             <p className="mb-1.5 text-[13.5px] text-body">Sharing image</p>
@@ -107,6 +110,7 @@ export function SeoCard({
                 Retry — {error}
               </button>
             )}
+            {status === "error" && <FieldErrors fields={fields} />}
           </p>
         </div>
       )}

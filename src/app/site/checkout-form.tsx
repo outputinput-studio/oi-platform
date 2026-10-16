@@ -5,8 +5,10 @@ import { checkoutAction, clearCartAction, previewCodeAction, quoteAction, type C
 import { taxOn } from "@/modules/orders/cart";
 import { quoteFor, ratePriceLabel, ratesFor, whyNoRates, type Shipping } from "@/modules/sites/shipping";
 import { formatPrice, type Currency } from "@/modules/sites/shop";
+import { FieldErrors } from "@/lib/field-errors";
+import { INVALID } from "./storefront-form";
 
-const input = "block h-12 w-full rounded-[6px] border border-[var(--border)] bg-transparent px-3.5 text-[16px] outline-none focus:border-[var(--accent)]";
+const input = `block h-12 w-full rounded-[6px] border border-[var(--border)] bg-transparent px-3.5 text-[16px] outline-none focus:border-[var(--accent)] ${INVALID}`;
 
 /**
  * Who's buying, where it goes and how. Delivery options follow the
@@ -129,7 +131,7 @@ export function CheckoutForm({
               {noneText}
             </p>
           ) : (
-            <div role="radiogroup" aria-label="How it gets to you" className="space-y-2">
+            <div role="radiogroup" aria-label="How it gets to you" data-field="rate" className="space-y-2">
               {rates.map((r) => (
                 <label key={r.id} className={`flex cursor-pointer items-center gap-3 rounded-[6px] border px-4 py-3 ${rate?.id === r.id ? "border-[var(--accent)]" : "border-[var(--border)]"}`}>
                   <input type="radio" name="rate" value={r.id} checked={rate?.id === r.id} onChange={() => setPicked(r.id)} className="accent-[var(--accent)]" />
@@ -152,6 +154,8 @@ export function CheckoutForm({
         <div className="flex gap-2">
           <input
             id="checkout-code"
+            data-field="code"
+            aria-invalid={Boolean(codeError) || undefined}
             value={codeText}
             onChange={(e) => {
               setCodeText(e.target.value);
@@ -199,7 +203,12 @@ export function CheckoutForm({
         </div>
       </dl>
       )}
-      {(quote ? quoteState.error : state.error) && <p className="rounded-[6px] border border-[var(--border)] px-4 py-3 text-[14px]">{quote ? quoteState.error : state.error}</p>}
+      {(quote ? quoteState.error : state.error) && (
+        <p className="rounded-[6px] border border-[var(--border)] px-4 py-3 text-[14px]">
+          {quote ? quoteState.error : state.error}
+          <FieldErrors fields={quote ? quoteState.fields : state.fields} />
+        </p>
+      )}
       {quote ? (
         <button type="submit" disabled={quoting || !canQuote} className="h-12 w-full rounded-[6px] bg-[var(--accent)] text-[15px] font-medium text-[var(--accent-fg)] hover:opacity-90 disabled:opacity-60">
           {quoting ? "Sending…" : "Ask for a quote"}

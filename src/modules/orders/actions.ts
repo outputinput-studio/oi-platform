@@ -15,13 +15,14 @@ import { requestProductQuote, requestQuote } from "./quote";
 import { moveOrder, refundOrder } from "./admin";
 import { discountFor } from "@/modules/discounts/server";
 import { requireSiteAccess } from "@/modules/auth/access";
+import { formError } from "@/lib/form-error";
 
 /**
  * The storefront's cart and checkout. No sign-in: the site is the one the
  * hostname names, and the cart is a cookie on that address.
  */
 
-export type CartState = { ok?: string; error?: string; count?: number };
+export type CartState = { ok?: string; error?: string; fields?: string[]; count?: number };
 
 async function here() {
   const h = await headers();
@@ -72,6 +73,12 @@ export async function setCartQtyAction(form: FormData): Promise<void> {
 }
 
 /** The checkout form's fields, as the order and quote code reads them (both check them again). */
+/** Checkout's address sits under `address` when checked; on the page its fields are named on their own (line1, city…). */
+function checkoutError(err: unknown) {
+  const e = formError(err, { fallback: "Check the details and try again." });
+  return { ...e, ...(e.fields ? { fields: e.fields.map((f) => f.replace(/^address\./, "")) } : {}) };
+}
+
 function detailsFrom(form: FormData) {
   const s = (k: string) => String(form.get(k) ?? "");
   const hasAddress = form.get("country") !== null;
@@ -93,8 +100,7 @@ export async function checkoutAction(_prev: CartState, form: FormData): Promise<
     const cart = readCart((await cookies()).get(CART_COOKIE)?.value);
     to = (await startCheckout({ site, host, cart, cartRef: await cartRef(), details: detailsFrom(form) })).redirect;
   } catch (err) {
-    if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "Check the details and try again." };
-    return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+    return checkoutError(err);
   }
   redirect(to);
 }
@@ -106,8 +112,7 @@ export async function quoteAction(_prev: CartState, form: FormData): Promise<Car
     const cart = readCart((await cookies()).get(CART_COOKIE)?.value);
     return await requestQuote({ site, cart, cartRef: await cartRef(), details: detailsFrom(form), inboxUrl: `https://${host.replace(/^[^.]+\./, "admin.")}/inbox` });
   } catch (err) {
-    if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "Check the details and try again." };
-    return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+    return checkoutError(err);
   }
 }
 
@@ -120,8 +125,7 @@ export async function productQuoteAction(productId: string, _prev: CartState, fo
     const details = { name: s("name"), email: s("email"), phone: s("phone"), country: s("country"), city: s("city"), postcode: s("postcode"), qty: s("qty") || "1", note: s("note") };
     return await requestProductQuote({ site, productId, details, inboxUrl: `https://${host.replace(/^[^.]+\./, "admin.")}/inbox` });
   } catch (err) {
-    if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "Check the details and try again." };
-    return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+    return formError(err, { fallback: "Check the details and try again." });
   }
 }
 
@@ -153,8 +157,7 @@ export async function moveOrderAction(orderId: string, change: unknown): Promise
     revalidatePath("/orders", "layout");
     return { ok: "Saved" };
   } catch (err) {
-    if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "Check the details and try again." };
-    return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+    return formError(err, { fallback: "Check the details and try again." });
   }
 }
 
@@ -178,7 +181,6 @@ export async function refundOrderAction(orderId: string, refund: unknown): Promi
     revalidatePath("/orders", "layout");
     return { ok: "Refunded" };
   } catch (err) {
-    if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "Check the details and try again." };
-    return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+    return formError(err, { fallback: "Check the details and try again." });
   }
 }

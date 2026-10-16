@@ -501,4 +501,26 @@ test("product details: rows written once, changed or hidden on one product, open
   await page.goto(admin + "/settings/product-details");
   await expect(page.getByTestId("detail-row-0")).toContainText("0 products as written · 1 changed");
   await expect(page.getByTestId("detail-row-1")).toContainText("1 hidden");
+
+  // A mistake: the field at fault is outlined and the cursor goes to it; fixing it clears the outline.
+  await page.getByRole("button", { name: "+ Add a row" }).click();
+  await page.getByLabel("Row 4 text").fill("All sales final.");
+  await page.getByRole("button", { name: "Save rows" }).click();
+  await expect(page.getByText("Give the row a title, like Care.")).toBeVisible();
+  const title = page.getByLabel("Row 4 title");
+  await expect(title).toHaveAttribute("aria-invalid", "true");
+  await expect(title).toBeFocused();
+  await title.fill("Returns");
+  await expect(title).not.toHaveAttribute("aria-invalid", "true");
+  await page.getByRole("button", { name: "Remove Returns" }).click();
+  await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
+
+  // The same on a product, where it saves as you type: a sale price above the price.
+  await page.goto(admin + "/products");
+  await page.getByTestId("product-teal-crystal-bikini").click();
+  await page.getByLabel("Sale price").fill("999");
+  await expect(page.getByTestId("product-save-status")).toContainText("A sale price is lower");
+  await expect(page.getByLabel("Sale price")).toHaveAttribute("aria-invalid", "true");
+  await page.getByLabel("Sale price").fill("380");
+  await expect(page.getByTestId("product-save-status")).toHaveText("✓ Saved");
 });

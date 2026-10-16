@@ -8,6 +8,7 @@ import { autoRedirect } from "@/modules/redirects/server";
 import { readSearchSettings } from "@/modules/sites/search";
 import { productSlugSchema } from "./catalogue";
 import { assertShopSlugFree } from "./slugs";
+import { named } from "@/lib/form-error";
 
 /**
  * Product categories: how people browse the shop. Each is a page at
@@ -25,9 +26,9 @@ export async function listProductCategories(p: { actorId: string; siteId: string
 
 export async function createProductCategory(p: { actorId: string; siteId: string; name: string; slug?: string; description?: string }): Promise<ProductCategory> {
   await assertAccess(p.actorId, p.siteId);
-  const name = nameSchema.parse(p.name);
-  const description = z.string().trim().max(300).parse(p.description ?? "");
-  const slug = productSlugSchema.parse(p.slug?.trim() ? p.slug : slugFromTitle(name));
+  const name = named("name", nameSchema, p.name);
+  const description = named("description", z.string().trim().max(300), p.description ?? "");
+  const slug = named("slug", productSlugSchema, p.slug?.trim() ? p.slug : slugFromTitle(name));
   return withSite(p.siteId, async (tx) => {
     await assertShopSlugFree(tx, slug);
     const [{ next }] = await tx.select({ next: sql<number>`coalesce(max(${productCategories.position}), -1) + 1` }).from(productCategories).where(isNull(productCategories.deletedAt));
@@ -39,9 +40,9 @@ export async function createProductCategory(p: { actorId: string; siteId: string
 export async function updateProductCategory(p: { actorId: string; siteId: string; categoryId: string; name?: string; slug?: string; description?: string }): Promise<ProductCategory> {
   await assertAccess(p.actorId, p.siteId);
   const patch: Partial<ProductCategory> = {};
-  if (p.name !== undefined) patch.name = nameSchema.parse(p.name);
-  if (p.slug !== undefined) patch.slug = productSlugSchema.parse(p.slug);
-  if (p.description !== undefined) patch.description = z.string().trim().max(300).parse(p.description);
+  if (p.name !== undefined) patch.name = named("name", nameSchema, p.name);
+  if (p.slug !== undefined) patch.slug = named("slug", productSlugSchema, p.slug);
+  if (p.description !== undefined) patch.description = named("description", z.string().trim().max(300), p.description);
   return withSite(p.siteId, async (tx) => {
     const c = await load(tx, p.categoryId);
     if (patch.slug && patch.slug !== c.slug) await assertShopSlugFree(tx, patch.slug, { categoryId: c.id });

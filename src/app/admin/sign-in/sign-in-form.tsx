@@ -4,6 +4,10 @@ import { useActionState } from "react";
 import { sendCode, verifyCode, type SignInState } from "@/modules/auth/actions";
 import { Button, Input, Notice } from "../ui";
 
+/** What a sign-in error is about, for outlining it. */
+const CODE = ["code"];
+const EMAIL = ["email"];
+
 /**
  * Two steps on one screen: email, then the six-digit code. State lives in
  * the server action's return value, so a refresh never loses the step and
@@ -37,7 +41,7 @@ export function SignInForm() {
           </label>
           <Input id="field-code" name="code" type="text" inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" required autoFocus className="font-mono tracking-[3px]" />
         </div>
-        {state.error && <Notice error={state.error} />}
+        {state.error && <Notice error={state.error} fields={CODE} />}
         <Button type="submit" disabled={pending} className="h-12 w-full text-[16px]">
           {pending ? "One moment…" : "Sign in"}
         </Button>
@@ -58,7 +62,7 @@ export function SignInForm() {
         </label>
         <Input id="field-email" name="email" type="email" inputMode="email" autoComplete="email" required autoFocus />
       </div>
-      {state.error && <Notice error={state.error} />}
+      {state.error && <Notice error={state.error} fields={EMAIL} />}
       <Button type="submit" disabled={pending} className="h-12 w-full text-[16px]">
         {pending ? "One moment…" : "Send code"}
       </Button>

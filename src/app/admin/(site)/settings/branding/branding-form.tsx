@@ -49,7 +49,7 @@ export function BrandingForm({ initial, urls, siteName, mediaAvailable, canEdit 
         </label>
         <span className="block text-[12.5px] text-muted">{hint}</span>
       </div>
-      <Input id={`brand-${k}`} value={v[k]} maxLength={7} readOnly={!canEdit} className="!w-[110px] flex-none font-mono" onChange={(e) => setV({ ...v, [k]: e.target.value })} />
+      <Input id={`brand-${k}`} data-field={k} aria-invalid={!HEX.test(v[k]) || undefined} value={v[k]} maxLength={7} readOnly={!canEdit} className="!w-[110px] flex-none font-mono" onChange={(e) => setV({ ...v, [k]: e.target.value })} />
     </div>
   );
 
@@ -57,12 +57,16 @@ export function BrandingForm({ initial, urls, siteName, mediaAvailable, canEdit 
     <div className="space-y-7">
       <section>
         <Label>Logo</Label>
-        <ImagePicker id="brand-logo" value={v.logo ?? undefined} url={urls.logo} available={mediaAvailable && canEdit} onChange={(logo) => setV({ ...v, logo: logo ?? null })} />
+        <div data-field="logo">
+          <ImagePicker id="brand-logo" value={v.logo ?? undefined} url={urls.logo} available={mediaAvailable && canEdit} onChange={(logo) => setV({ ...v, logo: logo ?? null })} />
+        </div>
         <p className="mt-1.5 text-[12.5px] text-muted">PNG or SVG on a clear background works best. It shows in your site&apos;s header instead of &ldquo;{siteName}&rdquo;.</p>
       </section>
       <section>
         <Label>Favicon</Label>
-        <ImagePicker id="brand-favicon" value={v.favicon ?? undefined} url={urls.favicon} available={mediaAvailable && canEdit} onChange={(favicon) => setV({ ...v, favicon: favicon ?? null })} />
+        <div data-field="favicon">
+          <ImagePicker id="brand-favicon" value={v.favicon ?? undefined} url={urls.favicon} available={mediaAvailable && canEdit} onChange={(favicon) => setV({ ...v, favicon: favicon ?? null })} />
+        </div>
         <p className="mt-1.5 text-[12.5px] text-muted">The little icon in the browser tab. A square image works best.</p>
       </section>
       <section>

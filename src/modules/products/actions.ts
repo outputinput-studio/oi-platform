@@ -7,16 +7,12 @@ import { requireSiteAccess } from "@/modules/auth/access";
 import { createProduct, deleteProduct, updateProduct } from "./server";
 import { deleteCode, saveCode } from "@/modules/discounts/server";
 import { createProductCategory, deleteProductCategory, reorderProductCategories, updateProductCategory } from "./categories";
+import { formError } from "@/lib/form-error";
 
-export type ProductFormState = { ok?: string; error?: string };
+export type ProductFormState = { ok?: string; error?: string; fields?: string[] };
 /** Adding a category also hands back the new one, so the product editor can pick it straight away. */
 export type CategoryFormState = ProductFormState & { category?: { id: string; name: string } };
 
-function message(err: unknown): string {
-  if (err instanceof z.ZodError) return err.issues[0]?.message ?? "That doesn't look right.";
-  if (err instanceof Error) return err.message;
-  return "Something went wrong. Try again.";
-}
 
 export async function createProductAction(_prev: ProductFormState, form: FormData): Promise<ProductFormState> {
   const { user, site } = await requireSiteAccess();
@@ -24,7 +20,7 @@ export async function createProductAction(_prev: ProductFormState, form: FormDat
   try {
     id = (await createProduct({ actorId: user.id, siteId: site.id, name: String(form.get("name") ?? ""), categoryId: String(form.get("categoryId") ?? "") || null })).id;
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
   redirect(`/products/${id}`);
 }
@@ -37,7 +33,7 @@ export async function saveProductAction(productId: string, edit: unknown): Promi
     revalidatePath("/products");
     return { ok: "Saved" };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 
@@ -62,7 +58,7 @@ export async function createProductCategoryAction(_prev: CategoryFormState, form
     revalidatePath("/products");
     return { ok: "Added", category: { id: c.id, name: c.name } };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 
@@ -80,7 +76,7 @@ export async function updateProductCategoryAction(_prev: ProductFormState, form:
     revalidatePath("/products/categories");
     return { ok: "Saved" };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 
@@ -98,7 +94,7 @@ export async function reorderProductCategoriesAction(order: string[]): Promise<P
     revalidatePath("/products/categories");
     return { ok: "Saved" };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 
@@ -111,7 +107,7 @@ export async function saveCodeAction(codeId: string | undefined, edit: unknown):
     revalidatePath("/products/discounts");
     return { ok: "Saved", id: c.id };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 

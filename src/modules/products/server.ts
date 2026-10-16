@@ -11,6 +11,7 @@ import { readSearchSettings } from "@/modules/sites/search";
 import { readProductDetails } from "./details";
 import { productEditSchema, productNameSchema, readPhotos } from "./catalogue";
 import { assertShopSlugFree, freeShopSlug } from "./slugs";
+import { FieldError, named } from "@/lib/form-error";
 
 /**
  * Products: the pieces a site sells. The team side authorises first;
@@ -55,7 +56,7 @@ export async function getProduct(p: { actorId: string; siteId: string; productId
 /** A new product starts hidden, so it can be worked on before anyone sees it. */
 export async function createProduct(p: { actorId: string; siteId: string; name: string; categoryId?: string | null }): Promise<ProductRow> {
   await assertAccess(p.actorId, p.siteId);
-  const name = productNameSchema.parse(p.name);
+  const name = named("name", productNameSchema, p.name);
   return withSite(p.siteId, async (tx) => {
     const slug = await freeShopSlug(tx, slugFromTitle(name));
     const categoryId = p.categoryId ? (await liveCategory(tx, p.categoryId)).id : null;
@@ -79,7 +80,7 @@ export async function updateProduct(p: { actorId: string; siteId: string; produc
     if (e.categoryId !== undefined) patch.categoryId = e.categoryId ? (await liveCategory(tx, e.categoryId)).id : null;
     const price = patch.price !== undefined ? patch.price : cur.price;
     const sale = patch.salePrice !== undefined ? patch.salePrice : cur.salePrice;
-    if (sale !== null && (price === null || sale >= price)) throw new Error("A sale price is lower than the price. Clear it to stop the sale.");
+    if (sale !== null && (price === null || sale >= price)) throw new FieldError("salePrice", "A sale price is lower than the price. Clear it to stop the sale.");
     await tx.update(products).set(patch).where(eq(products.id, cur.id));
     // A visible product whose address changed keeps its old link working.
     if (patch.slug && patch.slug !== cur.slug && cur.visible) {

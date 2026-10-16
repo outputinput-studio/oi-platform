@@ -4,6 +4,7 @@ import { MEMBERSHIP_ROLES, memberships, users, type MembershipRole } from "@/db/
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { sendEmail } from "@/lib/email";
 import { z } from "zod";
+import { named } from "@/lib/form-error";
 
 /**
  * A site's team: who belongs, as what. Memberships and users are platform
@@ -54,8 +55,8 @@ export async function addMember(p: {
   invitation?: Invitation;
 }): Promise<Member & { accountCreated: boolean; added: boolean; emailed: boolean }> {
   await assertAccess(p.actorId, p.siteId, "owner");
-  const email = emailSchema.parse(p.email);
-  const role = roleSchema.parse(p.role ?? "staff");
+  const email = named("email", emailSchema, p.email);
+  const role = named("role", roleSchema, p.role ?? "staff");
 
   const result = await db.transaction(async (tx) => {
     let [user] = await tx.select().from(users).where(eq(users.email, email)).limit(1);
@@ -108,7 +109,7 @@ export function invitationEmail(to: string, inv: Invitation): { to: string; subj
 
 export async function setRole(p: { actorId: string; siteId: string; userId: string; role: MembershipRole }): Promise<void> {
   await assertAccess(p.actorId, p.siteId, "owner");
-  const role = roleSchema.parse(p.role);
+  const role = named("role", roleSchema, p.role);
   await db.transaction(async (tx) => {
     if (role === "staff") await assertNotLastOwner(tx, p.siteId, p.userId);
     const r = await tx

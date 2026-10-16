@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { renameSite, setEnquiryForm, updateBusiness, updateDetailRows, updateFooter, updateMessages, updateSearchSettings, updateSending, updateShipping, updateShopSettings, updateStatusNames, updateTheme } from "./server";
+import { formError } from "@/lib/form-error";
 
-export type SettingsFormState = { ok?: string; error?: string };
+export type SettingsFormState = { ok?: string; error?: string; fields?: string[] };
 
 /** Settings · Branding: logo, favicon and the three colours. */
 export async function saveBrandingAction(brand: { accent: string; text: string; background: string; logo: unknown; favicon: unknown }): Promise<SettingsFormState> {
@@ -26,8 +27,7 @@ export async function renameSiteAction(_prev: SettingsFormState, form: FormData)
     revalidatePath("/", "layout");
     return { ok: "Saved" };
   } catch (err) {
-    if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "That doesn't look right." };
-    return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+    return formError(err);
   }
 }
 
@@ -39,8 +39,7 @@ export async function saveSearchSettingsAction(settings: unknown): Promise<Setti
     revalidatePath("/", "layout");
     return { ok: "Saved" };
   } catch (err) {
-    if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "That doesn't look right." };
-    return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+    return formError(err);
   }
 }
 
@@ -56,8 +55,7 @@ export async function updateShopSettingsAction(_prev: SettingsFormState, form: F
     revalidatePath("/", "layout");
     return { ok: "Saved" };
   } catch (err) {
-    if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "That doesn't look right." };
-    return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+    return formError(err);
   }
 }
 
@@ -69,8 +67,7 @@ export async function saveShippingAction(settings: unknown): Promise<SettingsFor
     revalidatePath("/", "layout");
     return { ok: "Saved" };
   } catch (err) {
-    if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "That doesn't look right." };
-    return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+    return formError(err);
   }
 }
 
@@ -88,8 +85,7 @@ export async function saveEnquiryFormAction(formId: string | null): Promise<Sett
 }
 
 function failed(err: unknown): SettingsFormState {
-  if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "That doesn't look right." };
-  return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+  return formError(err);
 }
 
 /** Settings · Business profile. */

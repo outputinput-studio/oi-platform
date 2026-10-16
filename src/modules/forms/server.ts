@@ -8,6 +8,7 @@ import { upsertFromSubmission } from "@/modules/contacts/server";
 import { customerMail, recipientsFor } from "@/modules/sites/messages";
 import { storage } from "@/lib/storage";
 import { answersSchema, fieldsSchema, filesIn, fillIn, formSettingsSchema, headlineAnswer, senderOf, uploadedFileSchema, type Field, type FormSettings, type UploadedFile } from "./fields";
+import { named } from "@/lib/form-error";
 
 /**
  * Forms and what comes through them.
@@ -58,7 +59,7 @@ export async function publicForm(p: { siteId: string; formId: string }): Promise
 /** A new form starts with the three fields nearly every form has. */
 export async function createForm(p: { actorId: string; siteId: string; name: string }): Promise<FormWithFields> {
   await assertAccess(p.actorId, p.siteId);
-  const name = z.string().trim().min(1, "Give the form a name.").max(80).parse(p.name);
+  const name = named("name", z.string().trim().min(1, "Give the form a name.").max(80), p.name);
   const fields: Field[] = [
     { id: "name", type: "text", label: "Your name", help: "", required: true, options: [] },
     { id: "email", type: "email", label: "Email", help: "", required: true, options: [] },

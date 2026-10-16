@@ -6,6 +6,7 @@ import { assertAccess } from "@/modules/auth/access";
 import { environmentName } from "@/lib/env";
 import { decryptSecret, encryptSecret } from "@/lib/secrets";
 import { readPayments, secretKeySchema, webhookSecretSchema, type PaymentsSettings, type Provider } from "./settings";
+import { named } from "@/lib/form-error";
 
 /**
  * Taking payments: each client uses their own Stripe account. They put
@@ -80,8 +81,8 @@ export async function checkStripeKey(secretKey: string): Promise<AccountCheck> {
  */
 export async function saveStripeKeys(p: { actorId: string; siteId: string; secretKey: string; webhookSecret?: string; check?: (key: string) => Promise<AccountCheck> }): Promise<PaymentsStatus> {
   await assertAccess(p.actorId, p.siteId, "owner");
-  const key = secretKeySchema.parse(p.secretKey);
-  const hook = webhookSecretSchema.parse(p.webhookSecret ?? "");
+  const key = named("secretKey", secretKeySchema, p.secretKey);
+  const hook = named("webhookSecret", webhookSecretSchema, p.webhookSecret ?? "");
   const account = await (p.check ?? checkStripeKey)(key);
   const site = await loadSite(p.siteId);
   const cur = readPayments(site.payments);

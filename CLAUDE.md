@@ -21,6 +21,10 @@ screen for screen. Tokens are in `src/app/globals.css`, mirrored from its `:root
 Admin primitives live in `src/app/admin/ui.tsx`; every screen renders a `PageHeader`. Lists that reorder (sections, form
 fields) use `src/app/admin/sortable.tsx` (on `@dnd-kit`, approved): a handle starts the drag, cards fold while it runs,
 and the keyboard works (focus the handle, Space, arrows, Space).
+Mistakes point at their field (Carl, Oct 2026): actions return `formError(err)` (`src/lib/form-error.ts`) — the message
+plus `fields`, dotted Zod paths like `zones.0.rates.1.price`. Every control carries a `name` or `data-field` matching its
+path; `Notice` (or `FieldErrors` beside an autosave status) outlines each field at fault and scrolls to the top one.
+A refusal about one field throws `FieldError(field, message)`; a lone value is parsed with `named(field, schema, value)`.
 
 ## Layout
 - `src/proxy.ts` — hostname → surface rewrite (admin.* → /admin, ops.* → /ops, else /site)

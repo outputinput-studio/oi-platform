@@ -42,16 +42,17 @@ export function NotifyEditor({ initial, canEdit }: { initial: State; canEdit: bo
       <section className="space-y-3">
         <Label>Orders and stock</Label>
         {EVENTS.map(([k, title, hint]) => (
-          <RecipientsCard key={k} id={k} title={title} hint={hint} r={v.notify[k]} canEdit={canEdit} onChange={(patch) => setV((cur) => ({ ...cur, notify: { ...cur.notify, [k]: { ...cur.notify[k], ...patch } } }))} />
+          <RecipientsCard key={k} id={k} path={`notify.${k}`} title={title} hint={hint} r={v.notify[k]} canEdit={canEdit} onChange={(patch) => setV((cur) => ({ ...cur, notify: { ...cur.notify, [k]: { ...cur.notify[k], ...patch } } }))} />
         ))}
       </section>
       {v.forms.length > 0 && (
         <section className="space-y-3">
           <Label>Forms</Label>
-          {v.forms.map((f) => (
+          {v.forms.map((f, i) => (
             <RecipientsCard
               key={f.id}
               id={`form-${f.id}`}
+              path={`forms.${i}`}
               title={f.name}
               hint={`From the ${f.name} form. Off, it still lands in your Inbox.`}
               r={f}
@@ -76,7 +77,7 @@ export function NotifyEditor({ initial, canEdit }: { initial: State; canEdit: bo
   );
 }
 
-function RecipientsCard({ id, title, hint, r, canEdit, onChange }: { id: string; title: string; hint: string; r: Recipients; canEdit: boolean; onChange: (patch: Partial<Recipients>) => void }) {
+function RecipientsCard({ id, path, title, hint, r, canEdit, onChange }: { id: string; path: string; title: string; hint: string; r: Recipients; canEdit: boolean; onChange: (patch: Partial<Recipients>) => void }) {
   const [copy, setCopy] = useState(Boolean(r.cc || r.bcc));
   return (
     <div data-testid={`notify-${id}`} className="space-y-3 rounded-card border border-line bg-surface p-4">
@@ -84,15 +85,15 @@ function RecipientsCard({ id, title, hint, r, canEdit, onChange }: { id: string;
       {r.on && (
         <>
           <Field label="Goes to" htmlFor={`${id}-to`}>
-            <Input id={`${id}-to`} value={r.to} maxLength={600} placeholder="The site's owners" readOnly={!canEdit} onChange={(e) => onChange({ to: e.target.value })} />
+            <Input id={`${id}-to`} data-field={`${path}.to`} value={r.to} maxLength={600} placeholder="The site's owners" readOnly={!canEdit} onChange={(e) => onChange({ to: e.target.value })} />
           </Field>
           {copy ? (
             <div className="grid gap-3 md:grid-cols-2">
               <Field label="CC" htmlFor={`${id}-cc`}>
-                <Input id={`${id}-cc`} value={r.cc} maxLength={600} readOnly={!canEdit} onChange={(e) => onChange({ cc: e.target.value })} />
+                <Input id={`${id}-cc`} data-field={`${path}.cc`} value={r.cc} maxLength={600} readOnly={!canEdit} onChange={(e) => onChange({ cc: e.target.value })} />
               </Field>
               <Field label="BCC" htmlFor={`${id}-bcc`}>
-                <Input id={`${id}-bcc`} value={r.bcc} maxLength={600} readOnly={!canEdit} onChange={(e) => onChange({ bcc: e.target.value })} />
+                <Input id={`${id}-bcc`} data-field={`${path}.bcc`} value={r.bcc} maxLength={600} readOnly={!canEdit} onChange={(e) => onChange({ bcc: e.target.value })} />
               </Field>
             </div>
           ) : (

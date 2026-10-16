@@ -6,18 +6,14 @@ import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { MEMBERSHIP_ROLES } from "@/db/schema";
 import { addMember, removeMember, setRole } from "./server";
+import { formError } from "@/lib/form-error";
 
 /**
  * Form handlers for the team page. Thin: read the form, call the module,
  * turn errors into a message. Authorisation happens inside the module.
  */
-export type TeamFormState = { ok?: string; error?: string };
+export type TeamFormState = { ok?: string; error?: string; fields?: string[] };
 
-function message(err: unknown): string {
-  if (err instanceof z.ZodError) return err.issues[0]?.message ?? "That doesn't look right.";
-  if (err instanceof Error) return err.message;
-  return "Something went wrong. Try again.";
-}
 
 export async function addMemberAction(_prev: TeamFormState, form: FormData): Promise<TeamFormState> {
   const { user, site } = await requireSiteAccess();
@@ -31,7 +27,7 @@ export async function addMemberAction(_prev: TeamFormState, form: FormData): Pro
     if (r.emailed) return { ok: `${r.email} added. We've emailed them how to sign in.` };
     return { ok: `${r.email} added. The email didn't go out, so let them know to sign in at ${host}.` };
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 
@@ -44,7 +40,7 @@ export async function setRoleAction(_prev: TeamFormState, form: FormData): Promi
     revalidatePath("/team");
     return {};
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }
 
@@ -56,6 +52,6 @@ export async function removeMemberAction(_prev: TeamFormState, form: FormData): 
     revalidatePath("/team");
     return {};
   } catch (err) {
-    return { error: message(err) };
+    return formError(err);
   }
 }

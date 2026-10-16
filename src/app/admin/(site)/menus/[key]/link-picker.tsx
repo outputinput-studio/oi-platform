@@ -127,6 +127,7 @@ export function LinkPicker({ targets, onPick, onClose }: { targets: LinkTargets;
           </div>
           <Input
             aria-label="Web address"
+            aria-invalid={Boolean(error) || undefined}
             className="mt-3"
             value={url}
             inputMode="url"
