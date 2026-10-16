@@ -52,7 +52,7 @@ export function applyCode(c: CodeRules, lines: Line[], currency: Currency, now =
 /** "10% off everything", "$50 off, minimum spend $400", "Free postage". */
 export function describeCode(c: Pick<CodeRules, "kind" | "value" | "appliesTo" | "minSpend">, currency: Currency, scopeName = ""): string {
   const what = c.kind === "percent" ? `${c.value}% off` : c.kind === "amount" ? `${formatPrice(c.value, currency)} off` : "Free postage";
-  const scope = c.kind === "freeShipping" ? "" : c.appliesTo === "all" ? " everything" : c.appliesTo === "category" ? ` ${scopeName || "one category"}` : " picked pieces";
+  const scope = c.kind === "freeShipping" ? "" : c.appliesTo === "all" ? " everything" : c.appliesTo === "category" ? ` ${scopeName || "one category"}` : " picked products";
   const min = c.minSpend ? `, minimum spend ${formatPrice(c.minSpend, currency)}` : "";
   return `${what}${scope}${min}`;
 }
@@ -84,7 +84,7 @@ export const codeEditSchema = z
     if (v.kind === "percent" && (v.value < 1 || v.value > 100)) ctx.addIssue({ code: "custom", message: "A percentage is 1 to 100.", path: ["value"] });
     if (v.kind === "amount" && v.value < 1) ctx.addIssue({ code: "custom", message: "How much off?", path: ["value"] });
     if (v.appliesTo === "category" && !v.categoryId) ctx.addIssue({ code: "custom", message: "Pick the category it's for.", path: ["categoryId"] });
-    if (v.appliesTo === "products" && v.productIds.length === 0) ctx.addIssue({ code: "custom", message: "Pick at least one piece.", path: ["productIds"] });
+    if (v.appliesTo === "products" && v.productIds.length === 0) ctx.addIssue({ code: "custom", message: "Pick at least one product.", path: ["productIds"] });
     if (v.startsAt && v.endsAt && v.endsAt <= v.startsAt) ctx.addIssue({ code: "custom", message: "It has to end after it starts.", path: ["endsAt"] });
   });
 export type CodeEdit = z.infer<typeof codeEditSchema>;

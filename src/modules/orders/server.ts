@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, withSite, type Tx } from "@/db/client";
 import { memberships, orders, products, sites, users, type Order, type Site } from "@/db/schema";
@@ -7,7 +7,7 @@ import { COUNTRY_CODES, countryName } from "@/lib/countries";
 import { upsertFromSubmission } from "@/modules/contacts/server";
 import { customerView, makeLine, readPhotos } from "@/modules/products/catalogue";
 import { readShopSettings, formatPrice, type Currency } from "@/modules/sites/shop";
-import { ratesFor, readShipping } from "@/modules/sites/shipping";
+import { quoteFor, ratesFor, readShipping } from "@/modules/sites/shipping";
 import { countUse, discountFor } from "@/modules/discounts/server";
 import { taxOn, type CartLine } from "./cart";
 
@@ -19,6 +19,25 @@ import { taxOn, type CartLine } from "./cart";
  */
 
 // ───────────────────────── pricing a cart ─────────────────────────
+
+/**
+ * How long stock is held for someone who has started paying. Stripe's
+ * checkout page is set to close a little before this, so a piece is
+ * never held for nobody.
+ */
+export const HOLD_MINUTES = 35;
+
+/** What other shoppers' unpaid checkouts from the last HOLD_MINUTES are holding, by product. */
+async function heldQuantities(tx: Tx, exceptCartRef?: string): Promise<Map<string, number>> {
+  const since = new Date(Date.now() - HOLD_MINUTES * 60_000);
+  const rows = await tx
+    .select({ items: orders.items })
+    .from(orders)
+    .where(and(eq(orders.paymentStatus, "pending"), gt(orders.createdAt, since), exceptCartRef ? ne(orders.cartRef, exceptCartRef) : undefined));
+  const held = new Map<string, number>();
+  for (const r of rows) for (const it of r.items as OrderItem[]) held.set(it.productId, (held.get(it.productId) ?? 0) + it.qty);
+  return held;
+}
 
 export type PricedLine = {
   productId: string;
@@ -39,6 +58,14 @@ export type PricedCart = {
   lines: PricedLine[];
   /** Things that were in the cart but can't be bought any more. */
   dropped: string[];
+  /** Things someone else is paying for right now (held for HOLD_MINUTES). */
+  held: string[];
+  /**
+   * The cart as it should be kept: what can be bought (no more than there
+   * is) plus what's held for someone else (it may come back). Dropped
+   * things are gone from it.
+   */
+  tidy: CartLine[];
   currency: Currency;
   subtotal: number;
   tax: number;
@@ -50,20 +77,25 @@ export type PricedCart = {
   needsAddress: boolean;
 };
 
-export async function priceCart(p: { site: Site; cart: CartLine[] }): Promise<PricedCart> {
+export async function priceCart(p: { site: Site; cart: CartLine[]; cartRef?: string }): Promise<PricedCart> {
   const shop = readShopSettings(p.site.shop);
   const ids = p.cart.map((l) => l.id);
-  const rows = ids.length
-    ? await withSite(p.site.id, (tx) =>
-        tx
-          .select()
-          .from(products)
-          .where(and(inArray(products.id, ids), isNull(products.deletedAt), eq(products.visible, true))),
+  const [rows, holds] = ids.length
+    ? await withSite(p.site.id, async (tx) =>
+        Promise.all([
+          tx
+            .select()
+            .from(products)
+            .where(and(inArray(products.id, ids), isNull(products.deletedAt), eq(products.visible, true))),
+          heldQuantities(tx, p.cartRef),
+        ]),
       )
-    : [];
+    : [[], new Map<string, number>()];
   const byId = new Map(rows.map((r) => [r.id, r]));
   const lines: PricedLine[] = [];
   const dropped: string[] = [];
+  const held: string[] = [];
+  const tidy: CartLine[] = [];
   for (const l of p.cart) {
     const prod = byId.get(l.id);
     if (!prod) {
@@ -75,9 +107,16 @@ export async function priceCart(p: { site: Site; cart: CartLine[] }): Promise<Pr
       dropped.push(prod.name);
       continue;
     }
-    const max = prod.make === "oneOnly" ? 1 : prod.make === "ready" && prod.stock !== null ? prod.stock : 20;
+    const onHold = holds.get(prod.id) ?? 0;
+    const max = prod.make === "oneOnly" ? 1 - onHold : prod.make === "ready" && prod.stock !== null ? prod.stock - onHold : 20;
+    if (max <= 0) {
+      held.push(prod.name);
+      tidy.push(l);
+      continue;
+    }
     const unit = prod.salePrice !== null && prod.price !== null && prod.salePrice < prod.price ? prod.salePrice : prod.price!;
     const photos = readPhotos(prod.photos);
+    tidy.push({ ...l, q: Math.min(l.q, max) });
     lines.push({ productId: prod.id, name: prod.name, slug: prod.slug, unit, qty: Math.min(l.q, max), max, photo: photos[0]?.key ?? null, note: makeLine(prod), digital: prod.digital, categoryId: prod.categoryId });
   }
   const subtotal = lines.reduce((n, l) => n + l.unit * l.qty, 0);
@@ -85,6 +124,8 @@ export async function priceCart(p: { site: Site; cart: CartLine[] }): Promise<Pr
   return {
     lines,
     dropped,
+    held,
+    tidy,
     currency: shop.currency,
     subtotal,
     tax: t.tax,
@@ -128,9 +169,10 @@ export type CheckoutDetails = z.infer<typeof checkoutSchema>;
 export type OrderItem = { productId: string; name: string; slug: string; unit: number; qty: number; photo: string | null; note: string; digital: boolean };
 
 /** A pending order from the cart as it stands, priced on the server. Payment comes next. */
-export async function placeOrder(p: { site: Site; cart: CartLine[]; details: unknown; provider: string }): Promise<Order> {
-  const priced = await priceCart({ site: p.site, cart: p.cart });
-  if (priced.lines.length === 0) throw new Error("Your cart is empty — nothing in it can be bought right now.");
+export async function placeOrder(p: { site: Site; cart: CartLine[]; details: unknown; provider: string; cartRef?: string }): Promise<Order> {
+  const priced = await priceCart({ site: p.site, cart: p.cart, cartRef: p.cartRef });
+  if (priced.lines.length === 0)
+    throw new Error(priced.held.length ? `${priced.held.join(", ")} ${priced.held.length === 1 ? "is" : "are"} in someone else's checkout right now. Try again in half an hour.` : "Your cart is empty — nothing in it can be bought right now.");
 
   // Delivery: the rate they picked must be one this address and total can have. A pickup needs no street address.
   const raw = (p.details ?? {}) as { address?: { country?: string; postcode?: string }; rate?: string; code?: string; email?: string };
@@ -138,7 +180,9 @@ export async function placeOrder(p: { site: Site; cart: CartLine[]; details: unk
   let shippingPrice = 0;
   let pickupCountry = "";
   if (priced.needsAddress) {
-    const rates = ratesFor(readShipping(p.site.shipping), { country: raw.address?.country ?? "", postcode: raw.address?.postcode }, priced.subtotal);
+    const ship = readShipping(p.site.shipping);
+    if (quoteFor(ship, raw.address?.country ?? "", "") !== null) throw new Error("Delivery there is quoted separately. Ask for a quote instead.");
+    const rates = ratesFor(ship, { country: raw.address?.country ?? "", postcode: raw.address?.postcode }, priced.subtotal);
     if (rates.length === 0) throw new Error("Sorry, we don't send to that country yet. Get in touch and we'll sort something out.");
     const rate = rates.find((r) => r.id === raw.rate) ?? (rates.length === 1 ? rates[0] : undefined);
     if (!rate) throw new Error("Pick how you'd like it delivered.");
@@ -165,6 +209,8 @@ export async function placeOrder(p: { site: Site; cart: CartLine[]; details: unk
   const t = taxOn(priced.subtotal - off + shippingPrice, priced.taxRate, priced.pricesIncludeTax);
   const items: OrderItem[] = priced.lines.map((l) => ({ productId: l.productId, name: l.name, slug: l.slug, unit: l.unit, qty: l.qty, photo: l.photo, note: l.note, digital: l.digital }));
   return withSite(p.site.id, async (tx) => {
+    // Their earlier unpaid try (back from Stripe, changed something) stops holding stock: this one replaces it.
+    if (p.cartRef) await tx.update(orders).set({ paymentStatus: "failed", updatedAt: new Date() }).where(and(eq(orders.cartRef, p.cartRef), eq(orders.paymentStatus, "pending")));
     const number = await nextNumber(tx);
     const [o] = await tx
       .insert(orders)
@@ -188,6 +234,7 @@ export async function placeOrder(p: { site: Site; cart: CartLine[]; details: unk
         taxRate: Math.round(priced.taxRate),
         total: t.total,
         provider: p.provider,
+        cartRef: p.cartRef ?? "",
       })
       .returning();
     return o;

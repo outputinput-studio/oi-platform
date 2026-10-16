@@ -7,6 +7,8 @@ import { z } from "zod";
  * its own price.
  */
 export const CART_COOKIE = "oi_cart";
+/** A random id for this shopper's cart, so stock held for their own unpaid try doesn't block them. */
+export const CART_REF_COOKIE = "oi_cart_ref";
 export const MAX_LINES = 30;
 export const MAX_QTY = 20;
 

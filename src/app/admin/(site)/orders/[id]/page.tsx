@@ -8,7 +8,8 @@ import { ORDER_STATUSES } from "@/db/schema";
 import { Label, PageHeader, Row, Rows } from "../../../ui";
 import { LocalTime } from "../../local-time";
 import { StatusPill } from "../status-pill";
-import { CopyAddress, MoveOrder } from "./order-actions";
+import { CopyAddress, MoveOrder, RefundOrder } from "./order-actions";
+import { priceInput } from "@/modules/sites/shop";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function OrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { user, site } = await requireSiteAccess();
+  const { user, site, role } = await requireSiteAccess();
   const o = await getOrder({ actorId: user.id, siteId: site.id, orderId: id });
   const cur = o.currency as Currency;
   const items = o.items as OrderItem[];
@@ -40,7 +41,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             <span>
               Paid <LocalTime iso={(o.paidAt ?? o.createdAt).toISOString()} /> · Order {o.number}
             </span>
-            <StatusPill status={o.status} refunded={o.paymentStatus === "refunded"} />
+            <StatusPill status={o.status} refunded={o.paymentStatus === "refunded"} partly={o.paymentStatus === "paid" && o.refunded > 0} />
           </p>
         </div>
 
@@ -136,10 +137,14 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             {o.tax > 0 && <Row title={included ? `Includes ${o.taxName} ${o.taxRate}%` : `${o.taxName} ${o.taxRate}%`} right={<span className="font-mono text-[13.5px]">{formatPrice(o.tax, cur)}</span>} />}
             <Row title={ship?.name ? `Delivery · ${ship.name}` : "Delivery"} right={<span className="font-mono text-[13.5px]">{o.shippingPrice ? formatPrice(o.shippingPrice, cur) : ship ? "Free" : "—"}</span>} />
             <Row title="Total paid" right={<span className="font-mono text-[14px] font-medium">{formatPrice(o.total, cur)}</span>} />
+            {o.refunded > 0 && <Row title="Refunded" right={<span data-testid="refunded" className="font-mono text-[13.5px] text-alert">−{formatPrice(o.refunded, cur)}</span>} />}
           </Rows>
-          <p className="mt-2 text-[12.5px] text-muted">{o.provider === "stripe" ? "Paid by card · Stripe. Refunds are done in your Stripe dashboard for now." : "Test payment — no real money moved."}</p>
+          <p className="mt-2 text-[12.5px] text-muted">{o.provider === "stripe" ? "Paid by card · Stripe." : "Test payment — no real money moved."}</p>
         </div>
 
+        {role === "owner" && o.refunded < o.total && (
+          <RefundOrder orderId={o.id} left={priceInput(o.total - o.refunded)} leftLabel={formatPrice(o.total - o.refunded, cur)} full={o.refunded === 0} draft={{ subject: `Your refund for order ${o.number}`, message: `Hi ${o.name.split(" ")[0]},\n\nI've refunded ${formatPrice(o.total - o.refunded, cur)} for order ${o.number}. It goes back to the card you paid with and usually shows within 5–10 business days.\n\n${site.name}` }} currency={cur} />
+        )}
         {next && <MoveOrder orderId={o.id} next={next} draft={draftEmail(o, next, site.name, tracking.number ? (tracking as Tracking) : undefined)} tracking={{ carrier: tracking.carrier ?? "", number: tracking.number ?? "" }} siteName={site.name} order={{ name: o.name, number: o.number, items: items.map((i) => i.name) }} />}
       </div>
     </>

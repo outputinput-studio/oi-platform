@@ -11,7 +11,7 @@ import { FileField } from "./file-field";
  * mode and takes the brand colour for the button. Once sent, the form
  * is replaced by the thank-you the client wrote.
  */
-export function StorefrontForm({ form }: { form: { id: string; fields: Field[]; buttonText: string; afterMessage: string } }) {
+export function StorefrontForm({ form, about }: { form: { id: string; fields: Field[]; buttonText: string; afterMessage: string }; about?: string }) {
   const [state, act, pending] = useActionState(submitFormAction.bind(null, form.id), {} as FormState);
 
   if (state.ok) {
@@ -62,6 +62,7 @@ export function StorefrontForm({ form }: { form: { id: string; fields: Field[]; 
           </div>
         );
       })}
+      {about && <input type="hidden" name="about" value={about} />}
       {/* The trap: people never see it, bots fill it in. */}
       <div className="absolute -left-[9999px] top-auto h-px w-px overflow-hidden" aria-hidden>
         <label htmlFor={`website_${form.id}`}>Website</label>

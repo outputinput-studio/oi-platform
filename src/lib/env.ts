@@ -44,14 +44,12 @@ const schema = z.object({
   MEDIA_LOCAL_DIR: z.string().optional(),
 
   /**
-   * Payments: Output/Input's own Stripe platform account (Connect). Each
-   * client connects their own Stripe account to it and is paid directly.
-   * Not set → outside production, checkout uses test payments (nothing
-   * real moves); in production, Add to cart stays hidden.
+   * Encrypts secrets clients give us (their own Stripe keys) before they
+   * go in the database: 32 random bytes, base64 (`openssl rand -base64 32`).
+   * Different per environment. Not set → keys can't be saved; outside
+   * production, checkout then uses test payments.
    */
-  STRIPE_SECRET_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().startsWith("sk_", "should start with sk_").optional()),
-  /** The signing secret of the Connect webhook endpoint (/api/payments/stripe). */
-  STRIPE_WEBHOOK_SECRET: z.preprocess((v) => (v === "" ? undefined : v), z.string().startsWith("whsec_", "should start with whsec_").optional()),
+  OI_SECRETS_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(40, "should be 32 bytes, base64").optional()),
 });
 
 export type Env = z.infer<typeof schema>;

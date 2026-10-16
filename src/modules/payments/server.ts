@@ -3,85 +3,113 @@ import { eq } from "drizzle-orm";
 import { withSite } from "@/db/client";
 import { sites, type Site } from "@/db/schema";
 import { assertAccess } from "@/modules/auth/access";
-import { env, environmentName } from "@/lib/env";
-import { readPayments, type PaymentsSettings, type Provider } from "./settings";
+import { environmentName } from "@/lib/env";
+import { decryptSecret, encryptSecret } from "@/lib/secrets";
+import { readPayments, secretKeySchema, webhookSecretSchema, type PaymentsSettings, type Provider } from "./settings";
 
 /**
- * Taking payments. Output/Input has one Stripe platform account (Connect);
- * each client connects their own Stripe account to it, and their
- * customers pay that account directly — the money never passes through
- * us. Outside production with no Stripe keys, a test provider stands in
+ * Taking payments: each client uses their own Stripe account. They put
+ * their own keys in (Settings · Payments); customers pay that account
+ * directly and the client handles everything else in their own Stripe
+ * dashboard. Output/Input has no Stripe account in the middle.
+ *
+ * Outside production, a site with no keys uses a test provider instead,
  * so checkout can be tried end to end on staging and in CI.
  */
 
-let client: Stripe | null = null;
-export function stripe(): Stripe {
-  const key = env().STRIPE_SECRET_KEY;
-  if (!key) throw new Error("Stripe isn't set up for this environment.");
-  client ??= new Stripe(key);
-  return client;
+const clients = new Map<string, Stripe>();
+
+/** A Stripe client for this site's own account. */
+export function siteStripe(site: Pick<Site, "payments">): Stripe {
+  const s = readPayments(site.payments);
+  if (!s.secretKey) throw new Error("This site hasn't put its Stripe keys in yet.");
+  const key = decryptSecret(s.secretKey);
+  let c = clients.get(key);
+  if (!c) {
+    c = new Stripe(key);
+    clients.set(key, c);
+  }
+  return c;
 }
 
-/** Stripe when the platform keys are set; test payments outside production when they aren't; otherwise none. */
-export function platformProvider(): Provider | null {
-  if (env().STRIPE_SECRET_KEY) return "stripe";
-  return environmentName() === "production" ? null : "test";
+/** The site's webhook signing secret, if it has one. */
+export function siteWebhookSecret(site: Pick<Site, "payments">): string | null {
+  const s = readPayments(site.payments);
+  return s.webhookSecret ? decryptSecret(s.webhookSecret) : null;
 }
 
-export type PaymentsStatus = PaymentsSettings & {
+export type PaymentsStatus = Omit<PaymentsSettings, "secretKey" | "webhookSecret"> & {
   provider: Provider | null;
   /** Whether Add to cart shows and checkout works. */
   ready: boolean;
+  hasKeys: boolean;
+  hasWebhook: boolean;
 };
 
 export function paymentsStatus(site: Pick<Site, "payments">): PaymentsStatus {
-  const s = readPayments(site.payments);
-  const provider = platformProvider();
-  const ready = provider === "test" || (provider === "stripe" && !!s.stripeAccountId && s.chargesEnabled);
-  return { ...s, provider, ready };
+  const { secretKey, webhookSecret, ...rest } = readPayments(site.payments);
+  const hasKeys = !!secretKey;
+  const provider: Provider | null = hasKeys ? "stripe" : environmentName() === "production" ? null : "test";
+  const ready = provider === "test" || (provider === "stripe" && rest.chargesEnabled);
+  return { ...rest, provider, ready, hasKeys, hasWebhook: !!webhookSecret };
+}
+
+export type AccountCheck = { accountId: string; businessName: string; chargesEnabled: boolean };
+
+/** Ask Stripe who a key belongs to and whether it can take money. A restricted key without account access still counts if it can read the balance. */
+export async function checkStripeKey(secretKey: string): Promise<AccountCheck> {
+  const s = new Stripe(secretKey);
+  try {
+    const a = await s.accounts.retrieveCurrent();
+    return { accountId: a.id, businessName: a.business_profile?.name || a.settings?.dashboard?.display_name || "", chargesEnabled: !!a.charges_enabled };
+  } catch (err) {
+    const e = err as { type?: string; statusCode?: number };
+    if (e.type === "StripeAuthenticationError" || e.statusCode === 401) throw new Error("Stripe didn't accept that key. Check you copied all of it.");
+    // Restricted keys may not read the account; if they can read the balance, they work.
+    await s.balance.retrieve().catch(() => {
+      throw new Error("That key can't take payments. Give it the permissions listed on this screen.");
+    });
+    return { accountId: "", businessName: "", chargesEnabled: true };
+  }
 }
 
 /**
- * "Connect Stripe": make (or reuse) the site's Stripe account and hand
- * back the address of Stripe's own onboarding, which returns to us when
- * done. Owners only: it decides where the money goes.
+ * Save the site's own Stripe keys (owners only: it decides where the
+ * money goes). The key is checked with Stripe first, then stored
+ * encrypted. A blank webhook secret keeps the one already saved.
  */
-export async function startStripeConnect(p: { actorId: string; siteId: string; returnUrl: string; refreshUrl: string }): Promise<string> {
+export async function saveStripeKeys(p: { actorId: string; siteId: string; secretKey: string; webhookSecret?: string; check?: (key: string) => Promise<AccountCheck> }): Promise<PaymentsStatus> {
   await assertAccess(p.actorId, p.siteId, "owner");
-  const s = stripe();
+  const key = secretKeySchema.parse(p.secretKey);
+  const hook = webhookSecretSchema.parse(p.webhookSecret ?? "");
+  const account = await (p.check ?? checkStripeKey)(key);
   const site = await loadSite(p.siteId);
-  let current = readPayments(site.payments);
-  if (!current.stripeAccountId) {
-    const account = await s.accounts.create({ type: "standard", metadata: { siteId: p.siteId } });
-    current = { ...current, stripeAccountId: account.id };
-    await save(p.siteId, current);
-  }
-  const link = await s.accountLinks.create({ account: current.stripeAccountId, type: "account_onboarding", return_url: p.returnUrl, refresh_url: p.refreshUrl });
-  return link.url;
-}
-
-/** Ask Stripe how the account stands now (after onboarding, or any time the Payments screen opens). */
-export async function refreshStripeAccount(p: { actorId: string; siteId: string }): Promise<PaymentsSettings> {
-  await assertAccess(p.actorId, p.siteId);
-  const site = await loadSite(p.siteId);
-  const current = readPayments(site.payments);
-  if (!current.stripeAccountId || platformProvider() !== "stripe") return current;
-  const a = await stripe().accounts.retrieve(current.stripeAccountId);
-  const bank = a.external_accounts?.data.find((x) => x.object === "bank_account") as Stripe.BankAccount | undefined;
+  const cur = readPayments(site.payments);
   const next: PaymentsSettings = {
-    stripeAccountId: a.id,
-    chargesEnabled: !!a.charges_enabled,
-    detailsSubmitted: !!a.details_submitted,
-    livemode: env().STRIPE_SECRET_KEY?.startsWith("sk_live_") ?? false,
-    businessName: a.business_profile?.name || a.settings?.dashboard?.display_name || "",
-    bankLast4: bank?.last4 ?? "",
+    secretKey: encryptSecret(key),
+    webhookSecret: hook ? encryptSecret(hook) : cur.webhookSecret,
+    keyLast4: key.slice(-4),
+    livemode: key.includes("_live_"),
+    ...account,
   };
   await save(p.siteId, next);
-  return next;
+  return paymentsStatus({ payments: next });
 }
 
-/** Forget the Stripe account here. Nothing can be bought until it's connected again. Owners only. */
-export async function disconnectStripe(p: { actorId: string; siteId: string }): Promise<void> {
+/** Ask Stripe again how the account stands (after the client finishes Stripe's own set-up). */
+export async function refreshStripeAccount(p: { actorId: string; siteId: string }): Promise<PaymentsStatus> {
+  await assertAccess(p.actorId, p.siteId);
+  const site = await loadSite(p.siteId);
+  const cur = readPayments(site.payments);
+  if (!cur.secretKey) return paymentsStatus(site);
+  const account = await checkStripeKey(decryptSecret(cur.secretKey));
+  const next = { ...cur, ...account };
+  await save(p.siteId, next);
+  return paymentsStatus({ payments: next });
+}
+
+/** Take the keys out. Nothing can be bought until new ones go in. Owners only. */
+export async function removeStripeKeys(p: { actorId: string; siteId: string }): Promise<void> {
   await assertAccess(p.actorId, p.siteId, "owner");
   await save(p.siteId, readPayments({}));
 }

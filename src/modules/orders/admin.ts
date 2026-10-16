@@ -1,10 +1,12 @@
-import { and, count, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { withSite } from "@/db/client";
-import { ORDER_STATUSES, orders, sites, type Order, type OrderStatus } from "@/db/schema";
+import { ORDER_STATUSES, orders, products, sites, type Order, type OrderStatus } from "@/db/schema";
 import { sendEmail } from "@/lib/email";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import type { OrderItem } from "./server";
+import { siteStripe } from "@/modules/payments/server";
+import { formatPrice, type Currency } from "@/modules/sites/shop";
 
 /**
  * Orders for the team: the queue (New → In progress → Sent → Done), one
@@ -137,4 +139,72 @@ export function trackingUrl(t: Partial<Tracking>): string | null {
 export async function siteNameFor(siteId: string): Promise<string> {
   const [s] = await withSite(siteId, (tx) => tx.select({ name: sites.name }).from(sites).limit(1));
   return s?.name ?? "";
+}
+
+// ───────────────────────── refunds ─────────────────────────
+
+const refundSchema = z.object({
+  /** Cents; empty means everything not refunded yet. */
+  amount: z.number().int().min(1, "How much should go back?").nullable().default(null),
+  restock: z.boolean().default(false),
+  email: z
+    .object({
+      subject: z.string().trim().min(1, "The email needs a subject.").max(200),
+      message: z.string().trim().min(1, "The email needs a message.").max(5000),
+    })
+    .optional(),
+});
+
+/** Send money back through the site's own Stripe (or just record it, for a test payment). */
+export type Refunder = (o: Order, amount: number) => Promise<void>;
+
+async function stripeRefund(siteId: string, o: Order, amount: number): Promise<void> {
+  const [site] = await withSite(siteId, (tx) => tx.select().from(sites).limit(1));
+  const stripe = siteStripe(site);
+  const session = await stripe.checkout.sessions.retrieve(o.providerRef);
+  const pi = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
+  if (!pi) throw new Error("Stripe has no payment for this order to refund.");
+  await stripe.refunds.create({ payment_intent: pi, amount, metadata: { orderId: o.id, number: String(o.number) } });
+}
+
+/**
+ * Refund all or part of an order. Owners only: it moves money. The money
+ * goes back first; only then does the order change, so a refused refund
+ * leaves everything as it was. Optionally puts the stock back and emails
+ * the customer.
+ */
+export async function refundOrder(p: { actorId: string; siteId: string; orderId: string; refund: unknown; refunder?: Refunder }): Promise<Order> {
+  await assertAccess(p.actorId, p.siteId, "owner");
+  const r = refundSchema.parse(p.refund);
+  const o = await getOrder(p);
+  const left = o.total - o.refunded;
+  if (left <= 0) throw new Error("This order has already been refunded in full.");
+  const amount = r.amount ?? left;
+  if (amount > left) throw new Error(`At most ${formatPrice(left, o.currency as Currency)} can go back.`);
+
+  if (o.provider === "stripe") await (p.refunder ?? ((ord, a) => stripeRefund(p.siteId, ord, a)))(o, amount);
+
+  const updated = await withSite(p.siteId, async (tx) => {
+    if (r.restock) {
+      for (const it of o.items as OrderItem[]) {
+        await tx
+          .update(products)
+          .set({
+            stock: sql`case when ${products.make} = 'ready' and ${products.stock} is not null then ${products.stock} + ${it.qty} else ${products.stock} end`,
+            availability: sql`case when ${products.make} = 'oneOnly' and ${products.availability} = 'sold' then 'forSale' else ${products.availability} end`,
+            updatedAt: new Date(),
+          })
+          .where(eq(products.id, it.productId));
+      }
+    }
+    const refunded = o.refunded + amount;
+    const [row] = await tx
+      .update(orders)
+      .set({ refunded, paymentStatus: refunded >= o.total ? "refunded" : "paid", updatedAt: new Date() })
+      .where(eq(orders.id, o.id))
+      .returning();
+    return row;
+  });
+  if (r.email) await sendEmail({ to: o.email, subject: r.email.subject, text: r.email.message }).catch((err) => console.error("refund email failed", err));
+  return updated;
 }

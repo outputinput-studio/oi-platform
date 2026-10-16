@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { saveShippingAction } from "@/modules/sites/actions";
-import { RATE_KINDS, type Rate, type RateKind, type Shipping, type Zone } from "@/modules/sites/shipping";
+import { RATE_KINDS, zoneGaps, type Rate, type RateKind, type Shipping, type Zone } from "@/modules/sites/shipping";
 import { formatPrice, parsePrice, priceInput, type Currency } from "@/modules/sites/shop";
 import { Button, Field, Input, Label, Notice, Switch, Textarea } from "../../../ui";
 
@@ -19,7 +19,20 @@ const id = () => Math.random().toString(36).slice(2, 10);
  * order (first match wins), rates inside each. Saved with one button so
  * a half-made zone never reaches checkout.
  */
-export function ShippingEditor({ initial, currency, countries, canEdit }: { initial: Shipping; currency: Currency; countries: { code: string; name: string }[]; canEdit: boolean }) {
+export function ShippingEditor({
+  initial,
+  currency,
+  countries,
+  canEdit,
+  hasEnquiryForm,
+}: {
+  initial: Shipping;
+  currency: Currency;
+  countries: { code: string; name: string }[];
+  canEdit: boolean;
+  /** Quote requests go through Settings · Enquiries' form; without one they have nowhere to land. */
+  hasEnquiryForm: boolean;
+}) {
   const [s, setS] = useState<Shipping>(initial);
   const [saved, setSaved] = useState(JSON.stringify(initial));
   const [open, setOpen] = useState<string | null>(null);
@@ -38,7 +51,7 @@ export function ShippingEditor({ initial, currency, countries, canEdit }: { init
       return { ...cur, zones };
     });
   const addZone = () => {
-    const z: Zone = { id: id(), name: s.zones.length === 0 ? countries[0]?.name ?? "Home" : "Rest of world", countries: s.zones.length === 0 && countries[0] ? [countries[0].code] : [], everywhere: s.zones.length > 0, rates: [{ id: id(), kind: "post", name: "Standard", price: 0, estimate: "", minTotal: null, maxTotal: null, postcodes: [] }] };
+    const z: Zone = { id: id(), name: s.zones.length === 0 ? countries[0]?.name ?? "Home" : "Rest of world", countries: s.zones.length === 0 && countries[0] ? [countries[0].code] : [], everywhere: s.zones.length > 0, rates: [{ id: id(), kind: "post", name: "Standard", price: 0, estimate: "", minTotal: null, maxTotal: null, postcodes: [] }], quote: false, quoteMessage: "" };
     setS((cur) => ({ ...cur, zones: [...cur.zones, z] }));
     setOpen(z.id);
   };
@@ -65,7 +78,7 @@ export function ShippingEditor({ initial, currency, countries, canEdit }: { init
           />
           business days
         </div>
-        <p className="mt-1.5 text-[12.5px] text-muted">Shown on ready-to-ship products. Made-to-order pieces use their own timing.</p>
+        <p className="mt-1.5 text-[12.5px] text-muted">Shown on ready-to-ship products. Made-to-order products use their own timing.</p>
       </div>
 
       <div>
@@ -82,7 +95,7 @@ export function ShippingEditor({ initial, currency, countries, canEdit }: { init
                 <button type="button" onClick={() => setOpen(open === z.id ? null : z.id)} aria-expanded={open === z.id} className="min-w-0 flex-1 text-left">
                   <span className="block text-[15px] font-medium">{z.name}</span>
                   <span className="block truncate text-[12.5px] text-muted">
-                    {z.everywhere ? "Every other country" : z.countries.length ? z.countries.map((c) => countries.find((x) => x.code === c)?.name ?? c).join(", ") : "No countries yet"} · {z.rates.length} rate{z.rates.length === 1 ? "" : "s"}
+                    {z.everywhere ? "Every other country" : z.countries.length ? z.countries.map((c) => countries.find((x) => x.code === c)?.name ?? c).join(", ") : "No countries yet"} · {z.quote ? "Quoted individually" : `${z.rates.length} rate${z.rates.length === 1 ? "" : "s"}`}
                   </span>
                 </button>
                 {canEdit && (
@@ -96,7 +109,8 @@ export function ShippingEditor({ initial, currency, countries, canEdit }: { init
                   </>
                 )}
               </div>
-              {open === z.id && <ZoneEditor zone={z} countries={countries} canEdit={canEdit} fmt={fmt} onChange={(patch) => setZone(z.id, patch)} onDelete={() => setS((cur) => ({ ...cur, zones: cur.zones.filter((x) => x.id !== z.id) }))} />}
+              <ZoneGaps zone={z} fmt={fmt} />
+              {open === z.id && <ZoneEditor zone={z} countries={countries} canEdit={canEdit} hasEnquiryForm={hasEnquiryForm} fmt={fmt} onChange={(patch) => setZone(z.id, patch)} onDelete={() => setS((cur) => ({ ...cur, zones: cur.zones.filter((x) => x.id !== z.id) }))} />}
             </li>
           ))}
         </ul>
@@ -131,6 +145,7 @@ function ZoneEditor({
   zone: z,
   countries,
   canEdit,
+  hasEnquiryForm,
   fmt,
   onChange,
   onDelete,
@@ -138,6 +153,7 @@ function ZoneEditor({
   zone: Zone;
   countries: { code: string; name: string }[];
   canEdit: boolean;
+  hasEnquiryForm: boolean;
   fmt: (c: number) => string;
   onChange: (patch: Partial<Zone>) => void;
   onDelete: () => void;
@@ -169,6 +185,32 @@ function ZoneEditor({
         </fieldset>
       )}
 
+      <div className="space-y-3 rounded-card border border-line-soft bg-sunken p-3">
+        <Switch checked={z.quote} disabled={!canEdit} onChange={(quote) => onChange({ quote })} label="Quote individually" hint="No payment at checkout. Their details come through as an enquiry so you can price the postage." />
+        {z.quote && (
+          <>
+            <Field label="What they read at checkout" htmlFor={`z-quote-${z.id}`}>
+              <Textarea
+                id={`z-quote-${z.id}`}
+                rows={2}
+                maxLength={300}
+                value={z.quoteMessage}
+                readOnly={!canEdit}
+                placeholder={`We'll work out delivery to ${z.everywhere ? "you" : (countries.find((c) => c.code === z.countries[0])?.name ?? "you")} and send you a quote.`}
+                onChange={(e) => onChange({ quoteMessage: e.target.value })}
+              />
+            </Field>
+            <p className="text-[12.5px] text-muted">Lands in your Inbox, not Orders. You reply with a price and take payment when they agree.</p>
+            {!hasEnquiryForm && (
+              <p data-testid="quote-needs-form" className="text-[12.5px] leading-[1.5] text-warning">
+                Choose an enquiry form in Settings · Enquiries first. Until then, customers here see the message but can&apos;t send a request.
+              </p>
+            )}
+          </>
+        )}
+      </div>
+
+      {!z.quote && (
       <div>
         <p className="mb-1.5 text-[13.5px] text-body">Rates</p>
         <div className="space-y-2">
@@ -183,6 +225,7 @@ function ZoneEditor({
           </Button>
         )}
       </div>
+      )}
       {canEdit && (
         <button type="button" onClick={onDelete} className="text-[13.5px] text-alert hover:underline">
           Delete this zone
@@ -196,6 +239,7 @@ function RateEditor({ rate: r, canEdit, fmt, onChange, onRemove }: { rate: Rate;
   const [price, setPrice] = useState(priceInput(r.price));
   const [min, setMin] = useState(priceInput(r.minTotal));
   const [max, setMax] = useState(priceInput(r.maxTotal));
+  const [pcText, setPcText] = useState(r.postcodes.join(", "));
   const [err, setErr] = useState("");
   const money = (text: string, set: (s: string) => void, apply: (c: number | null) => void) => {
     set(text);
@@ -230,13 +274,17 @@ function RateEditor({ rate: r, canEdit, fmt, onChange, onRemove }: { rate: Rate;
         <Input id={`r-est-${r.id}`} value={r.estimate} maxLength={80} placeholder="3–5 business days" readOnly={!canEdit} onChange={(e) => onChange({ estimate: e.target.value })} />
       </Field>
       {r.kind === "local" && (
-        <Field label="Postcodes you deliver to" htmlFor={`r-pc-${r.id}`} hint="Separated by commas.">
+        <Field label="Postcodes you deliver to" htmlFor={`r-pc-${r.id}`} hint={r.postcodes.length ? "Separated by commas." : "Separated by commas. With none listed, this rate never shows at checkout."}>
           <Textarea
             id={`r-pc-${r.id}`}
             rows={2}
-            value={r.postcodes.join(", ")}
+            value={pcText}
             readOnly={!canEdit}
-            onChange={(e) => onChange({ postcodes: e.target.value.split(/[,\s]+/).map((x) => x.trim()).filter(Boolean).slice(0, 500) })}
+            onChange={(e) => {
+              // Keep exactly what's typed (commas, spaces) on screen; save the list it makes.
+              setPcText(e.target.value);
+              onChange({ postcodes: e.target.value.split(/[,\s]+/).map((x) => x.trim()).filter(Boolean).slice(0, 500) });
+            }}
           />
         </Field>
       )}
@@ -270,6 +318,26 @@ function RateEditor({ rate: r, canEdit, fmt, onChange, onRemove }: { rate: Rate;
           Remove this rate
         </button>
       )}
+    </div>
+  );
+}
+
+/** What this zone can't deliver, said plainly, so checkout never just greys out for a customer. */
+function ZoneGaps({ zone, fmt }: { zone: Zone; fmt: (c: number) => string }) {
+  const g = zoneGaps(zone);
+  const lines = [
+    g.noRates && "No rates yet, so customers here can't check out.",
+    g.localOnly && "Only local delivery here, so anyone outside your postcodes can't check out. Add a Post or courier rate to cover everyone else.",
+    g.below !== null && `Orders under ${fmt(g.below)} have no delivery option here.`,
+    g.from !== null && `Orders of ${fmt(g.from)} or more have no delivery option here.`,
+  ].filter(Boolean) as string[];
+  if (lines.length === 0) return null;
+  return (
+    <div data-testid="zone-gap" className="mx-4 mb-3 rounded-[6px] border border-warning bg-warning-bg px-3 py-2 text-[12.5px] leading-[1.5] text-body">
+      {lines.map((l) => (
+        <p key={l}>{l}</p>
+      ))}
+      {(g.from !== null || g.below !== null) && <p className="text-muted">Add a rate without a limit, or turn a limit off, to cover them.</p>}
     </div>
   );
 }

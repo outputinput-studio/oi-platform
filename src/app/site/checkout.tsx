@@ -6,15 +6,16 @@ import { Placeholder } from "@/lib/placeholder";
 import { mediaUrl } from "@/modules/media/server";
 import { siteMenus } from "@/modules/menus/server";
 import { setCartQtyAction, testPayAction } from "@/modules/orders/actions";
-import { CART_COOKIE, readCart } from "@/modules/orders/cart";
+import { CART_COOKIE, CART_REF_COOKIE, readCart } from "@/modules/orders/cart";
 import { confirmStripeReturn } from "@/modules/orders/checkout";
 import { orderForCustomer, priceCart, type OrderItem, type PricedCart } from "@/modules/orders/server";
 import { paymentsStatus } from "@/modules/payments/server";
-import { formatPrice, type Currency } from "@/modules/sites/shop";
-import { siteShipping } from "@/modules/sites/server";
+import { formatPrice, homeCountry, type Currency } from "@/modules/sites/shop";
+import { siteShipping, siteShop } from "@/modules/sites/server";
+import { publicForm } from "@/modules/forms/server";
 import { Frame } from "./storefront";
 import { hostAndSite } from "./metadata";
-import { CheckoutForm, ClearCart } from "./checkout-form";
+import { CheckoutForm, ClearCart, TidyCart } from "./checkout-form";
 
 /**
  * The cart, checkout, the test payment page and "thank you", all inside
@@ -26,7 +27,8 @@ import { CheckoutForm, ClearCart } from "./checkout-form";
 async function current() {
   const { host, site } = await hostAndSite();
   if (!site) return null;
-  const [menus, cart] = await Promise.all([siteMenus({ siteId: site.id }), priceCart({ site, cart: readCart((await cookies()).get(CART_COOKIE)?.value) })]);
+  const jar = await cookies();
+  const [menus, cart] = await Promise.all([siteMenus({ siteId: site.id }), priceCart({ site, cart: readCart(jar.get(CART_COOKIE)?.value), cartRef: jar.get(CART_REF_COOKIE)?.value })]);
   return { host, site, menus, cart };
 }
 
@@ -37,7 +39,7 @@ export async function CartPage() {
   return (
     <Frame site={site} menus={menus} current="/shop/cart">
       <h1 className="pt-6 text-[34px] font-semibold tracking-[-0.8px] md:pt-10 md:text-[44px]">Your cart</h1>
-      <Dropped names={cart.dropped} />
+      <Dropped names={cart.dropped} held={cart.held} />
       {cart.lines.length === 0 ? (
         <div className="py-10">
           <p className="text-[var(--text-muted)]">Nothing in it yet.</p>
@@ -119,10 +121,12 @@ export async function CheckoutPage() {
   if (!c) return <Placeholder surface="site" />;
   const { site, menus, cart } = c;
   const pay = paymentsStatus(site);
+  const enquiryId = siteShop(site).enquiryFormId;
+  const canQuote = enquiryId ? !!(await publicForm({ siteId: site.id, formId: enquiryId })) : false;
   return (
     <Frame site={site} menus={menus} current="/shop/checkout">
       <h1 className="pt-6 text-[34px] font-semibold tracking-[-0.8px] md:pt-10 md:text-[44px]">Checkout</h1>
-      <Dropped names={cart.dropped} />
+      <Dropped names={cart.dropped} held={cart.held} />
       {cart.lines.length === 0 ? (
         <p className="py-10 text-[var(--text-muted)]">
           Your cart is empty.{" "}
@@ -135,12 +139,13 @@ export async function CheckoutPage() {
           <CheckoutForm
             needsAddress={cart.needsAddress}
             countries={COUNTRIES}
-            defaultCountry={defaultCountry(cart.currency)}
+            defaultCountry={homeCountry(cart.currency)}
             testMode={pay.provider === "test"}
             shipping={siteShipping(site)}
             subtotal={cart.subtotal}
             currency={cart.currency}
             tax={{ rate: cart.taxRate, included: cart.pricesIncludeTax, name: cart.taxName }}
+            canQuote={canQuote}
           />
           <aside>
             <ul className="space-y-2 border-b border-[var(--border-soft)] pb-4 text-[14px]">
@@ -263,12 +268,22 @@ function Totals({ cart }: { cart: PricedCart }) {
   );
 }
 
-function Dropped({ names }: { names: string[] }) {
-  if (names.length === 0) return null;
+function Dropped({ names, held }: { names: string[]; held: string[] }) {
+  if (names.length === 0 && held.length === 0) return null;
   return (
-    <p className="mt-4 rounded-[6px] border border-[var(--border)] px-4 py-3 text-[14px] text-[var(--text-body)]">
-      {names.join(", ")} {names.length === 1 ? "is" : "are"} no longer available, so we took {names.length === 1 ? "it" : "them"} out of your cart.
-    </p>
+    <div className="mt-4 space-y-2">
+      {names.length > 0 && <TidyCart />}
+      {names.length > 0 && (
+        <p className="rounded-[6px] border border-[var(--border)] px-4 py-3 text-[14px] text-[var(--text-body)]">
+          {names.join(", ")} {names.length === 1 ? "is" : "are"} no longer available, so we took {names.length === 1 ? "it" : "them"} out of your cart.
+        </p>
+      )}
+      {held.length > 0 && (
+        <p data-testid="held" className="rounded-[6px] border border-[var(--border)] px-4 py-3 text-[14px] text-[var(--text-body)]">
+          {held.join(", ")} {held.length === 1 ? "is" : "are"} in someone else&apos;s checkout right now. If they don&apos;t finish within half an hour, {held.length === 1 ? "it'll" : "they'll"} be back.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -281,6 +296,3 @@ function Gone({ site, menus }: { site: Site; menus: Awaited<ReturnType<typeof si
 }
 
 /** A sensible first guess for the country box: where the money is. */
-function defaultCountry(currency: Currency): string {
-  return { AUD: "AU", NZD: "NZ", THB: "TH", USD: "US", EUR: "DE", GBP: "GB", SGD: "SG" }[currency];
-}

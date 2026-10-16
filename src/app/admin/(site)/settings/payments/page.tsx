@@ -1,28 +1,24 @@
+import { headers } from "next/headers";
 import { requireSiteAccess } from "@/modules/auth/access";
-import { paymentsStatus, refreshStripeAccount } from "@/modules/payments/server";
-import { connectStripeAction, disconnectStripeAction } from "@/modules/payments/actions";
+import { paymentsStatus } from "@/modules/payments/server";
+import { refreshStripeAction, removeStripeKeysAction } from "@/modules/payments/actions";
+import { secretsAvailable } from "@/lib/secrets";
 import { Button, Label, PageHeader, Pill, Row, Rows } from "../../../ui";
+import { StripeKeysForm } from "./stripe-keys-form";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Settings · Payments, as in design/admin.html: connect the business's
- * own Stripe account. Stripe holds the card details, the money and the
- * payouts; nothing to copy or paste here.
+ * Settings · Payments: the business's own Stripe account. They put their
+ * own keys in; customers pay that account directly, and payouts, refunds
+ * history, disputes and tax paperwork all live in their Stripe.
  */
 export default async function PaymentsPage() {
-  const { user, site, role } = await requireSiteAccess();
-  let s = paymentsStatus(site);
-  if (s.provider === "stripe" && s.stripeAccountId) {
-    try {
-      await refreshStripeAccount({ actorId: user.id, siteId: site.id });
-      const { site: fresh } = await requireSiteAccess();
-      s = paymentsStatus(fresh);
-    } catch (err) {
-      console.error("stripe refresh failed", err);
-    }
-  }
+  const { site, role } = await requireSiteAccess();
+  const s = paymentsStatus(site);
   const owner = role === "owner";
+  const host = (await headers()).get("x-oi-host") ?? "";
+  const webhookUrl = `https://${host}/api/payments/stripe/${site.id}`;
   return (
     <>
       <PageHeader title="Payments" back="/settings" />
@@ -30,71 +26,73 @@ export default async function PaymentsPage() {
         {s.provider === "test" && (
           <div data-testid="test-payments" className="rounded-card border border-warning bg-warning-bg px-4 py-3">
             <p className="text-[14px] font-medium">Test payments are on</p>
-            <p className="mt-0.5 text-[12.5px] leading-[1.5] text-body">
-              This copy of the site has no Stripe keys, so checkout uses a test page instead: orders go through, nothing real moves. On the live site this is where you connect Stripe.
-            </p>
+            <p className="mt-0.5 text-[12.5px] leading-[1.5] text-body">No Stripe keys here yet, so checkout uses a test page: orders go through, nothing real moves. On the live site, nothing can be bought until your keys are in.</p>
           </div>
         )}
-        {s.provider === null && (
-          <div className="rounded-card border border-line bg-surface px-4 py-3">
-            <p className="text-[14px] font-medium">Not switched on yet</p>
-            <p className="mt-0.5 text-[12.5px] leading-[1.5] text-muted">Output/Input is finishing the payments set-up. Your site stays up and people can still enquire; Add to cart appears once this is ready.</p>
-          </div>
-        )}
-        {s.provider === "stripe" && !s.stripeAccountId && (
-          <div className="rounded-card border border-line bg-surface p-4">
-            <p className="text-[16px] font-medium">Take payments with Stripe</p>
-            <p className="mt-1 text-[13px] leading-[1.5] text-body">Stripe handles the card details, the money and the payouts to your bank. You&apos;ll never see a card number, and there&apos;s nothing here to copy or paste.</p>
-            {owner ? (
-              <form action={connectStripeAction} className="mt-4">
-                <Button type="submit">Connect Stripe</Button>
-              </form>
-            ) : (
-              <p className="mt-3 text-[13px] text-muted">An owner connects Stripe.</p>
-            )}
-            <p className="mt-3 text-[12.5px] text-muted">Opens Stripe. You&apos;ll answer their questions about the business and your bank account, then land back here. Ten minutes, once.</p>
-            <p className="mt-3 text-[12.5px] text-muted">Until this is done your site stays up and people can still enquire, but nothing can be bought — Add to cart is hidden.</p>
-          </div>
-        )}
-        {s.provider === "stripe" && s.stripeAccountId && (
-          <>
-            <div>
-              <Label>Stripe</Label>
-              <Rows variant="static">
-                <Row
-                  title={
-                    <span className="flex items-center gap-2">
-                      {s.chargesEnabled ? "Connected" : "Not finished"} {!s.livemode && <Pill tone="warning">Test mode</Pill>}
-                    </span>
-                  }
-                  detail={`${s.businessName || "Your business"} · Stripe`}
-                />
-                {s.bankLast4 && <Row title="Paid into" detail={`···· ${s.bankLast4}`} />}
-                <Row title="Payouts" detail="By Stripe, to your bank. Refunds, disputes and tax paperwork live in Stripe too." />
-              </Rows>
-            </div>
+
+        {s.hasKeys ? (
+          <div>
+            <Label>Your Stripe</Label>
+            <Rows variant="static">
+              <Row
+                title={
+                  <span className="flex items-center gap-2">
+                    {s.chargesEnabled ? "Connected" : "Stripe still has questions"} {!s.livemode && <Pill tone="warning">Test mode</Pill>}
+                  </span>
+                }
+                detail={`${s.businessName || "Your Stripe account"} · key ending ${s.keyLast4}`}
+              />
+              <Row title="Webhook" detail={s.hasWebhook ? "Set — orders are confirmed even if the customer closes the page" : "Not set — add it so no paid order is missed"} />
+            </Rows>
             {!s.chargesEnabled && (
-              <div className="rounded-card border border-warning bg-warning-bg p-4">
-                <p className="text-[14px] font-medium">Stripe still has questions</p>
-                <p className="mt-0.5 text-[12.5px] text-body">Nothing can be bought until they&apos;re answered.</p>
-                {owner && (
-                  <form action={connectStripeAction} className="mt-3">
-                    <Button type="submit" size="sm">
-                      Finish in Stripe
-                    </Button>
-                  </form>
-                )}
-              </div>
-            )}
-            {owner && (
-              <form action={disconnectStripeAction} className="rounded-card border border-line bg-surface p-4">
-                <Button type="submit" variant="danger" size="sm">
-                  Disconnect Stripe
+              <form action={refreshStripeAction} className="mt-3">
+                <p className="mb-2 text-[12.5px] text-muted">Finish Stripe&apos;s own questions in your Stripe dashboard, then check again.</p>
+                <Button type="submit" size="sm" variant="quiet">
+                  Check again
                 </Button>
-                <p className="mt-2 text-[12.5px] text-muted">Nothing can be bought while it&apos;s disconnected. Your Stripe account itself stays as it is.</p>
               </form>
             )}
-          </>
+          </div>
+        ) : (
+          <div className="rounded-card border border-line bg-surface p-4">
+            <p className="text-[16px] font-medium">Take payments with your own Stripe</p>
+            <p className="mt-1 text-[13px] leading-[1.5] text-body">Customers pay your Stripe account directly. Stripe holds the card details, the money and the payouts to your bank; you&apos;ll never see a card number.</p>
+          </div>
+        )}
+
+        {owner ? (
+          secretsAvailable() ? (
+            <div>
+              <Label>{s.hasKeys ? "Replace your keys" : "Your keys"}</Label>
+              <ol className="mb-4 list-decimal space-y-2 pl-5 text-[13px] leading-[1.5] text-body">
+                <li>
+                  In Stripe, go to <b>Developers → API keys → Create restricted key</b>. Give it write access to <b>Checkout Sessions</b>, <b>Coupons</b> and <b>Refunds</b>, and read access to <b>Balance</b>. (Your standard secret key also works.)
+                </li>
+                <li>
+                  Go to <b>Developers → Webhooks → Add endpoint</b>. Paste the address below, pick the events <b>checkout.session.completed</b> and <b>checkout.session.async_payment_succeeded</b>, then copy its <b>Signing secret</b>.
+                </li>
+                <li>Paste both here and save. We check the key with Stripe, then keep it encrypted — nobody can read it back, us included.</li>
+              </ol>
+              <p className="label mb-1.5">Webhook address</p>
+              <p data-testid="webhook-url" className="mb-4 break-all rounded-card border border-line bg-sunken px-3.5 py-2.5 font-mono text-[12.5px]">
+                {webhookUrl}
+              </p>
+              <StripeKeysForm hasKeys={s.hasKeys} />
+            </div>
+          ) : (
+            <p className="rounded-card border border-line bg-surface px-4 py-3 text-[13px] text-muted">Secure storage for keys isn&apos;t switched on here yet. Output/Input needs to finish this before keys can be saved.</p>
+          )
+        ) : (
+          <p className="text-[13px] text-muted">An owner puts the Stripe keys in.</p>
+        )}
+
+        {owner && s.hasKeys && (
+          <form action={removeStripeKeysAction} className="rounded-card border border-line bg-surface p-4">
+            <Button type="submit" variant="danger" size="sm">
+              Remove the keys
+            </Button>
+            <p className="mt-2 text-[12.5px] text-muted">Nothing can be bought until new ones go in. Your Stripe account itself stays as it is.</p>
+          </form>
         )}
       </div>
     </>

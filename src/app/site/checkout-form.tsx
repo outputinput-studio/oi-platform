@@ -1,9 +1,9 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { checkoutAction, clearCartAction, previewCodeAction, type CartState } from "@/modules/orders/actions";
+import { checkoutAction, clearCartAction, previewCodeAction, quoteAction, type CartState } from "@/modules/orders/actions";
 import { taxOn } from "@/modules/orders/cart";
-import { ratePriceLabel, ratesFor, type Shipping } from "@/modules/sites/shipping";
+import { quoteFor, ratePriceLabel, ratesFor, whyNoRates, type Shipping } from "@/modules/sites/shipping";
 import { formatPrice, type Currency } from "@/modules/sites/shop";
 
 const input = "block h-12 w-full rounded-[6px] border border-[var(--border)] bg-transparent px-3.5 text-[16px] outline-none focus:border-[var(--accent)]";
@@ -11,7 +11,9 @@ const input = "block h-12 w-full rounded-[6px] border border-[var(--border)] bg-
 /**
  * Who's buying, where it goes and how. Delivery options follow the
  * country (and postcode, for local delivery) as they're typed; picking up
- * needs no street address. Payment happens on the next page.
+ * needs no street address. Payment happens on the next page — unless
+ * delivery there is quoted individually, when the same details go to the
+ * team as a quote request instead.
  */
 export function CheckoutForm({
   needsAddress,
@@ -22,6 +24,7 @@ export function CheckoutForm({
   subtotal,
   currency,
   tax,
+  canQuote,
 }: {
   needsAddress: boolean;
   countries: { code: string; name: string }[];
@@ -31,8 +34,11 @@ export function CheckoutForm({
   subtotal: number;
   currency: Currency;
   tax: { rate: number; included: boolean; name: string };
+  /** The site has an enquiry form for quote requests to go through. */
+  canQuote: boolean;
 }) {
   const [state, act, pending] = useActionState(checkoutAction, {} as CartState);
+  const [quoteState, askQuote, quoting] = useActionState(quoteAction, {} as CartState);
   const [codeText, setCodeText] = useState("");
   const [code, setCode] = useState<{ code: string; off: number; freeShipping: boolean } | null>(null);
   const [codeError, setCodeError] = useState("");
@@ -51,17 +57,36 @@ export function CheckoutForm({
   };
   const [country, setCountry] = useState(defaultCountry);
   const [postcode, setPostcode] = useState("");
+  const countryName = countries.find((c) => c.code === country)?.name ?? country;
+  const quote = needsAddress ? quoteFor(shipping, country, countryName) : null;
   const rates = needsAddress ? ratesFor(shipping, { country, postcode }, subtotal) : [];
+  const fmtMoney = (c: number) => formatPrice(c, currency);
+  const none = needsAddress && !quote ? whyNoRates(shipping, { country, postcode }, subtotal) : null;
+  const noneText = !none
+    ? ""
+    : none.why === "postcode"
+      ? none.typed
+        ? `Sorry, we don't deliver to ${postcode.trim()}. Get in touch and we'll sort something out.`
+        : "We deliver here ourselves, to some postcodes. Enter your postcode to see if you're covered."
+      : none.why === "total"
+        ? `Sorry, none of our delivery options cover an order of ${fmtMoney(subtotal)}. Get in touch and we'll sort something out.`
+        : `Sorry, we don't send to ${countryName} yet. Get in touch and we'll sort something out.`;
   const [picked, setPicked] = useState("");
   const rate = rates.find((r) => r.id === picked) ?? rates[0];
   const pickup = rate?.kind === "pickup";
   const deliveryPrice = code?.freeShipping ? 0 : (rate?.price ?? 0);
   const total = taxOn(subtotal - (code?.off ?? 0) + deliveryPrice, tax.rate, tax.included);
   const fmt = (c: number) => formatPrice(c, currency);
-  const countryName = countries.find((c) => c.code === country)?.name ?? country;
+
+  if (quoteState.ok)
+    return (
+      <p role="status" data-testid="quote-sent" className="rounded-[8px] border border-[var(--border)] bg-[var(--surface)] px-5 py-4 text-[16px] leading-relaxed">
+        {quoteState.ok}
+      </p>
+    );
 
   return (
-    <form action={act} className="space-y-5">
+    <form action={quote ? askQuote : act} className="space-y-5">
       <fieldset className="space-y-4">
         <legend className="mb-1 text-[18px] font-medium">Your details</legend>
         <Field label="Name" name="name" autoComplete="name" required />
@@ -94,9 +119,14 @@ export function CheckoutForm({
             </>
           )}
           <Field label="Postcode" name="postcode" autoComplete="postal-code" required={!pickup} value={postcode} onChange={setPostcode} />
-          {rates.length === 0 ? (
+          {quote ? (
+            <div data-testid="quote-note" className="rounded-[6px] border border-[var(--border)] px-4 py-3 text-[14px]">
+              <p>{quote}</p>
+              <p className="mt-1 text-[13px] text-[var(--text-muted)]">{canQuote ? "Send your details and we'll be in touch. Nothing is charged now." : "Get in touch and we'll sort something out."}</p>
+            </div>
+          ) : rates.length === 0 ? (
             <p data-testid="no-rates" className="rounded-[6px] border border-[var(--border)] px-4 py-3 text-[14px]">
-              Sorry, we don&apos;t send to {countryName} yet. Get in touch and we&apos;ll sort something out.
+              {noneText}
             </p>
           ) : (
             <div role="radiogroup" aria-label="How it gets to you" className="space-y-2">
@@ -114,6 +144,7 @@ export function CheckoutForm({
           )}
         </fieldset>
       )}
+      {!quote && (
       <div>
         <label htmlFor="checkout-code" className="mb-1.5 block text-[14px]">
           Discount code
@@ -137,10 +168,12 @@ export function CheckoutForm({
         {code && <p className="mt-1.5 text-[13px]">{code.code} applied.</p>}
         {codeError && <p className="mt-1.5 text-[13px] text-[var(--text-muted)]">{codeError}</p>}
       </div>
+      )}
       <label className="block">
         <span className="mb-1.5 block text-[14px]">Anything we should know?</span>
         <textarea name="note" rows={3} maxLength={1000} className={`${input} h-auto py-3`} />
       </label>
+      {!quote && (
       <dl className="space-y-1.5 border-t border-[var(--border-soft)] pt-4 text-[14px]">
         {code && code.off > 0 && (
           <div className="flex justify-between">
@@ -165,15 +198,29 @@ export function CheckoutForm({
           <dd data-testid="checkout-total">{fmt(total.total)}</dd>
         </div>
       </dl>
-      {state.error && <p className="rounded-[6px] border border-[var(--border)] px-4 py-3 text-[14px]">{state.error}</p>}
-      <button
-        type="submit"
-        disabled={pending || (needsAddress && rates.length === 0)}
-        className="h-12 w-full rounded-[6px] bg-[var(--accent)] text-[15px] font-medium text-white hover:opacity-90 disabled:opacity-60"
-      >
-        {pending ? "One moment…" : testMode ? "Continue to test payment" : "Continue to payment"}
-      </button>
-      <p className="text-[13px] text-[var(--text-muted)]">{testMode ? "This is a test shop: nothing real is charged." : "You'll pay securely with Stripe. We never see your card."}</p>
+      )}
+      {(quote ? quoteState.error : state.error) && <p className="rounded-[6px] border border-[var(--border)] px-4 py-3 text-[14px]">{quote ? quoteState.error : state.error}</p>}
+      {quote ? (
+        <button type="submit" disabled={quoting || !canQuote} className="h-12 w-full rounded-[6px] bg-[var(--accent)] text-[15px] font-medium text-white hover:opacity-90 disabled:opacity-60">
+          {quoting ? "Sending…" : "Ask for a quote"}
+        </button>
+      ) : (
+        <>
+          <button
+            type="submit"
+            disabled={pending || (needsAddress && rates.length === 0)}
+            className="h-12 w-full rounded-[6px] bg-[var(--accent)] text-[15px] font-medium text-white hover:opacity-90 disabled:opacity-60"
+          >
+            {pending ? "One moment…" : testMode ? "Continue to test payment" : "Continue to payment"}
+          </button>
+          {needsAddress && rates.length === 0 && (
+            <p data-testid="cant-continue" className="text-[13.5px]">
+              {noneText}
+            </p>
+          )}
+          <p className="text-[13px] text-[var(--text-muted)]">{testMode ? "This is a test shop: nothing real is charged." : "You'll pay securely with Stripe. We never see your card."}</p>
+        </>
+      )}
     </form>
   );
 }
@@ -219,4 +266,16 @@ export function ClearCart() {
     void clearCartAction();
   }, []);
   return null;
+}
+
+/** Takes things that can't be bought out of the cart cookie, once the page has said so. */
+export function TidyCart() {
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    void fetch("/api/cart/tidy", { method: "POST" })
+      .then(() => setDone(true))
+      .catch(() => {});
+  }, []);
+  // A marker for tests: the cookie is tidy from here on.
+  return done ? <span data-testid="cart-tidied" hidden /> : null;
 }

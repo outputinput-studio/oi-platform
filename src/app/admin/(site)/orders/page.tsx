@@ -65,7 +65,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
                       <span className="flex items-center justify-between gap-3">
                         <span className="flex min-w-0 items-center gap-2">
                           <span className="truncate text-[15px] font-medium">{o.name}</span>
-                          <StatusPill status={o.status} refunded={o.paymentStatus === "refunded"} />
+                          <StatusPill status={o.status} refunded={o.paymentStatus === "refunded"} partly={o.paymentStatus === "paid" && o.refunded > 0} />
                         </span>
                         <span className="flex-none font-mono text-[14px]">{formatPrice(o.total, o.currency as Currency)}</span>
                       </span>

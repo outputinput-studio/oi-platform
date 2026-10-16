@@ -16,6 +16,12 @@ export const shopSettingsSchema = z.object({
   taxName: z.string().trim().min(1, "Give the tax a name, like GST.").max(20).default("GST"),
   /** Percent, for working the tax out of a price later. */
   taxRate: z.coerce.number().min(0, "0 to 50.").max(50, "0 to 50.").default(10),
+  /**
+   * The form people use to ask about something: enquire-only and sold
+   * products, and delivery zones that are quoted individually. Null: none
+   * chosen, so those show no button.
+   */
+  enquiryFormId: z.string().uuid().nullable().default(null),
 });
 export type ShopSettings = z.infer<typeof shopSettingsSchema>;
 
@@ -44,4 +50,9 @@ export function parsePrice(raw: string): number | null {
 export function priceInput(cents: number | null): string {
   if (cents === null) return "";
   return cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2);
+}
+
+/** The country a shop most likely sells to first, from its currency: where address forms start. */
+export function homeCountry(currency: Currency): string {
+  return { AUD: "AU", NZD: "NZ", THB: "TH", USD: "US", EUR: "DE", GBP: "GB", SGD: "SG" }[currency];
 }

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
-import { renameSite, updateSearchSettings, updateShipping, updateShopSettings, updateTheme } from "./server";
+import { renameSite, setEnquiryForm, updateSearchSettings, updateShipping, updateShopSettings, updateTheme } from "./server";
 
 export type SettingsFormState = { ok?: string; error?: string };
 
@@ -70,6 +70,19 @@ export async function saveShippingAction(settings: unknown): Promise<SettingsFor
     return { ok: "Saved" };
   } catch (err) {
     if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "That doesn't look right." };
+    return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
+  }
+}
+
+/** Settings · Enquiries: which form takes enquiries, or none. */
+export async function saveEnquiryFormAction(formId: string | null): Promise<SettingsFormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await setEnquiryForm({ actorId: user.id, siteId: site.id, formId });
+    revalidatePath("/", "layout");
+    return { ok: "Saved" };
+  } catch (err) {
+    if (err instanceof z.ZodError) return { error: "Pick one of your forms." };
     return { error: err instanceof Error ? err.message : "Something went wrong. Try again." };
   }
 }

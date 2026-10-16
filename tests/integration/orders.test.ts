@@ -100,6 +100,8 @@ describe("orders for the team", () => {
     expect(await newOrderCount({ siteId: siteA.id })).toBe(1);
 
     const o = list[0];
+    // Unpaid checkouts hold stock for half an hour, so make room for one more.
+    await updateProduct({ actorId: ann, siteId: siteA.id, productId: shelf, edit: { stock: 10 } });
     await expect(getOrder({ actorId: ann, siteId: siteA.id, orderId: (await placeOrder({ site: siteA, cart: [{ id: shelf, q: 1 }], details: { name: "X", email: "x@example.com", address }, provider: "test" })).id })).rejects.toThrow(/doesn't exist/);
     await moveOrder({ actorId: ann, siteId: siteA.id, orderId: o.id, change: { status: "inProgress", email: draftEmail(o, "inProgress", "Orders A") } });
     const sent = await moveOrder({ actorId: ann, siteId: siteA.id, orderId: o.id, change: { status: "sent", tracking: { carrier: "Australia Post", number: "33ANJ482019" } } });
@@ -154,5 +156,60 @@ describe("discount codes at checkout", () => {
     expect((await listCodes({ actorId: ann, siteId: site.id })).find((c) => c.code === "WELCOME10")?.uses).toBe(1);
     // One per person: Jade has had hers.
     await expect(placeOrder({ site, cart, details: { ...who, code: "WELCOME10" }, provider: "test" })).rejects.toThrow(/already used/);
+  });
+});
+
+describe("holding stock and refunds", () => {
+  test("a piece in someone's unpaid checkout is held from others, not from them", async () => {
+    const site = (await siteFromHost("orders-a.localhost"))!;
+    const piece = (await createProduct({ actorId: ann, siteId: site.id, name: "Last one" })).id;
+    await updateProduct({ actorId: ann, siteId: site.id, productId: piece, edit: { price: 20000, make: "oneOnly", visible: true } });
+    const cart = [{ id: piece, q: 1 }];
+    const details = { name: "Ella", email: "ella2@example.com", address, rate: "std" };
+    const first = await placeOrder({ site, cart, cartRef: "cart-a", details, provider: "test" });
+
+    const other = await priceCart({ site, cart, cartRef: "cart-b" });
+    expect(other.lines).toEqual([]);
+    expect(other.held).toEqual(["Last one"]);
+    await expect(placeOrder({ site, cart, cartRef: "cart-b", details: { ...details, email: "b@example.com" }, provider: "test" })).rejects.toThrow(/someone else's checkout/);
+
+    // The same shopper trying again isn't blocked, and their earlier try stops holding it.
+    expect((await priceCart({ site, cart, cartRef: "cart-a" })).lines).toHaveLength(1);
+    const again = await placeOrder({ site, cart, cartRef: "cart-a", details, provider: "test" });
+    expect((await owner.query(`select payment_status from orders where id = $1`, [first.id])).rows[0].payment_status).toBe("failed");
+
+    // Paid: it's sold. Refunded with the stock put back: it's for sale again.
+    const { refundOrder } = await import("@/modules/orders/admin");
+    await markOrderPaid({ siteId: site.id, orderId: again.id });
+    expect((await getProduct({ actorId: ann, siteId: site.id, productId: piece })).availability).toBe("sold");
+    const part = await refundOrder({ actorId: ann, siteId: site.id, orderId: again.id, refund: { amount: 5000 } });
+    expect(part).toMatchObject({ refunded: 5000, paymentStatus: "paid" });
+    await expect(refundOrder({ actorId: ann, siteId: site.id, orderId: again.id, refund: { amount: 999999 } })).rejects.toThrow(/At most/);
+    const all = await refundOrder({ actorId: ann, siteId: site.id, orderId: again.id, refund: { restock: true } });
+    expect(all).toMatchObject({ refunded: again.total, paymentStatus: "refunded" });
+    expect((await getProduct({ actorId: ann, siteId: site.id, productId: piece })).availability).toBe("forSale");
+    await expect(refundOrder({ actorId: ann, siteId: site.id, orderId: again.id, refund: {} })).rejects.toThrow(/already been refunded/);
+  });
+
+  test("a Stripe order's refund goes through Stripe first; if Stripe says no, nothing changes", async () => {
+    const site = (await siteFromHost("orders-a.localhost"))!;
+    const { refundOrder } = await import("@/modules/orders/admin");
+    const o = await placeOrder({ site, cart: [{ id: shelf, q: 1 }], details: { name: "Sue", email: "sue@example.com", address, rate: "std" }, provider: "stripe" });
+    await markOrderPaid({ siteId: site.id, orderId: o.id });
+    await expect(
+      refundOrder({
+        actorId: ann,
+        siteId: site.id,
+        orderId: o.id,
+        refund: {},
+        refunder: async () => {
+          throw new Error("Stripe said no.");
+        },
+      }),
+    ).rejects.toThrow(/Stripe said no/);
+    expect((await owner.query(`select refunded from orders where id = $1`, [o.id])).rows[0].refunded).toBe(0);
+    const calls: number[] = [];
+    await refundOrder({ actorId: ann, siteId: site.id, orderId: o.id, refund: { amount: 1000 }, refunder: async (_o, a) => void calls.push(a) });
+    expect(calls).toEqual([1000]);
   });
 });

@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { saveProductAction } from "@/modules/products/actions";
-import { AVAILABILITY_LABEL, customerView } from "@/modules/products/catalogue";
-import type { ProductAvailability, ProductMake } from "@/modules/products/kinds";
+import { AVAILABILITY_LABEL, BUY_WITH_LABEL, customerView } from "@/modules/products/catalogue";
+import { PRODUCT_BUY_WITH, type ProductAvailability, type ProductBuyWith, type ProductMake } from "@/modules/products/kinds";
 import type { ImageRef } from "@/modules/pages/registry";
 import type { Seo } from "@/modules/pages/seo";
 import { slugFromTitle } from "@/modules/pages/slug";
@@ -34,6 +34,7 @@ export type ProductDraft = {
   leadTime: number | null;
   leadUnit: "weeks" | "days";
   availability: ProductAvailability;
+  buyWith: ProductBuyWith;
   visible: boolean;
   photos: ImageRef[];
   code: string;
@@ -41,9 +42,9 @@ export type ProductDraft = {
 
 const AVAILABILITY_HINT: Record<ProductAvailability, string> = {
   forSale: "People can buy it now.",
-  sold: "Stays on your site as a past piece, and asks for an enquiry.",
+  sold: "Stays on your site as a past product, with a link to enquire about something like it.",
   soldOut: "Set on its own when stock hits zero. You can set it yourself too.",
-  enquire: "No cart. People get in touch to order it.",
+  enquire: "No cart. Sends people to your enquiry form with the product named.",
   comingSoon: "Visible, but not buyable yet.",
 };
 
@@ -57,6 +58,8 @@ export function ProductEditor({
   mediaAvailable,
   seo,
   deleteAction,
+  hasEnquiryForm,
+  paymentsReady,
 }: {
   product: ProductDraft & { id: string };
   photoUrls: Record<string, string>;
@@ -68,6 +71,10 @@ export function ProductEditor({
   mediaAvailable: boolean;
   seo: { initial: Seo; imageUrl?: string; fallback: { title: string; description: string; imageUrl?: string } };
   deleteAction: (f: FormData) => Promise<void>;
+  /** Whether Settings · Enquiries has a form, so enquire-only and sold products get a button. */
+  hasEnquiryForm: boolean;
+  /** The site can take payments, so Add to cart shows. */
+  paymentsReady: boolean;
 }) {
   const [d, setD] = useState<ProductDraft>(product);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -272,7 +279,33 @@ export function ProductEditor({
               </button>
             ))}
           </div>
+          {!hasEnquiryForm && (d.availability === "enquire" || d.availability === "sold") && (
+            <p data-testid="no-enquiry-form" className="mt-2 text-[12.5px] leading-[1.5] text-warning">
+              No enquiry form is chosen yet, so customers won&apos;t see a button. Choose one in{" "}
+              <Link href="/settings/enquiries" className="underline underline-offset-2">
+                Settings · Enquiries
+              </Link>
+              .
+            </p>
+          )}
         </fieldset>
+
+        {d.availability === "forSale" && (
+          <div>
+            <p className="mb-1.5 text-[13.5px] text-body">How they buy it</p>
+            <Segmented label="How they buy it" value={d.buyWith} options={PRODUCT_BUY_WITH.map((b) => [b, BUY_WITH_LABEL[b][0]])} onChange={(v) => change({ buyWith: v as ProductBuyWith })} />
+            <p className="mt-1.5 text-[12.5px] text-muted">{BUY_WITH_LABEL[d.buyWith][1]}</p>
+            {!hasEnquiryForm && d.buyWith !== "cart" && (
+              <p data-testid="quote-needs-form" className="mt-2 text-[12.5px] leading-[1.5] text-warning">
+                Quote requests go through your enquiry form, and none is chosen yet. Choose one in{" "}
+                <Link href="/settings/enquiries" className="underline underline-offset-2">
+                  Settings · Enquiries
+                </Link>
+                .
+              </p>
+            )}
+          </div>
+        )}
 
         <div>
           <Label>What customers see</Label>
@@ -281,6 +314,17 @@ export function ProductEditor({
               {view.price ?? <span className="text-muted">No price</span>} {view.was && <s className="text-[14px] text-muted">{view.was}</s>}
             </p>
             <p className="mt-1 text-[13px] text-body">{view.note}</p>
+            {(view.buyable || view.quotable) && (
+              <>
+                {/* Only what will really show; a button that's waiting on a setting is dimmed, with why. */}
+                <p className="mt-2 flex gap-1.5">
+                  {view.buyable && <span className={`rounded-[4px] border border-line px-2 py-0.5 text-[12px] ${paymentsReady ? "text-body" : "text-faint line-through"}`}>Add to cart</span>}
+                  {view.quotable && <span className={`rounded-[4px] border border-line px-2 py-0.5 text-[12px] ${hasEnquiryForm ? "text-body" : "text-faint line-through"}`}>Email quote</span>}
+                </p>
+                {view.buyable && !paymentsReady && <p className="mt-1 text-[12px] text-muted">Add to cart shows once payments are set up.</p>}
+                {view.quotable && !hasEnquiryForm && <p className="mt-1 text-[12px] text-muted">Email quote shows once an enquiry form is chosen.</p>}
+              </>
+            )}
             {!d.visible && <p className="mt-1 text-[12px] text-warning">Hidden — only you can see it.</p>}
           </div>
         </div>

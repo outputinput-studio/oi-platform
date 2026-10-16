@@ -74,7 +74,8 @@ export async function setSubmissionStatusAction(form: FormData): Promise<void> {
 /**
  * A visitor sends a form from the storefront. No sign-in: the site is the
  * one the hostname names, and the form must belong to it. Answers come
- * in as f_<fieldId>; `website` is the hidden trap field.
+ * in as f_<fieldId>; `website` is the hidden trap field; `about` is a
+ * product id when the form was opened from a product page.
  */
 export async function submitFormAction(formId: string, _prev: FormState, form: FormData): Promise<FormState> {
   const h = await headers();
@@ -88,6 +89,7 @@ export async function submitFormAction(formId: string, _prev: FormState, form: F
       siteId: site.id,
       formId,
       answers,
+      about: String(form.get("about") ?? "") || undefined,
       trap: String(form.get("website") ?? ""),
       siteName: site.name,
       inboxUrl: `https://${host.replace(/^[^.]+\./, "admin.")}/inbox`,

@@ -36,6 +36,10 @@ export const zoneSchema = z.object({
   countries: z.array(z.string().length(2)).max(250).default([]),
   everywhere: z.boolean().default(false),
   rates: z.array(rateSchema).max(20).default([]),
+  /** Quote individually: no payment at checkout; their details come through as an enquiry so the team can price the postage. */
+  quote: z.boolean().default(false),
+  /** What they read at checkout. Empty: "We'll work out delivery to <country> and send you a quote." */
+  quoteMessage: z.string().trim().max(300).default(""),
 });
 export type Zone = z.infer<typeof zoneSchema>;
 
@@ -64,12 +68,53 @@ export function zoneFor(s: Shipping, country: string): Zone | null {
 export function ratesFor(s: Shipping, where: { country: string; postcode?: string }, subtotal: number): Rate[] {
   if (s.zones.length === 0) return [FREE_DELIVERY];
   const zone = zoneFor(s, where.country);
-  if (!zone) return [];
+  if (!zone || zone.quote) return [];
   const pc = (where.postcode ?? "").trim().toUpperCase();
   return zone.rates
     .filter((r) => (r.minTotal === null || subtotal >= r.minTotal) && (r.maxTotal === null || subtotal < r.maxTotal))
     .filter((r) => r.kind !== "local" || (pc !== "" && r.postcodes.map((x) => x.toUpperCase()).includes(pc)))
     .sort((a, b) => a.price - b.price);
+}
+
+/**
+ * Why an address has nothing to pick from, so checkout can say so rather
+ * than just greying the button: no zone for the country; only local
+ * delivery and the postcode isn't covered (or not typed yet); or every
+ * rate has a total limit this order falls outside.
+ */
+export type NoRates = { why: "noZone" } | { why: "postcode"; typed: boolean } | { why: "total" } | { why: "empty" };
+export function whyNoRates(s: Shipping, where: { country: string; postcode?: string }, subtotal: number): NoRates | null {
+  if (ratesFor(s, where, subtotal).length > 0) return null;
+  const zone = zoneFor(s, where.country);
+  if (!zone) return { why: "noZone" };
+  if (zone.rates.length === 0) return { why: "empty" };
+  const fitsTotal = zone.rates.filter((r) => (r.minTotal === null || subtotal >= r.minTotal) && (r.maxTotal === null || subtotal < r.maxTotal));
+  if (fitsTotal.length > 0 && fitsTotal.every((r) => r.kind === "local")) return { why: "postcode", typed: (where.postcode ?? "").trim() !== "" };
+  return { why: "total" };
+}
+
+/**
+ * What a zone can't deliver, for the shipping editor: the order total from
+ * which no rate applies (every post or pickup rate has an upper limit), or
+ * that it has no rates at all. Local delivery depends on the postcode, so
+ * it doesn't count as covering everyone.
+ */
+export function zoneGaps(z: Zone): { noRates: boolean; localOnly: boolean; from: number | null; below: number | null } {
+  const none = { noRates: false, localOnly: false, from: null, below: null };
+  if (z.quote) return none;
+  if (z.rates.length === 0) return { ...none, noRates: true };
+  const open = z.rates.filter((r) => r.kind !== "local");
+  if (open.length === 0) return { ...none, localOnly: true };
+  const from = open.some((r) => r.maxTotal === null) ? null : Math.max(...open.map((r) => r.maxTotal ?? 0));
+  const below = open.some((r) => !r.minTotal) ? null : Math.min(...open.map((r) => r.minTotal ?? 0));
+  return { noRates: false, localOnly: false, from, below };
+}
+
+/** When delivery to this country is quoted individually: what the customer reads instead of rates. Null when it isn't. */
+export function quoteFor(s: Shipping, country: string, countryName: string): string | null {
+  const zone = zoneFor(s, country);
+  if (!zone?.quote) return null;
+  return zone.quoteMessage || `We'll work out delivery to ${countryName} and send you a quote.`;
 }
 
 /** "Included" rather than $0, as the design asks. */

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PRODUCT_AVAILABILITY, PRODUCT_MAKES, type ProductAvailability, type ProductMake } from "./kinds";
+import { PRODUCT_AVAILABILITY, PRODUCT_BUY_WITH, PRODUCT_MAKES, type ProductAvailability, type ProductBuyWith, type ProductMake } from "./kinds";
 import { imageRef, type ImageRef } from "@/modules/pages/registry";
 import { seoSchema } from "@/modules/pages/seo";
 import { formatPrice, type Currency } from "@/modules/sites/shop";
@@ -38,6 +38,7 @@ export const productEditSchema = z.object({
   leadTime: z.number().int().min(1, "At least 1.").max(520).nullable().optional(),
   leadUnit: z.enum(["weeks", "days"]).optional(),
   availability: z.enum(PRODUCT_AVAILABILITY).optional(),
+  buyWith: z.enum(PRODUCT_BUY_WITH).optional(),
   visible: z.boolean().optional(),
   photos: z.array(imageRef).max(MAX_PHOTOS, `Up to ${MAX_PHOTOS} photos.`).optional(),
   code: z.string().trim().max(60).optional(),
@@ -60,6 +61,8 @@ type Shape = {
   leadTime: number | null;
   leadUnit: "weeks" | "days";
   availability: ProductAvailability;
+  /** Missing reads as "cart". */
+  buyWith?: ProductBuyWith;
   price: number | null;
   salePrice: number | null;
   visible: boolean;
@@ -91,8 +94,15 @@ export const AVAILABILITY_LABEL: Record<ProductAvailability, string> = {
 export function adminTag(p: Shape): string | null {
   if (!p.visible) return "Hidden";
   const a = effectiveAvailability(p);
-  return a === "forSale" ? null : AVAILABILITY_LABEL[a];
+  if (a === "forSale") return p.buyWith === "quote" ? "Email quote" : null;
+  return AVAILABILITY_LABEL[a];
 }
+
+export const BUY_WITH_LABEL: Record<ProductBuyWith, [string, string]> = {
+  cart: ["Add to cart", "They pay at checkout."],
+  quote: ["Email quote", "No cart. They send their details and you email a price — handy when freight varies."],
+  both: ["Both", "Add to cart, with Email quote beside it."],
+};
 
 export type CustomerView = {
   /** "$420", or the sale price when there is one. Null when no price is set. */
@@ -103,6 +113,8 @@ export type CustomerView = {
   note: string;
   /** Whether the cart could take it (once checkout is on). */
   buyable: boolean;
+  /** Whether it shows Email quote (once there's an enquiry form). Needs no price: the team names one. */
+  quotable: boolean;
 };
 
 /** What a customer sees on the shop and the product page. */
@@ -129,7 +141,8 @@ export function customerView(p: Shape, currency: Currency): CustomerView {
                 : p.stock !== null && p.stock <= 5
                   ? `Ready to ship · ${p.stock} left`
                   : "Ready to ship";
-  return { price, was, note, buyable: a === "forSale" && p.price !== null };
+  const buyWith = p.buyWith ?? "cart";
+  return { price, was, note, buyable: a === "forSale" && p.price !== null && buyWith !== "quote", quotable: a === "forSale" && buyWith !== "cart" };
 }
 
 function unit(n: number, u: "weeks" | "days") {
