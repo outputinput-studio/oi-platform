@@ -3,8 +3,8 @@ import { z } from "zod";
 import { db, withSite } from "@/db/client";
 import { forms, sites, type Site } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
-import { parseTheme, readTheme, type Theme } from "./theme";
-import { readSearchSettings, searchSettingsSchema, type SearchSettings } from "./search";
+import { parseTheme, readTheme, themeSchema, type Theme } from "./theme";
+import { readSearchSettings, searchSettingsSchema, socialSchema, type SearchSettings } from "./search";
 import { readShopSettings, shopSettingsSchema, type ShopSettings } from "./shop";
 import { readShipping, shippingSchema, type Shipping } from "./shipping";
 import { businessSchema, sendingSchema, type Business, type Sending } from "./business";
@@ -42,10 +42,39 @@ export function siteTheme(site: Pick<Site, "theme">): Theme {
 /** Owners change how the storefront looks. Validated against themeSchema; unknown keys are dropped. */
 export async function updateTheme(p: { actorId: string; siteId: string; theme: unknown }): Promise<Theme> {
   await assertAccess(p.actorId, p.siteId, "owner");
-  const theme = parseTheme(p.theme);
-  const [site] = await withSite(p.siteId, (tx) => tx.update(sites).set({ theme }).where(eq(sites.id, p.siteId)).returning());
-  if (!site) throw new AccessError("That site doesn't exist.");
-  return theme;
+  // Only what's sent changes: Branding and Footer each save their own part. (Each part is checked
+  // on its own; a schema-wide partial would fill the parts not sent with their defaults.)
+  const input = (p.theme && typeof p.theme === "object" ? p.theme : {}) as Record<string, unknown>;
+  const shape = themeSchema.shape as Record<string, z.ZodTypeAny>;
+  const patch = Object.fromEntries(Object.keys(input).filter((k) => k in shape).map((k) => [k, shape[k].parse(input[k])]));
+  return withSite(p.siteId, async (tx) => {
+    const [cur] = await tx.select({ theme: sites.theme }).from(sites).where(eq(sites.id, p.siteId)).limit(1);
+    if (!cur) throw new AccessError("That site doesn't exist.");
+    const theme = parseTheme({ ...readTheme(cur.theme), ...patch });
+    if (theme.footer.newsletterFormId) {
+      const [f] = await tx.select({ id: forms.id }).from(forms).where(and(eq(forms.id, theme.footer.newsletterFormId), isNull(forms.deletedAt))).limit(1);
+      if (!f) throw new AccessError("That form isn't on this site.");
+    }
+    await tx.update(sites).set({ theme }).where(eq(sites.id, p.siteId));
+    return theme;
+  });
+}
+
+/**
+ * Settings · Footer: the form at the foot of every page and the social
+ * links (kept with the business for Google, which lists them too).
+ */
+export async function updateFooter(p: { actorId: string; siteId: string; footer: unknown; social: unknown }): Promise<{ theme: Theme; search: SearchSettings }> {
+  await assertAccess(p.actorId, p.siteId, "owner");
+  const social = socialSchema.parse(p.social ?? {});
+  const theme = await updateTheme({ actorId: p.actorId, siteId: p.siteId, theme: { footer: p.footer } });
+  return withSite(p.siteId, async (tx) => {
+    const [cur] = await tx.select({ search: sites.search }).from(sites).where(eq(sites.id, p.siteId)).limit(1);
+    const search = readSearchSettings(cur?.search);
+    const next = { ...search, business: { ...search.business, ...social } };
+    await tx.update(sites).set({ search: next }).where(eq(sites.id, p.siteId));
+    return { theme, search: next };
+  });
 }
 
 /**

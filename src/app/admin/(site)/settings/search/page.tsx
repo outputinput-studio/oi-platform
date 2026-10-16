@@ -22,7 +22,6 @@ export default async function SearchSettingsPage() {
           siteName={site.name}
           siteHost={siteHost}
           shareImageUrl={s.shareImage ? mediaUrl(s.shareImage.key) : undefined}
-          logoUrl={s.business.logo ? mediaUrl(s.business.logo.key) : undefined}
           mediaAvailable={mediaAvailable()}
           canEdit={role === "owner"}
         />

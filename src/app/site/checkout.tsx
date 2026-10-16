@@ -104,7 +104,7 @@ export async function CartPage() {
           <aside>
             <Totals cart={cart} />
             {paymentsStatus(site).ready ? (
-              <Link href="/shop/checkout" className="mt-5 flex h-12 items-center justify-center rounded-[6px] bg-[var(--accent)] text-[15px] font-medium text-white hover:opacity-90">
+              <Link href="/shop/checkout" className="mt-5 flex h-12 items-center justify-center rounded-[6px] bg-[var(--accent)] text-[15px] font-medium text-[var(--accent-fg)] hover:opacity-90">
                 Checkout
               </Link>
             ) : (
@@ -190,7 +190,7 @@ export async function TestPayPage({ orderId }: { orderId: string }) {
         ) : (
           <form action={testPayAction} className="mt-5">
             <input type="hidden" name="orderId" value={order.id} />
-            <button type="submit" className="h-12 w-full rounded-[6px] bg-[var(--accent)] text-[15px] font-medium text-white hover:opacity-90">
+            <button type="submit" className="h-12 w-full rounded-[6px] bg-[var(--accent)] text-[15px] font-medium text-[var(--accent-fg)] hover:opacity-90">
               Pay {formatPrice(order.total, order.currency as Currency)} (test)
             </button>
           </form>

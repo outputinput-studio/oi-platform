@@ -4,8 +4,8 @@
 import { beforeAll, afterAll, describe, expect, test } from "vitest";
 import { Pool } from "pg";
 import { AccessError } from "@/modules/auth/access";
-import { siteSearch, siteSettings, siteTheme, updateSearchSettings, updateTheme } from "@/modules/sites/server";
-import { pageTitle } from "@/modules/sites/search";
+import { siteFromHost, siteSearch, siteSettings, siteTheme, updateSearchSettings, updateTheme } from "@/modules/sites/server";
+import { pageTitle, readSearchSettings } from "@/modules/sites/search";
 import { parseTheme, readTheme, themeVars } from "@/modules/sites/theme";
 
 const owner = new Pool({ connectionString: process.env.MIGRATE_DATABASE_URL, max: 1 });
@@ -33,14 +33,14 @@ afterAll(async () => {
 
 describe("theme", () => {
   test("defaults to dark with the O/I blue; reads survive junk, writes don't", () => {
-    expect(parseTheme({})).toEqual({ mode: "dark", accent: "#2060ee" });
-    expect(readTheme("nonsense")).toEqual({ mode: "dark", accent: "#2060ee" });
-    expect(readTheme({ mode: "purple" })).toEqual({ mode: "dark", accent: "#2060ee" });
+    expect(parseTheme({})).toMatchObject({ mode: "dark", accent: "#2060ee", text: null, background: null, logo: null });
+    expect(readTheme("nonsense")).toMatchObject({ mode: "dark", accent: "#2060ee" });
+    expect(readTheme({ mode: "purple", accent: "#123456" })).toMatchObject({ mode: "dark", accent: "#123456" }); // the good part kept
     expect(() => parseTheme({ mode: "purple" })).toThrow();
   });
   test("light mode changes the palette; the accent flows through", () => {
-    const dark = themeVars({ mode: "dark", accent: "#cc3333" });
-    const light = themeVars({ mode: "light", accent: "#cc3333" });
+    const dark = themeVars(parseTheme({ mode: "dark", accent: "#cc3333" }));
+    const light = themeVars(parseTheme({ mode: "light", accent: "#cc3333" }));
     expect(dark["--bg"]).not.toEqual(light["--bg"]);
     expect(dark["--accent"]).toBe("#cc3333");
     expect(light["--accent"]).toBe("#cc3333");
@@ -50,7 +50,7 @@ describe("theme", () => {
 describe("updateTheme", () => {
   test("an owner can change it and it comes back from settings", async () => {
     const t = await updateTheme({ actorId: bob, siteId: site, theme: { mode: "light", accent: "#AA00FF" } });
-    expect(t).toEqual({ mode: "light", accent: "#aa00ff" });
+    expect(t).toMatchObject({ mode: "light", accent: "#aa00ff" });
     expect(siteTheme(await siteSettings({ actorId: bob, siteId: site }))).toEqual(t);
   });
   test("staff cannot", async () => {
@@ -82,7 +82,6 @@ describe("search engines", () => {
 describe("business profile, sending and order statuses", () => {
   test("owners only; the profile takes over Search engines' name, phone and email; each save leaves the rest alone", async () => {
     const { updateBusiness, updateSending, updateStatusNames, updateShopSettings, siteFromHost: fromHost } = await import("@/modules/sites/server");
-    const { readSearchSettings } = await import("@/modules/sites/search");
     const { readShopSettings } = await import("@/modules/sites/shop");
     const { AccessError: Denied } = await import("@/modules/auth/access");
     const ownerId = bob;
@@ -101,5 +100,25 @@ describe("business profile, sending and order statuses", () => {
     expect(s.messages).toMatchObject({ sending: { fromName: "Theme A", replyTo: "hello@themea.example" } });
     expect(readSearchSettings(s.search).business).toMatchObject({ name: "", phone: "", email: "", instagram: "https://www.instagram.com/themea" });
     expect(readShopSettings(s.shop).statusNames).toEqual({ new: "", inProgress: "Making it", sent: "", done: "" });
+  });
+});
+
+describe("branding and footer", () => {
+  test("each saves only its own part; picked colours decide light or dark; the footer's form must be this site's", async () => {
+    const { updateFooter } = await import("@/modules/sites/server");
+    const { createForm } = await import("@/modules/forms/server");
+    const f = await createForm({ actorId: bob, siteId: site, name: "Newsletter" });
+    await updateFooter({ actorId: bob, siteId: site, footer: { newsletterFormId: f.id, newsletterHeading: "Join the list" }, social: { instagram: "https://www.instagram.com/themea2" } });
+    const t = await updateTheme({ actorId: bob, siteId: site, theme: { accent: "#E8CFD4", text: "#1B1A17", background: "#FBF9F5" } });
+    expect(t).toMatchObject({ mode: "light", accent: "#e8cfd4", text: "#1b1a17", background: "#fbf9f5", footer: { newsletterFormId: f.id, newsletterHeading: "Join the list" } });
+    const dark = await updateTheme({ actorId: bob, siteId: site, theme: { text: "#f0f0f0", background: "#101820" } });
+    expect(dark.mode).toBe("dark");
+    expect(dark.footer.newsletterFormId).toBe(f.id);
+    const s = (await siteFromHost("theme-a.localhost"))!;
+    expect(readSearchSettings(s.search).business.instagram).toBe("https://www.instagram.com/themea2");
+
+    await expect(updateFooter({ actorId: ann, siteId: site, footer: {}, social: {} })).rejects.toBeInstanceOf(AccessError);
+    await expect(updateFooter({ actorId: bob, siteId: site, footer: {}, social: { facebook: "facebook.com/x" } })).rejects.toThrow(/full address/);
+    await expect(updateTheme({ actorId: bob, siteId: site, theme: { footer: { newsletterFormId: "00000000-0000-4000-8000-000000000000" } } })).rejects.toThrow(/isn't on this site/);
   });
 });

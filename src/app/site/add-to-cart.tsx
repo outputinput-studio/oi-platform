@@ -15,7 +15,7 @@ export function AddToCart({ productId }: { productId: string }) {
           type="button"
           disabled={pending}
           onClick={() => start(async () => setState(await addToCartAction(productId)))}
-          className="h-12 rounded-[6px] bg-[var(--accent)] px-7 text-[15px] font-medium text-white hover:opacity-90 disabled:opacity-60"
+          className="h-12 rounded-[6px] bg-[var(--accent)] px-7 text-[15px] font-medium text-[var(--accent-fg)] hover:opacity-90 disabled:opacity-60"
         >
           {pending ? "Adding…" : "Add to cart"}
         </button>

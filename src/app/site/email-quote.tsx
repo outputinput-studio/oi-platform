@@ -21,7 +21,7 @@ export function EmailQuote({ productId, productName, alone, countries, defaultCo
         onClick={() => setOpen(true)}
         className={
           alone
-            ? "mt-6 h-12 rounded-[6px] bg-[var(--accent)] px-7 text-[15px] font-medium text-white hover:opacity-90"
+            ? "mt-6 h-12 rounded-[6px] bg-[var(--accent)] px-7 text-[15px] font-medium text-[var(--accent-fg)] hover:opacity-90"
             : "mt-3 h-12 rounded-[6px] border border-[var(--border)] px-7 text-[15px] font-medium hover:border-[var(--text-muted)]"
         }
       >
@@ -72,7 +72,7 @@ export function EmailQuote({ productId, productName, alone, countries, defaultCo
         <input id={`website_quote_${productId}`} name="website" type="text" tabIndex={-1} autoComplete="off" />
       </div>
       {state.error && <p className="rounded-[6px] border border-[var(--border)] px-4 py-3 text-[14px]">{state.error}</p>}
-      <button type="submit" disabled={pending} className="h-12 w-full rounded-[6px] bg-[var(--accent)] text-[15px] font-medium text-white hover:opacity-90 disabled:opacity-60">
+      <button type="submit" disabled={pending} className="h-12 w-full rounded-[6px] bg-[var(--accent)] text-[15px] font-medium text-[var(--accent-fg)] hover:opacity-90 disabled:opacity-60">
         {pending ? "Sending…" : "Send for a quote"}
       </button>
     </form>

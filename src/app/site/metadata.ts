@@ -4,7 +4,7 @@ import type { Section, Site } from "@/db/schema";
 import { mediaUrl } from "@/modules/media/server";
 import { imageRef, type ImageRef } from "@/modules/pages/registry";
 import { readSeo, summarise, type Seo } from "@/modules/pages/seo";
-import { siteFromHost, siteSearch } from "@/modules/sites/server";
+import { siteFromHost, siteSearch, siteTheme } from "@/modules/sites/server";
 import { pageTitle } from "@/modules/sites/search";
 
 /**
@@ -22,8 +22,10 @@ export function storefrontMetadata(p: { site: Site; seo: unknown; title: string;
   const imageUrl = image ? mediaUrl(image.key) : "";
   const url = `https://${p.host}${p.path}`;
   const hidden = seo.noindex || search.hideFromSearch;
+  const favicon = siteTheme(p.site).favicon;
   return {
     title,
+    ...(favicon ? { icons: { icon: [{ url: mediaUrl(favicon.key) }], apple: [{ url: mediaUrl(favicon.key) }] } } : {}),
     description,
     alternates: { canonical: url },
     robots: hidden ? { index: false, follow: false } : { index: true, follow: true },

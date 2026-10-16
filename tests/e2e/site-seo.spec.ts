@@ -71,9 +71,14 @@ test("site-wide: the title pattern, the business for Google, and hiding the whol
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByTestId("save-bar")).toContainText("Saved");
 
+  // Social links live with the footer now.
+  await page.goto(admin + "/settings/footer");
+  await page.getByLabel("Instagram").fill("https://www.instagram.com/demosite");
+  await page.getByRole("button", { name: "Save footer" }).click();
+  await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
+
   await page.goto(admin + "/settings/search");
   await page.getByLabel("How page titles read").fill("[Site name] — [Page name]");
-  await page.getByLabel("Instagram").fill("https://www.instagram.com/demosite");
   await expect(page.getByTestId("search-save-status")).toHaveText("Saved");
 
   const home = await (await request.get(base + "/", { headers: { host: "demo.localhost" } })).text();
