@@ -11,7 +11,7 @@ import { readShopSettings, formatPrice, type Currency } from "@/modules/sites/sh
 import { businessOf, tradingName } from "@/modules/sites/business";
 import { customerMail, readMessages, recipientsFor, templateFor } from "@/modules/sites/messages";
 import { draftFrom, orderVars } from "./emails";
-import { quoteFor, ratesFor, readShipping } from "@/modules/sites/shipping";
+import { parcelOf, quoteFor, ratesFor, readShipping, type Parcel } from "@/modules/sites/shipping";
 import { countUse, discountFor } from "@/modules/discounts/server";
 import { lineKey, taxOn, type CartLine } from "./cart";
 import { FieldError } from "@/lib/form-error";
@@ -66,6 +66,10 @@ export type PricedLine = {
   note: string;
   digital: boolean;
   categoryId: string | null;
+  /** For delivery: grams each (null, not weighed), whether the team covers its postage, whether a courier has to carry it. */
+  weight: number | null;
+  shipsFree: boolean;
+  oversized: boolean;
 };
 
 export type PricedCart = {
@@ -89,6 +93,8 @@ export type PricedCart = {
   total: number;
   /** Anything physical in it: ask for an address. */
   needsAddress: boolean;
+  /** What's being sent, for which delivery rates fit (see parcelOf). */
+  parcel: Parcel;
 };
 
 export async function priceCart(p: { site: Site; cart: CartLine[]; cartRef?: string }): Promise<PricedCart> {
@@ -154,6 +160,9 @@ export async function priceCart(p: { site: Site; cart: CartLine[]; cartRef?: str
       note: variant ? variantNote(variant, prod) : makeLine(prod),
       digital: prod.digital,
       categoryId: prod.categoryId,
+      weight: prod.weight,
+      shipsFree: prod.shipsFree,
+      oversized: prod.oversized,
     });
   }
   const subtotal = lines.reduce((n, l) => n + l.unit * l.qty, 0);
@@ -171,6 +180,7 @@ export async function priceCart(p: { site: Site; cart: CartLine[]; cartRef?: str
     pricesIncludeTax: shop.pricesIncludeTax,
     total: t.total,
     needsAddress: lines.some((l) => !l.digital),
+    parcel: parcelOf(lines),
   };
 }
 
@@ -231,8 +241,8 @@ export async function placeOrder(p: { site: Site; cart: CartLine[]; details: unk
   let pickupCountry = "";
   if (priced.needsAddress) {
     const ship = readShipping(p.site.shipping);
-    if (quoteFor(ship, raw.address?.country ?? "", "") !== null) throw new Error("Delivery there is quoted separately. Ask for a quote instead.");
-    const rates = ratesFor(ship, { country: raw.address?.country ?? "", postcode: raw.address?.postcode }, priced.subtotal);
+    if (quoteFor(ship, raw.address?.country ?? "", "", priced.parcel) !== null) throw new Error("Delivery there is quoted separately. Ask for a quote instead.");
+    const rates = ratesFor(ship, { country: raw.address?.country ?? "", postcode: raw.address?.postcode }, priced.subtotal, priced.parcel);
     if (rates.length === 0) throw new FieldError("address.country", "Sorry, we don't send to that country yet. Get in touch and we'll sort something out.");
     const rate = rates.find((r) => r.id === raw.rate) ?? (rates.length === 1 ? rates[0] : undefined);
     if (!rate) throw new FieldError("rate", "Pick how you'd like it delivered.");

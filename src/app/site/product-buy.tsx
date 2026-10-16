@@ -6,6 +6,7 @@ import { addToCartAction } from "@/modules/orders/actions";
 import { choiceText, describeChoice, listOptions, variantKey, type ProductOption, type VariantState } from "@/modules/products/options";
 import { FieldErrors } from "@/lib/field-errors";
 import { EmailQuote } from "./email-quote";
+import { WaitingForm } from "./waiting-form";
 import { INVALID } from "./storefront-form";
 
 export type BuyVariant = { key: string; values: string[]; state: VariantState; price: string | null; was: string | null; note: string };
@@ -26,6 +27,8 @@ export function ProductBuy({
   variants,
   base,
   canCart,
+  canWait,
+  soldOut,
   quote,
 }: {
   productId: string;
@@ -36,6 +39,10 @@ export function ProductBuy({
   base: { price: string | null; was: string | null; note: string };
   /** Add to cart shows: for sale, priced, and the shop takes payments. */
   canCart: boolean;
+  /** A sold-out combination can be waited on (the product itself is for sale). */
+  canWait: boolean;
+  /** The product as a whole is sold out (no list options: nothing to pick, just wait). */
+  soldOut: boolean;
   /** Email quote shows, with its form's settings. */
   quote: { alone: boolean; countries: { code: string; name: string }[]; defaultCountry: string } | null;
 }) {
@@ -146,7 +153,11 @@ export function ProductBuy({
         })}
       </div>
 
-      {canCart && (
+      {lists.length === 0 && soldOut ? (
+        <WaitingForm productId={productId} what={productName} />
+      ) : variant?.state === "soldOut" && canWait ? (
+        <WaitingForm key={variant.key} productId={productId} variant={variant.key} what={`${productName} (${variant.values.join(" · ")})`} />
+      ) : canCart && (
         <div className="mt-6">
           <div className="flex flex-wrap items-center gap-3">
             <button

@@ -546,6 +546,12 @@ export const products = pgTable(
     /** Up to two options (Size, Colour) and the combinations they make. See modules/products/options.ts. */
     options: jsonb("options").notNull().$type<unknown[]>().default([]),
     variants: jsonb("variants").notNull().$type<unknown[]>().default([]),
+    /** Grams, for weight-based rates. Null: not weighed (counts as nothing). */
+    weight: integer("weight"),
+    /** The team covers postage: the zone rates don't apply to it. */
+    shipsFree: boolean("ships_free").notNull().default(false),
+    /** Only rates that take oversized items are offered. */
+    oversized: boolean("oversized").notNull().default(false),
     visible: boolean("visible").notNull().default(false),
     photos: jsonb("photos").notNull().$type<unknown[]>().default([]),
     code: text("code").notNull().default(""),
@@ -560,6 +566,35 @@ export const products = pgTable(
   ],
 );
 export type Product = typeof products.$inferSelect;
+
+/**
+ * "Email me when it's back": who's waiting on a sold-out product (or one
+ * combination of it). Each gets one email when it can be bought again;
+ * `notified_at` marks that it went, so nobody hears twice.
+ */
+export const waiting = pgTable(
+  "waiting",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    /** The combination's key ("8 / Print"), or empty for the product as a whole. */
+    variant: text("variant").notNull().default(""),
+    email: text("email").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    notifiedAt: timestamp("notified_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("waiting_site_id_idx").on(t.siteId),
+    index("waiting_product_id_idx").on(t.productId),
+    uniqueIndex("waiting_pending_idx").on(t.productId, t.variant, t.email).where(sql`${t.notifiedAt} is null`),
+  ],
+);
+export type Waiting = typeof waiting.$inferSelect;
 
 /** Where an order is in the team's own process. Renamable later (Settings · Order statuses). */
 export const ORDER_STATUSES = ["new", "inProgress", "sent", "done"] as const;

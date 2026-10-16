@@ -17,6 +17,7 @@ import { moveOrder, refundOrder } from "./admin";
 import { discountFor } from "@/modules/discounts/server";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { formError } from "@/lib/form-error";
+import { notifyBackInStock } from "@/modules/waiting/server";
 
 /**
  * The storefront's cart and checkout. No sign-in: the site is the one the
@@ -188,8 +189,14 @@ export async function previewCodeAction(code: string, email: string): Promise<{ 
 export async function refundOrderAction(orderId: string, refund: unknown): Promise<CartState> {
   const { user, site } = await requireSiteAccess();
   try {
-    await refundOrder({ actorId: user.id, siteId: site.id, orderId, refund });
+    const o = await refundOrder({ actorId: user.id, siteId: site.id, orderId, refund });
     revalidatePath("/orders", "layout");
+    // Stock put back can make something buyable again: whoever was waiting hears about it.
+    if ((refund as { restock?: unknown } | null)?.restock === true) {
+      const host = ((await headers()).get("x-oi-host") ?? "").replace(/^admin\./, `${site.slug}.`);
+      for (const productId of new Set((o.items as { productId: string }[]).map((it) => it.productId)))
+        await notifyBackInStock({ siteId: site.id, productId, shopOrigin: `https://${host}` }).catch((err) => console.error("back in stock check failed", err));
+    }
     return { ok: "Refunded" };
   } catch (err) {
     return formError(err, { fallback: "Check the details and try again." });

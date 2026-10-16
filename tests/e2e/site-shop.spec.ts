@@ -598,3 +598,51 @@ test("options: sizes with their own price and stock, a box they fill in, through
   await page.getByTestId(/^order-\d+$/).filter({ hasText: "Cat Neal" }).click();
   await expect(page.getByTestId("item-choice")).toHaveText(["Size: L", "Monogram: CN"]);
 });
+
+test("waiting list and per-product delivery: sold out, someone asks, it comes back", async ({ page }) => {
+  await signInAsOwner(page);
+  await page.goto(admin + "/products");
+  await page.getByRole("button", { name: "Add product" }).click();
+  await page.getByLabel("Product name").fill("Sauna stones");
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page.getByRole("heading", { name: "Edit product" })).toBeVisible();
+  const editor = page.url();
+  await page.getByLabel("Price", { exact: true }).fill("50");
+  await page.getByLabel("How many do you have?").fill("0");
+  // Details: a weight, and the postage is on us.
+  const details = page.getByTestId("product-shipping-details");
+  await details.getByLabel("Weight").fill("heavy");
+  await expect(details.getByText("A weight is a number")).toBeVisible();
+  await details.getByLabel("Weight").fill("2.5 kg");
+  await details.getByRole("switch", { name: /Ships free/ }).click();
+  await page.getByRole("switch", { name: /Visible on site/ }).click();
+  await expect(page.getByTestId("product-save-status")).toHaveText("✓ Saved");
+
+  // The shop: sold out, so they can ask to hear when it's back.
+  await page.goto(demo + "/shop/sauna-stones");
+  await expect(page.getByTestId("product-note")).toHaveText("Sold out");
+  await page.getByRole("button", { name: "Email me when it's back" }).click();
+  await page.getByTestId("waiting-form").getByRole("textbox").fill("amelia@example.com");
+  await page.getByRole("button", { name: "Let me know" }).click();
+  await expect(page.getByTestId("waiting-done")).toContainText("We'll email amelia@example.com when it's back");
+
+  // The team sees who's waiting, here and on the list.
+  await page.goto(admin + "/products");
+  await expect(page.getByTestId("product-sauna-stones")).toContainText("1 waiting");
+  await page.goto(editor);
+  await page.getByTestId("waiting-count").click();
+  await expect(page.getByRole("dialog", { name: "Waiting on this piece" })).toContainText("amelia@example.com");
+  await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
+
+  // Back in stock: the list empties (the email went; here it's written to the server log).
+  await page.getByLabel("How many do you have?").fill("12");
+  await expect(page.getByTestId("product-save-status")).toHaveText("✓ Saved");
+  await page.reload();
+  await expect(page.getByTestId("waiting-count")).toHaveCount(0);
+  await expect(page.getByTestId("product-shipping-details").getByLabel("Weight")).toHaveValue("2.5 kg");
+
+  // And on the shop: the delivery row says it's free.
+  await page.goto(demo + "/shop/sauna-stones");
+  await page.getByTestId("product-details").locator("summary", { hasText: "Delivery" }).click();
+  await expect(page.getByTestId("product-details")).toContainText("Delivery is free.");
+});

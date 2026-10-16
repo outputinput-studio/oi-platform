@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ratePriceLabel, type Shipping } from "@/modules/sites/shipping";
+import { formatWeight, ratePriceLabel, type Shipping } from "@/modules/sites/shipping";
 import { formatPrice, type Currency, type DetailRow } from "@/modules/sites/shop";
 import { COUNTRIES } from "@/lib/countries";
 
@@ -39,7 +39,7 @@ export const DETAIL_SUGGESTIONS: { kind: DetailRow["kind"]; title: string }[] = 
   { kind: "text", title: "Returns" },
 ];
 
-type ProductShape = { digital: boolean; make: string; leadTime: number | null; leadUnit: "weeks" | "days" };
+type ProductShape = { digital: boolean; make: string; leadTime: number | null; leadUnit: "weeks" | "days"; shipsFree?: boolean; oversized?: boolean };
 
 /**
  * The delivery row, written from Shipping: how soon it goes, then what it
@@ -55,14 +55,17 @@ export function deliveryText(s: Shipping, currency: Currency, p: ProductShape): 
       : s.dispatchDays > 0
         ? `Posted within ${s.dispatchDays} business day${s.dispatchDays === 1 ? "" : "s"}.`
         : "";
-  if (s.zones.length === 0) return [when, "Delivery is included."].filter(Boolean).join("\n\n");
+  if (s.zones.length === 0 || p.shipsFree) return [when, p.shipsFree ? "Delivery is free." : "Delivery is included."].filter(Boolean).join("\n\n");
   const fmt = (c: number) => formatPrice(c, currency);
   const lines = s.zones.map((z) => {
     const names = z.countries.map((c) => COUNTRIES.find((x) => x.code === c)?.name ?? c);
     const place = z.everywhere ? (s.zones.length === 1 ? "Everywhere" : "Everywhere else") : names.length > 3 ? `${names.slice(0, 3).join(", ")} and ${names.length - 3} more` : names.join(", ");
     if (z.quote) return `${place}: quoted for your address before you pay.`;
-    const rates = z.rates.map((r) => {
-      const cond = r.minTotal ? ` on orders of ${fmt(r.minTotal)} or more` : r.maxTotal ? ` under ${fmt(r.maxTotal)}` : "";
+    // Something a courier has to carry only gets the rates that take it (a pickup always does).
+    const rates = z.rates.filter((r) => !p.oversized || r.oversized || r.kind === "pickup").map((r) => {
+      const cond =
+        (r.minTotal ? ` on orders of ${fmt(r.minTotal)} or more` : r.maxTotal ? ` under ${fmt(r.maxTotal)}` : "") +
+        (r.minWeight && r.maxWeight ? ` for ${formatWeight(r.minWeight)} to ${formatWeight(r.maxWeight)}` : r.minWeight ? ` from ${formatWeight(r.minWeight)}` : r.maxWeight ? ` under ${formatWeight(r.maxWeight)}` : "");
       const price = r.kind === "pickup" ? "free" : ratePriceLabel(r.price, fmt).replace("Included", "free");
       // "Free shipping, free" says it twice.
       const label = price === "free" && /free/i.test(r.name) ? r.name : `${r.name}, ${price}`;

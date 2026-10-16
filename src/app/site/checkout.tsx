@@ -146,6 +146,7 @@ export async function CheckoutPage() {
             testMode={pay.provider === "test"}
             shipping={siteShipping(site)}
             subtotal={cart.subtotal}
+            parcel={cart.parcel}
             currency={cart.currency}
             tax={{ rate: cart.taxRate, included: cart.pricesIncludeTax, name: cart.taxName }}
             canQuote={canQuote}

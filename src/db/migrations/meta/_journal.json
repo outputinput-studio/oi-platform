@@ -176,6 +176,13 @@
       "when": 1792143412523,
       "tag": "0024_product_options",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792145931207,
+      "tag": "0025_shipping_and_waiting",
+      "breakpoints": true
     }
   ]
 }

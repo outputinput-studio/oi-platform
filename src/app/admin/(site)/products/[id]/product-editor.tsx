@@ -14,11 +14,12 @@ import { SeoCard } from "../../seo-card";
 import { Photos } from "./photos";
 import { DetailRows } from "./detail-rows";
 import { OptionsEditor } from "./options-editor";
+import { WaitingList } from "./waiting-list";
 import { listOptions, upsertVariant, type ProductOption, type Variant } from "@/modules/products/options";
 import { FieldErrors } from "@/lib/field-errors";
 import { deliveryText, type ProductDetails } from "@/modules/products/details";
 import type { DetailRow } from "@/modules/sites/shop";
-import type { Shipping } from "@/modules/sites/shipping";
+import { formatWeight, parseWeight, type Shipping } from "@/modules/sites/shipping";
 import { NewCategorySheet } from "../categories/category-forms";
 
 /**
@@ -49,6 +50,10 @@ export type ProductDraft = {
   options: ProductOption[];
   /** Stored combination settings (see options.ts); saved one at a time from their sheet. */
   variants: Variant[];
+  /** Grams; null, not weighed. */
+  weight: number | null;
+  shipsFree: boolean;
+  oversized: boolean;
 };
 
 const AVAILABILITY_HINT: Record<ProductAvailability, string> = {
@@ -73,6 +78,7 @@ export function ProductEditor({
   paymentsReady,
   detailRows,
   shipping,
+  waiting = [],
 }: {
   product: ProductDraft & { id: string };
   photoUrls: Record<string, string>;
@@ -91,6 +97,8 @@ export function ProductEditor({
   /** Settings · Product details rows, and Shipping for the delivery row. */
   detailRows: DetailRow[];
   shipping: Shipping;
+  /** Who asked to hear when it's back. */
+  waiting?: { email: string; variant: string; createdAt: string }[];
 }) {
   const [d, setD] = useState<ProductDraft>(product);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -98,6 +106,8 @@ export function ProductEditor({
   const [fields, setFields] = useState<string[]>();
   const [priceText, setPriceText] = useState({ price: priceInput(product.price), salePrice: priceInput(product.salePrice) });
   const [priceError, setPriceError] = useState<{ price?: string; salePrice?: string }>({});
+  const [weightText, setWeightText] = useState(product.weight === null ? "" : formatWeight(product.weight));
+  const [weightError, setWeightError] = useState("");
   const [wasVisible] = useState(product.visible);
   const [cats, setCats] = useState(categories);
   const [addingCategory, setAddingCategory] = useState(false);
@@ -364,6 +374,7 @@ export function ProductEditor({
             )}
             {!d.visible && <p className="mt-1 text-[12px] text-warning">Hidden — only you can see it.</p>}
           </div>
+          <WaitingList waiting={waiting} />
         </div>
 
         <Field label="Description" htmlFor="p-desc" hint="Leave an empty line between paragraphs.">
@@ -372,9 +383,40 @@ export function ProductEditor({
 
         <DetailRows rows={detailRows} value={d.details} delivery={deliveryText(shipping, currency, d)} onChange={(details) => change({ details })} errorFields={status === "error" ? fields : undefined} />
 
-        <Field label="Product code" htmlFor="p-code" hint="Your own reference. Optional; not shown on the site.">
-          <Input id="p-code" data-field="code" value={d.code} maxLength={60} className="max-w-[240px] font-mono" onChange={(e) => change({ code: e.target.value })} />
-        </Field>
+        <section data-testid="product-shipping-details">
+          <Label>Details</Label>
+          <div className="space-y-4 rounded-card border border-line bg-surface p-4">
+            <Field label="Product code" htmlFor="p-code" hint="Your own reference. Optional; not shown on the site.">
+              <Input id="p-code" data-field="code" value={d.code} maxLength={60} className="max-w-[240px] font-mono" onChange={(e) => change({ code: e.target.value })} />
+            </Field>
+            {!d.digital && (
+              <>
+                <Field label="Weight" htmlFor="p-weight" hint="Used by weight-based rates. Like 180 g or 1.2 kg.">
+                  <Input
+                    id="p-weight"
+                    data-field="weight"
+                    aria-invalid={Boolean(weightError) || undefined}
+                    className="max-w-[160px] font-mono"
+                    value={weightText}
+                    placeholder="180 g"
+                    onChange={(e) => {
+                      setWeightText(e.target.value);
+                      try {
+                        change({ weight: parseWeight(e.target.value) });
+                        setWeightError("");
+                      } catch (err) {
+                        setWeightError(err instanceof Error ? err.message : "That isn't a weight.");
+                      }
+                    }}
+                  />
+                </Field>
+                {weightError && <p className="-mt-2 text-[12.5px] text-alert">{weightError}</p>}
+                <Switch checked={d.shipsFree} onChange={(shipsFree) => change({ shipsFree })} label="Ships free" hint="Ignores the zone rates for this piece. For anything you cover yourself." />
+                <Switch checked={d.oversized} onChange={(oversized) => change({ oversized })} label="Oversized" hint="Only rates that take oversized items are offered. For anything a courier has to carry." />
+              </>
+            )}
+          </div>
+        </section>
 
         <div className="rounded-card border border-line bg-surface p-4">
           <Switch checked={d.visible} onChange={(visible) => change({ visible })} label="Visible on site" hint="Turn off to keep working on it without anyone seeing it." />

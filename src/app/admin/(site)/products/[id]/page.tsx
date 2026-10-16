@@ -10,6 +10,7 @@ import { readProductDetails } from "@/modules/products/details";
 import { readOptions, readVariants } from "@/modules/products/options";
 import { publicForm } from "@/modules/forms/server";
 import { paymentsStatus } from "@/modules/payments/server";
+import { listWaiting } from "@/modules/waiting/server";
 import { ProductEditor } from "./product-editor";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,11 @@ export const dynamic = "force-dynamic";
 export default async function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { user, site } = await requireSiteAccess();
-  const [p, cats] = await Promise.all([getProduct({ actorId: user.id, siteId: site.id, productId: id }), listProductCategories({ actorId: user.id, siteId: site.id })]);
+  const [p, cats, waiting] = await Promise.all([
+    getProduct({ actorId: user.id, siteId: site.id, productId: id }),
+    listProductCategories({ actorId: user.id, siteId: site.id }),
+    listWaiting({ actorId: user.id, siteId: site.id, productId: id }),
+  ]);
   const siteHost = ((await headers()).get("x-oi-host") ?? "").replace(/^admin\./, `${site.slug}.`);
   const shop = siteShop(site);
   const hasEnquiryForm = shop.enquiryFormId ? !!(await publicForm({ siteId: site.id, formId: shop.enquiryFormId })) : false;
@@ -46,6 +51,9 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
         details: readProductDetails(p.details),
         options: readOptions(p.options),
         variants: readVariants(p.variants),
+        weight: p.weight,
+        shipsFree: p.shipsFree,
+        oversized: p.oversized,
       }}
       photoUrls={Object.fromEntries(p.photos.map((ph) => [ph.key, mediaUrl(ph.key)]))}
       categories={cats.map((c) => ({ id: c.id, name: c.name }))}
@@ -59,6 +67,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
       paymentsReady={paymentsStatus(site).ready}
       detailRows={shop.detailRows}
       shipping={siteShipping(site)}
+      waiting={waiting.map((w) => ({ email: w.email, variant: w.variant, createdAt: w.createdAt.toISOString() }))}
     />
   );
 }
