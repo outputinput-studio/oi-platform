@@ -44,7 +44,12 @@ function r2Storage(cfg: R2Config): Storage {
       const res = await client.fetch(objectUrl(key), {
         method: "PUT",
         body: bytes as unknown as BodyInit,
-        headers: { "content-type": contentType, "content-length": String(bytes.byteLength) },
+        headers: {
+          "content-type": contentType,
+          "content-length": String(bytes.byteLength),
+          // Opened on its own, an SVG downloads rather than runs; <img> ignores this and shows it as usual.
+          ...(contentType === "image/svg+xml" ? { "content-disposition": "attachment" } : {}),
+        },
       });
       if (!res.ok) throw new Error(`R2 refused the upload (${res.status}). Check the R2_* settings.`);
     },

@@ -7,17 +7,25 @@
  * Everything becomes JPG, except a PNG with transparent pixels (a logo on
  * a clear background), which stays PNG. An opaque PNG — a screenshot, say —
  * would be several megabytes as PNG and a few hundred kilobytes as JPG.
- * GIF is sent as it is, because resizing would lose the animation.
+ * GIF is sent as it is, because resizing would lose the animation. SVG
+ * (logos, in the media library only) is checked and sent as it is.
  */
+import { checkSvg } from "./svg";
+
 export const MAX_SIDE = 2000;
 const JPEG_QUALITY = 0.85;
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 export type Prepared = { blob: Blob; width: number; height: number; type: string };
 
-export async function prepareForUpload(file: File): Promise<Prepared> {
+export async function prepareForUpload(file: File, opts: { allowSvg?: boolean } = {}): Promise<Prepared> {
   if (!file.type.startsWith("image/")) throw new Error("That isn't an image.");
-  if (file.type === "image/svg+xml") throw new Error("Use a JPG, PNG, WebP or GIF image.");
+  if (file.type === "image/svg+xml") {
+    // Logos in the media library only; never from a visitor's form. Sent as drawn: it scales without shrinking.
+    if (!opts.allowSvg) throw new Error("Use a JPG, PNG, WebP or GIF image.");
+    const { width, height } = checkSvg(await file.text());
+    return { blob: file, width, height, type: file.type };
+  }
 
   if (file.type === "image/gif") {
     if (file.size > MAX_UPLOAD_BYTES) throw new Error("That GIF is too big. Keep it under 4 MB.");

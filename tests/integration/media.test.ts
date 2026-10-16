@@ -71,10 +71,24 @@ describe("media", () => {
   test("wrong kinds and sizes are refused in plain words", async () => {
     const { uploadMedia, MAX_BYTES } = await import("@/modules/media/server");
     const base = { actorId: ann, siteId: siteA, filename: "x", width: 1, height: 1 };
-    await expect(uploadMedia({ ...base, contentType: "image/svg+xml", bytes: new Uint8Array(PNG) })).rejects.toThrow(/JPG, PNG/);
+    await expect(uploadMedia({ ...base, contentType: "image/tiff", bytes: new Uint8Array(PNG) })).rejects.toThrow(/JPG, PNG/);
+    await expect(uploadMedia({ ...base, contentType: "image/svg+xml", bytes: new Uint8Array(PNG) })).rejects.toThrow(/doesn't look like an SVG/);
+    const bad = new TextEncoder().encode(`<svg onload="alert(1)"><path/></svg>`);
+    await expect(uploadMedia({ ...base, contentType: "image/svg+xml", bytes: bad })).rejects.toThrow(/can't be used/);
     await expect(uploadMedia({ ...base, contentType: "image/png", bytes: new Uint8Array(0) })).rejects.toThrow(/empty/);
     await expect(uploadMedia({ ...base, contentType: "image/png", bytes: new Uint8Array(MAX_BYTES + 1) })).rejects.toThrow(/too big/);
     await expect(uploadMedia({ ...base, contentType: "image/png", bytes: new Uint8Array(PNG), width: 0 })).rejects.toThrow();
+  });
+
+  test("an SVG logo is stored as it is, at the size the file says (not the browser)", async () => {
+    const { uploadMedia } = await import("@/modules/media/server");
+    const svg = new TextEncoder().encode(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 60"><path d="M0 0h240v60H0z"/></svg>`);
+    const item = await uploadMedia({ actorId: ann, siteId: siteA, filename: "wordmark - white.svg", contentType: "image/svg+xml", bytes: svg, width: 9, height: 9 });
+    expect(item).toMatchObject({ contentType: "image/svg+xml", width: 240, height: 60 });
+    expect(item.key).toMatch(/\.svg$/);
+    expect(new Uint8Array(await readFile(path.join(dir, item.key)))).toEqual(svg);
+    const { deleteMedia } = await import("@/modules/media/server");
+    await deleteMedia({ actorId: ann, siteId: siteA, mediaId: item.id }); // leave the library as the next test expects it
   });
 
   test("describe this photo", async () => {

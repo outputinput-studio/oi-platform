@@ -7,8 +7,8 @@ import { prepareForUpload } from "@/lib/shrink-image";
 export { MAX_SIDE, prepareForUpload, type Prepared } from "@/lib/shrink-image";
 
 export async function uploadImage(file: File): Promise<MediaItem> {
-  const p = await prepareForUpload(file);
-  const ext = p.type === "image/png" ? "png" : p.type === "image/gif" ? "gif" : "jpg";
+  const p = await prepareForUpload(file, { allowSvg: true });
+  const ext = p.type === "image/png" ? "png" : p.type === "image/gif" ? "gif" : p.type === "image/svg+xml" ? "svg" : "jpg";
   const name = file.name.replace(/\.[^.]+$/, "") || "image";
   const form = new FormData();
   form.set("file", new File([p.blob], `${name}.${ext}`, { type: p.type }));
