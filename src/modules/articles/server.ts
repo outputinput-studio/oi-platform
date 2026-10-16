@@ -1,11 +1,13 @@
 import { and, desc, eq, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import { withSite, type Tx } from "@/db/client";
-import { articles, type Article } from "@/db/schema";
+import { articles, sites, type Article } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { imageRef, type ImageRef } from "@/modules/pages/registry";
 import { slugFromTitle } from "@/modules/pages/slug";
 import { seoSchema, type Seo } from "@/modules/pages/seo";
+import { autoRedirect } from "@/modules/redirects/server";
+import { readSearchSettings } from "@/modules/sites/search";
 
 /**
  * Articles: the site's journal. Same shape as pages — soft delete,
@@ -86,6 +88,10 @@ export async function updateArticle(p: { actorId: string; siteId: string; articl
     if (e.seo !== undefined) patch.seo = e.seo as Seo;
     if (e.publishedOn !== undefined) patch.publishedAt = e.publishedOn ? new Date(`${e.publishedOn}T12:00:00Z`) : a.publishedAt;
     const [updated] = await tx.update(articles).set(patch).where(eq(articles.id, a.id)).returning();
+    if (e.slug && e.slug !== a.slug && a.status === "published") {
+      const [site] = await tx.select({ search: sites.search }).from(sites).limit(1);
+      if (!site || readSearchSettings(site.search).autoRedirect) await autoRedirect(tx, { siteId: p.siteId, from: `/journal/${a.slug}`, to: `/journal/${e.slug}` });
+    }
     return row(updated);
   });
 }

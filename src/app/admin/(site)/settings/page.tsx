@@ -21,6 +21,7 @@ export default async function SettingsPage() {
             <Row title="Theme" detail={`${siteTheme(site).mode === "light" ? "Light" : "Dark"} · accent ${siteTheme(site).accent}`} href="/settings/theme" />
             <Row title="Address" detail={`${site.slug} · your own domain arrives in a later stage`} />
             <Row title="Search engines" detail={siteSearch(site).hideFromSearch ? "Hidden from Google" : "Sitemap, title pattern, sharing image"} href="/settings/search" />
+            <Row title="Redirects" detail="Old addresses, pointed somewhere useful" href="/settings/redirects" />
             <Row title="Team" detail={role === "owner" ? "Who can sign in, and as what" : "Who can sign in"} href="/team" />
           </Rows>
         </section>

@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { notFound } from "next/navigation";
 import { siteFromHost } from "@/modules/sites/server";
 import { publishedArticle, publishedArticles, type ArticleRow } from "@/modules/articles/server";
 import { mediaUrl } from "@/modules/media/server";
 import { Placeholder } from "@/lib/placeholder";
 import type { Site } from "@/db/schema";
 import type { Metadata } from "next";
-import { Frame, storefrontMenu } from "./storefront";
+import { Frame, missing, storefrontMenu } from "./storefront";
 import { hostAndSite, storefrontMetadata } from "./metadata";
 
 /**
@@ -40,7 +39,7 @@ export async function ArticlePage({ slug }: { slug: string }) {
   const site = await currentSite();
   if (!site) return <Placeholder surface="site" />;
   const [a, menu] = await Promise.all([publishedArticle({ siteId: site.id, slug }), storefrontMenu(site.id)]);
-  if (!a) notFound();
+  if (!a) return missing(site.id, `/journal/${slug}`, (await headers()).get("referer"));
   return (
     <Frame site={site} menu={menu} current="journal">
       <ArticleBody article={a} site={site} />

@@ -35,6 +35,9 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except API routes, Next internals and static files.
-  matcher: ["/((?!api|_next|.*\\..*).*)"],
+  // Everything except API routes, Next internals, the root files Next
+  // serves itself, and the files in public/. A dotted path like
+  // /shop/thing.html is NOT excluded: old links look like that, and the
+  // storefront needs to see them to redirect or log them.
+  matcher: ["/((?!api|_next|brand/|favicon\\.ico|sitemap\\.xml|robots\\.txt).*)"],
 };

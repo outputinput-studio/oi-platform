@@ -1,11 +1,13 @@
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { withSite, type Tx } from "@/db/client";
-import { pages, sections, type Page, type Section } from "@/db/schema";
+import { pages, sections, sites, type Page, type Section } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { isSectionType, parseSectionData, type SectionType } from "./registry";
 import { slugFromTitle } from "./slug";
 import { seoSchema, type Seo } from "./seo";
+import { autoRedirect } from "@/modules/redirects/server";
+import { readSearchSettings } from "@/modules/sites/search";
 
 /**
  * Pages and their sections. Every function authorises the actor, then
@@ -89,6 +91,10 @@ export async function updatePage(p: {
       .set({ ...patch, updatedAt: new Date() })
       .where(eq(pages.id, page.id))
       .returning();
+    // A live page renamed: keep the old link working, unless the owner turned that off.
+    if (patch.slug && patch.slug !== page.slug && page.status === "published" && (await wantsAutoRedirect(tx))) {
+      await autoRedirect(tx, { siteId: p.siteId, from: `/${page.slug}`, to: patch.slug === HOME_SLUG ? "/" : `/${patch.slug}` });
+    }
     return updated;
   });
 }
@@ -297,4 +303,10 @@ async function touch(tx: Tx, pageId: string) {
 async function assertSlugFree(tx: Tx, slug: string) {
   const [clash] = await tx.select({ id: pages.id }).from(pages).where(and(eq(pages.slug, slug), isNull(pages.deletedAt))).limit(1);
   if (clash) throw new AccessError(`There's already a page at ${slug}. Pick another address.`);
+}
+
+/** Settings · Redirects → "Redirect automatically when I rename a page". */
+async function wantsAutoRedirect(tx: Tx): Promise<boolean> {
+  const [site] = await tx.select({ search: sites.search }).from(sites).limit(1);
+  return site ? readSearchSettings(site.search).autoRedirect : true;
 }

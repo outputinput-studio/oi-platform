@@ -364,3 +364,44 @@ export const articles = pgTable(
 );
 
 export type Article = typeof articles.$inferSelect;
+
+/**
+ * Redirects: an old address pointed somewhere useful. Made by hand under
+ * Settings · Redirects, or automatically when a live page or article is
+ * renamed. `to` is a path on this site or a full address elsewhere.
+ */
+export const redirects = pgTable(
+  "redirects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    /** Normalised: leading slash, no trailing slash, lower-case. */
+    fromPath: text("from_path").notNull(),
+    toPath: text("to_path").notNull(),
+    source: text("source", { enum: ["manual", "auto"] }).notNull().default("manual"),
+    hits: integer("hits").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("redirects_site_from_idx").on(t.siteId, t.fromPath), index("redirects_site_id_idx").on(t.siteId)],
+);
+export type Redirect = typeof redirects.$inferSelect;
+
+/** Addresses visitors landed on that don't exist: what to redirect. Kept 90 days. */
+export const notFoundHits = pgTable(
+  "not_found_hits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    path: text("path").notNull(),
+    hits: integer("hits").notNull().default(1),
+    /** Where the last visitor came from: a hostname, or empty when typed in. */
+    referrer: text("referrer").notNull().default(""),
+    lastSeen: timestamp("last_seen", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("not_found_site_path_idx").on(t.siteId, t.path), index("not_found_site_id_idx").on(t.siteId)],
+);
+export type NotFoundHit = typeof notFoundHits.$inferSelect;
