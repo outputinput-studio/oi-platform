@@ -7,7 +7,7 @@ import { siteMenus } from "@/modules/menus/server";
 import { customerView, effectiveAvailability } from "@/modules/products/catalogue";
 import { productCategoryBySlug, publishedProductCategories } from "@/modules/products/categories";
 import { productPath, publishedProduct, publishedProducts, type ProductRow } from "@/modules/products/server";
-import { siteShop } from "@/modules/sites/server";
+import { siteShipping, siteShop } from "@/modules/sites/server";
 import { paymentsStatus } from "@/modules/payments/server";
 import { AddToCart } from "./add-to-cart";
 import { Placeholder } from "@/lib/placeholder";
@@ -139,6 +139,9 @@ function ProductPage({ product: p, site }: { product: ProductRow; site: Site }) 
         <p data-testid="product-note" className="mt-1 text-[14px] text-[var(--text-muted)]">
           {v.note}
         </p>
+        {v.buyable && p.make === "ready" && !p.digital && siteShipping(site).dispatchDays > 0 && (
+          <p className="mt-1 text-[14px] text-[var(--text-muted)]">Posted within {siteShipping(site).dispatchDays} business days</p>
+        )}
         {v.buyable && paymentsStatus(site).ready && <AddToCart productId={p.id} />}
         {p.description && (
           <div className="mt-6 space-y-4 text-[16px] leading-[1.65] text-[var(--text-body)]">

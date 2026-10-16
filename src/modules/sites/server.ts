@@ -6,6 +6,7 @@ import { AccessError, assertAccess } from "@/modules/auth/access";
 import { parseTheme, readTheme, type Theme } from "./theme";
 import { readSearchSettings, searchSettingsSchema, type SearchSettings } from "./search";
 import { readShopSettings, shopSettingsSchema, type ShopSettings } from "./shop";
+import { readShipping, shippingSchema, type Shipping } from "./shipping";
 
 /**
  * A site's own settings. Everything here runs inside withSite(), so the
@@ -85,6 +86,20 @@ export async function updateShopSettings(p: { actorId: string; siteId: string; s
   await assertAccess(p.actorId, p.siteId, "owner");
   const settings = shopSettingsSchema.parse(p.settings);
   const [site] = await withSite(p.siteId, (tx) => tx.update(sites).set({ shop: settings }).where(eq(sites.id, p.siteId)).returning());
+  if (!site) throw new AccessError("That site doesn't exist.");
+  return settings;
+}
+
+/** Dispatch time, zones and rates, with defaults filled in. */
+export function siteShipping(site: Pick<Site, "shipping">): Shipping {
+  return readShipping(site.shipping);
+}
+
+/** Owners set what delivery costs. */
+export async function updateShipping(p: { actorId: string; siteId: string; settings: unknown }): Promise<Shipping> {
+  await assertAccess(p.actorId, p.siteId, "owner");
+  const settings = shippingSchema.parse(p.settings);
+  const [site] = await withSite(p.siteId, (tx) => tx.update(sites).set({ shipping: settings }).where(eq(sites.id, p.siteId)).returning());
   if (!site) throw new AccessError("That site doesn't exist.");
   return settings;
 }

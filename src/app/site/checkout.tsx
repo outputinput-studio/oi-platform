@@ -11,6 +11,7 @@ import { confirmStripeReturn } from "@/modules/orders/checkout";
 import { orderForCustomer, priceCart, type OrderItem, type PricedCart } from "@/modules/orders/server";
 import { paymentsStatus } from "@/modules/payments/server";
 import { formatPrice, type Currency } from "@/modules/sites/shop";
+import { siteShipping } from "@/modules/sites/server";
 import { Frame } from "./storefront";
 import { hostAndSite } from "./metadata";
 import { CheckoutForm, ClearCart } from "./checkout-form";
@@ -131,7 +132,16 @@ export async function CheckoutPage() {
         </p>
       ) : (
         <div className="grid gap-10 pt-6 md:grid-cols-[minmax(0,1fr)_340px]">
-          <CheckoutForm needsAddress={cart.needsAddress} countries={COUNTRIES} defaultCountry={defaultCountry(cart.currency)} testMode={pay.provider === "test"} />
+          <CheckoutForm
+            needsAddress={cart.needsAddress}
+            countries={COUNTRIES}
+            defaultCountry={defaultCountry(cart.currency)}
+            testMode={pay.provider === "test"}
+            shipping={siteShipping(site)}
+            subtotal={cart.subtotal}
+            currency={cart.currency}
+            tax={{ rate: cart.taxRate, included: cart.pricesIncludeTax, name: cart.taxName }}
+          />
           <aside>
             <ul className="space-y-2 border-b border-[var(--border-soft)] pb-4 text-[14px]">
               {cart.lines.map((l) => (

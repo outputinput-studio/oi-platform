@@ -31,6 +31,8 @@ export const sites = pgTable("sites", {
   shop: jsonb("shop").notNull().$type<Record<string, unknown>>().default({}),
   /** Taking payments: the client's own Stripe account (Connect). See modules/payments. */
   payments: jsonb("payments").notNull().$type<Record<string, unknown>>().default({}),
+  /** Dispatch time, zones and rates. See shippingSchema in modules/sites/shipping.ts. */
+  shipping: jsonb("shipping").notNull().$type<Record<string, unknown>>().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

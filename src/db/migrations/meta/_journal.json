@@ -120,6 +120,13 @@
       "when": 1792122460449,
       "tag": "0016_orders",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792123422015,
+      "tag": "0017_shipping",
+      "breakpoints": true
     }
   ]
 }

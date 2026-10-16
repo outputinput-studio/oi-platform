@@ -66,13 +66,14 @@ export async function checkoutAction(_prev: CartState, form: FormData): Promise<
     const { site, host } = await here();
     const cart = readCart((await cookies()).get(CART_COOKIE)?.value);
     const s = (k: string) => String(form.get(k) ?? "");
-    const hasAddress = form.get("line1") !== null;
+    const hasAddress = form.get("country") !== null;
     const details = {
       name: s("name"),
       email: s("email"),
       phone: s("phone"),
       note: s("note"),
       address: hasAddress ? { line1: s("line1"), line2: s("line2"), city: s("city"), state: s("state"), postcode: s("postcode"), country: s("country") } : undefined,
+      rate: s("rate"),
     };
     to = (await startCheckout({ site, host, cart, details })).redirect;
   } catch (err) {
