@@ -145,7 +145,7 @@ function Calendar({ value, min, onPick, onClose }: { value: string; min?: string
         </div>
         <div className="grid grid-cols-7 gap-y-1">
           {DAYS.map((d) => (
-            <div key={d} className="label py-1 text-center">
+            <div key={d} className="label py-1 text-center !text-muted">
               {d}
             </div>
           ))}
