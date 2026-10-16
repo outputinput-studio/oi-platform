@@ -1,7 +1,9 @@
 import { requireSiteAccess } from "@/modules/auth/access";
 import { getPage } from "@/modules/pages/server";
 import { RenderSections } from "@/modules/pages/render";
-import { Frame, storefrontMenu } from "@/app/site/storefront";
+import { Frame } from "@/app/site/storefront";
+import { siteMenus } from "@/modules/menus/server";
+import { HOME_SLUG } from "@/modules/pages/server";
 
 export const dynamic = "force-dynamic";
 
@@ -14,11 +16,13 @@ export const dynamic = "force-dynamic";
 export default async function PreviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { user, site } = await requireSiteAccess();
-  const [page, menu] = await Promise.all([getPage({ actorId: user.id, siteId: site.id, pageId: id }), storefrontMenu(site.id)]);
-  // A draft page isn't in the menu yet; show it where it will go.
-  const withThis = menu.some((p) => p.slug === page.slug) ? menu : [...menu, { slug: page.slug, title: page.title }];
+  const [page, menus] = await Promise.all([getPage({ actorId: user.id, siteId: site.id, pageId: id }), siteMenus({ siteId: site.id })]);
+  const path = page.slug === HOME_SLUG ? "/" : `/${page.slug}`;
+  // A draft page isn't in the automatic menu yet; show it where it will go.
+  const header =
+    menus.automaticHeader && path !== "/" && !menus.header.some((l) => l.href === path) ? [...menus.header, { label: page.title, href: path, external: false, newTab: false, children: [] }] : menus.header;
   return (
-    <Frame site={site} menu={withThis} current={page.slug} preview>
+    <Frame site={site} menus={{ ...menus, header }} current={path} preview>
       <h1 className="sr-only">{page.title}</h1>
       <RenderSections sections={page.sections} />
     </Frame>

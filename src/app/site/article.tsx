@@ -9,7 +9,8 @@ import { mediaUrl } from "@/modules/media/server";
 import { Placeholder } from "@/lib/placeholder";
 import type { Site } from "@/db/schema";
 import type { Metadata } from "next";
-import { Frame, missing, storefrontMenu } from "./storefront";
+import { Frame, missing } from "./storefront";
+import { siteMenus } from "@/modules/menus/server";
 import { hostAndSite, storefrontMetadata } from "./metadata";
 
 /**
@@ -19,9 +20,9 @@ import { hostAndSite, storefrontMetadata } from "./metadata";
 export async function Journal({ category }: { category?: ArticleCategory } = {}) {
   const site = await currentSite();
   if (!site) return <Placeholder surface="site" />;
-  const [list, menu, cats] = await Promise.all([publishedArticles({ siteId: site.id, categoryId: category?.id }), storefrontMenu(site.id), publishedCategories({ siteId: site.id })]);
+  const [list, menus, cats] = await Promise.all([publishedArticles({ siteId: site.id, categoryId: category?.id }), siteMenus({ siteId: site.id }), publishedCategories({ siteId: site.id })]);
   return (
-    <Frame site={site} menu={menu} current="journal">
+    <Frame site={site} menus={menus} current={category ? `/journal/${category.slug}` : "/journal"}>
       <p className="pt-6 md:pt-10">
         {category && (
           <Link href="/journal" className="font-mono text-[11.5px] uppercase tracking-[1.5px] text-[var(--accent-text)]">
@@ -76,9 +77,9 @@ export async function JournalEntry({ parts }: { parts: string[] }) {
   if (!a) return missing(site.id, path, (await headers()).get("referer"));
   const canonical = articlePath(a);
   if (canonical !== path) permanentRedirect(canonical);
-  const menu = await storefrontMenu(site.id);
+  const menus = await siteMenus({ siteId: site.id });
   return (
-    <Frame site={site} menu={menu} current="journal">
+    <Frame site={site} menus={menus} current={canonical}>
       <ArticleBody article={a} site={site} />
     </Frame>
   );
