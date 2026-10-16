@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { timeAgo } from "@/lib/time";
 import { requireSiteAccess } from "@/modules/auth/access";
-import { listArticles } from "@/modules/articles/server";
+import { articlePath, listArticles } from "@/modules/articles/server";
 import { mediaUrl } from "@/modules/media/server";
 import { Card, Chips, PageHeader, Pill } from "../../ui";
 import { CONTENT_TABS } from "../content-tabs";
@@ -19,7 +19,12 @@ export default async function ArticlesPage() {
       <PageHeader title="Content" back="/" actions={<AddArticle />} />
       <div className="pt-4 md:pt-5">
         <Chips ariaLabel="Content" current="/articles" items={CONTENT_TABS} />
-        <p className="label mb-2.5 mt-5">Articles</p>
+        <div className="mb-2.5 mt-5 flex items-center justify-between">
+          <p className="label">Articles</p>
+          <Link href="/articles/categories" className="text-[12.5px] text-accent-text">
+            Categories
+          </Link>
+        </div>
         {all.length === 0 ? (
           <Card className="px-5 py-8 text-center">
             <p className="text-[15px] font-medium">No articles yet</p>
@@ -44,7 +49,7 @@ export default async function ArticlesPage() {
                           <span className="truncate text-[15px] font-medium">{a.title}</span>
                           {a.status === "published" ? <Pill tone="success">Live</Pill> : <Pill tone="neutral">Draft</Pill>}
                         </span>
-                        <span className="mt-1.5 block font-mono text-[12.5px] text-muted">/journal/{a.slug}</span>
+                        <span className="mt-1.5 block truncate font-mono text-[12.5px] text-muted">{articlePath(a)}</span>
                         <span className="mt-1.5 block text-[12px] text-muted">
                           {a.publishedAt ? date(a.publishedAt) : `Edited ${timeAgo(a.updatedAt)}`}
                         </span>

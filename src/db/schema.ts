@@ -351,6 +351,10 @@ export const articles = pgTable(
     status: text("status", { enum: PAGE_STATUSES }).notNull().default("draft"),
     /** Search and sharing: see seoSchema in modules/pages/seo.ts. */
     seo: jsonb("seo").notNull().$type<Record<string, unknown>>().default({}),
+    /** The main category: sets the address. Null means /journal/<slug>. */
+    categoryId: uuid("category_id"),
+    /** Other categories it also appears under. */
+    categoryIds: jsonb("category_ids").notNull().$type<string[]>().default([]),
     /** The date shown on it and used to order the journal. Set when first published; editable. */
     publishedAt: timestamp("published_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -405,3 +409,29 @@ export const notFoundHits = pgTable(
   (t) => [uniqueIndex("not_found_site_path_idx").on(t.siteId, t.path), index("not_found_site_id_idx").on(t.siteId)],
 );
 export type NotFoundHit = typeof notFoundHits.$inferSelect;
+
+/**
+ * Article categories: each is a page of its own at /journal/<slug>, and
+ * an article's main category sets its address (/journal/<cat>/<slug>).
+ * Soft delete only.
+ */
+export const articleCategories = pgTable(
+  "article_categories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    description: text("description").notNull().default(""),
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("article_categories_site_slug_idx").on(t.siteId, t.slug).where(sql`${t.deletedAt} is null`),
+    index("article_categories_site_id_idx").on(t.siteId),
+  ],
+);
+export type ArticleCategory = typeof articleCategories.$inferSelect;

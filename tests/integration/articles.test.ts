@@ -69,3 +69,39 @@ describe("articles", () => {
     expect(await listArticles({ actorId: bob, siteId: siteB })).toEqual([]);
   });
 });
+
+describe("categories", () => {
+  test("a category is a page; the main one sets the article's address; renames redirect", async () => {
+    const { createCategory, deleteCategory, listCategories, publishedCategories, updateCategory } = await import("@/modules/articles/categories");
+    const { redirectFor } = await import("@/modules/redirects/server");
+    const { articlePath } = await import("@/modules/articles/server");
+    const behind = await createCategory({ actorId: ann, siteId: siteA, name: "Behind the scenes" });
+    const sizing = await createCategory({ actorId: ann, siteId: siteA, name: "Fittings & sizing" });
+    expect(behind.slug).toBe("behind-the-scenes");
+    expect(sizing.slug).toBe("fittings-sizing");
+    await expect(createCategory({ actorId: ann, siteId: siteA, name: "Again", slug: "behind-the-scenes" })).rejects.toThrow(/already a category/);
+
+    const a = await createArticle({ actorId: ann, siteId: siteA, title: "Hand crystalled" });
+    await setArticleStatus({ actorId: ann, siteId: siteA, articleId: a.id, status: "published" });
+    const withCat = await updateArticle({ actorId: ann, siteId: siteA, articleId: a.id, edit: { categoryId: behind.id, categoryIds: [sizing.id, behind.id] } });
+    expect(articlePath(withCat)).toBe("/journal/behind-the-scenes/hand-crystalled");
+    expect(withCat.categoryIds).toEqual([sizing.id]); // the main one isn't repeated as an extra
+    // The old uncategorised address still lands.
+    expect(await redirectFor({ siteId: siteA, path: "/journal/hand-crystalled" })).toBe("/journal/behind-the-scenes/hand-crystalled");
+    expect((await publishedArticles({ siteId: siteA, categoryId: sizing.id })).map((x) => x.id)).toEqual([a.id]);
+    expect((await publishedCategories({ siteId: siteA })).map((c) => [c.slug, c.articleCount])).toEqual([["behind-the-scenes", 1], ["fittings-sizing", 1]]);
+
+    // Renaming the category moves its page and every live article under it.
+    await updateCategory({ actorId: ann, siteId: siteA, categoryId: behind.id, slug: "making-of" });
+    expect(await redirectFor({ siteId: siteA, path: "/journal/behind-the-scenes" })).toBe("/journal/making-of");
+    expect(await redirectFor({ siteId: siteA, path: "/journal/behind-the-scenes/hand-crystalled" })).toBe("/journal/making-of/hand-crystalled");
+
+    // Deleting a category leaves the articles, without it.
+    await deleteCategory({ actorId: ann, siteId: siteA, categoryId: sizing.id });
+    const after = await getArticle({ actorId: ann, siteId: siteA, articleId: a.id });
+    expect(after.categoryIds).toEqual([]);
+    expect(after.category?.slug).toBe("making-of");
+    expect((await listCategories({ actorId: ann, siteId: siteA })).map((c) => c.slug)).toEqual(["making-of"]);
+    await expect(updateArticle({ actorId: ann, siteId: siteA, articleId: a.id, edit: { categoryId: sizing.id } })).rejects.toThrow(/doesn't exist/);
+  });
+});

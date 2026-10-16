@@ -54,3 +54,29 @@ test("write an article, publish it, read it", async ({ page }) => {
   await expect(page.getByText("By Carl")).toBeVisible();
   await expect(page.getByText("The resort opens next month.")).toBeVisible();
 });
+
+test("a category gives the article a new address and a page of its own; the old link still works", async ({ page, request }) => {
+  await signInAsOwner(page);
+  await page.goto(admin + "/articles/categories");
+  await page.getByRole("button", { name: "Add category" }).click();
+  await page.getByLabel("Name").fill("Deliveries");
+  await expect(page.getByLabel("Address")).toHaveValue("deliveries");
+  await page.getByRole("button", { name: "Add category" }).last().click();
+  await expect(page.getByTestId("category-deliveries")).toContainText("0 articles");
+
+  await page.goto(admin + "/articles");
+  await page.getByTestId("article-our-first-delivery-to-krabi").click();
+  await page.getByLabel("Main category").selectOption({ label: "Deliveries" });
+  await expect(page.getByTestId("article-save-status")).toHaveText("✓ Saved");
+
+  await page.goto(demo + "/journal/deliveries");
+  await expect(page.getByRole("heading", { name: "Deliveries" })).toBeVisible();
+  await page.getByRole("link", { name: /Our first delivery to Krabi/ }).click();
+  await expect(page).toHaveURL(demo + "/journal/deliveries/our-first-delivery-to-krabi");
+  const old = await request.get(base + "/journal/our-first-delivery-to-krabi", { headers: { host: "demo.localhost" }, maxRedirects: 0 });
+  expect(old.status()).toBe(308);
+  expect(old.headers()["location"]).toBe("/journal/deliveries/our-first-delivery-to-krabi");
+  const sitemap = await (await request.get(base + "/sitemap.xml", { headers: { host: "demo.localhost" } })).text();
+  expect(sitemap).toContain("/journal/deliveries</loc>");
+  expect(sitemap).toContain("/journal/deliveries/our-first-delivery-to-krabi</loc>");
+});

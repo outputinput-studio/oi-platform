@@ -92,6 +92,13 @@
       "when": 1792116206013,
       "tag": "0012_redirects",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792116865984,
+      "tag": "0013_article_categories",
+      "breakpoints": true
     }
   ]
 }

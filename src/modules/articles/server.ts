@@ -1,7 +1,7 @@
-import { and, desc, eq, isNull, ne } from "drizzle-orm";
+import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { withSite, type Tx } from "@/db/client";
-import { articles, sites, type Article } from "@/db/schema";
+import { articleCategories, articles, sites, type Article } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { imageRef, type ImageRef } from "@/modules/pages/registry";
 import { slugFromTitle } from "@/modules/pages/slug";
@@ -39,27 +39,47 @@ export const articleEditSchema = z.object({
     .regex(/^(\d{4}-\d{2}-\d{2})?$/, "Pick a date.")
     .optional(),
   seo: seoSchema.optional(),
+  /** The main category (sets the address) and any others. Null clears the main one. */
+  categoryId: z.string().uuid().nullable().optional(),
+  categoryIds: z.array(z.string().uuid()).max(20).optional(),
 });
 export type ArticleEdit = z.infer<typeof articleEditSchema>;
 
-export type ArticleRow = Omit<Article, "cover"> & { cover: ImageRef | null };
+export type ArticleRow = Omit<Article, "cover"> & { cover: ImageRef | null; category: { id: string; slug: string; name: string } | null };
 
-function row(a: Article): ArticleRow {
-  const r = imageRef.safeParse(a.cover);
-  return { ...a, cover: r.success ? r.data : null };
+/** Where an article lives: under its main category, or straight under /journal. */
+export function articlePath(a: Pick<ArticleRow, "slug" | "category">): string {
+  return a.category ? `/journal/${a.category.slug}/${a.slug}` : `/journal/${a.slug}`;
+}
+
+type Joined = { a: Article; c: { id: string; slug: string; name: string } | null };
+
+function row(j: Joined): ArticleRow {
+  const r = imageRef.safeParse(j.a.cover);
+  return { ...j.a, cover: r.success ? r.data : null, category: j.c?.id ? j.c : null };
+}
+
+/** The select every read uses: the article with its main category (live ones only) alongside. */
+function joined(tx: Tx) {
+  return tx
+    .select({ a: articles, c: { id: articleCategories.id, slug: articleCategories.slug, name: articleCategories.name } })
+    .from(articles)
+    .leftJoin(articleCategories, and(eq(articleCategories.id, articles.categoryId), isNull(articleCategories.deletedAt)));
 }
 
 export async function listArticles(p: { actorId: string; siteId: string }): Promise<ArticleRow[]> {
   await assertAccess(p.actorId, p.siteId);
-  const rows = await withSite(p.siteId, (tx) =>
-    tx.select().from(articles).where(isNull(articles.deletedAt)).orderBy(desc(articles.publishedAt), desc(articles.createdAt)),
-  );
+  const rows = await withSite(p.siteId, (tx) => joined(tx).where(isNull(articles.deletedAt)).orderBy(desc(articles.publishedAt), desc(articles.createdAt)));
   return rows.map(row);
 }
 
 export async function getArticle(p: { actorId: string; siteId: string; articleId: string }): Promise<ArticleRow> {
   await assertAccess(p.actorId, p.siteId);
-  return withSite(p.siteId, async (tx) => row(await load(tx, p.articleId)));
+  return withSite(p.siteId, async (tx) => {
+    const a = await load(tx, p.articleId);
+    const [j] = await joined(tx).where(eq(articles.id, a.id)).limit(1);
+    return row(j);
+  });
 }
 
 export async function createArticle(p: { actorId: string; siteId: string; title: string }): Promise<ArticleRow> {
@@ -68,7 +88,7 @@ export async function createArticle(p: { actorId: string; siteId: string; title:
   return withSite(p.siteId, async (tx) => {
     const slug = await freeSlug(tx, slugFromTitle(title));
     const [a] = await tx.insert(articles).values({ siteId: p.siteId, title, slug }).returning();
-    return row(a);
+    return row({ a, c: null });
   });
 }
 
@@ -87,12 +107,24 @@ export async function updateArticle(p: { actorId: string; siteId: string; articl
     if (e.author !== undefined) patch.author = e.author;
     if (e.seo !== undefined) patch.seo = e.seo as Seo;
     if (e.publishedOn !== undefined) patch.publishedAt = e.publishedOn ? new Date(`${e.publishedOn}T12:00:00Z`) : a.publishedAt;
-    const [updated] = await tx.update(articles).set(patch).where(eq(articles.id, a.id)).returning();
-    if (e.slug && e.slug !== a.slug && a.status === "published") {
-      const [site] = await tx.select({ search: sites.search }).from(sites).limit(1);
-      if (!site || readSearchSettings(site.search).autoRedirect) await autoRedirect(tx, { siteId: p.siteId, from: `/journal/${a.slug}`, to: `/journal/${e.slug}` });
+    if (e.categoryId !== undefined) patch.categoryId = e.categoryId ? (await liveCategory(tx, e.categoryId)).id : null;
+    if (e.categoryIds !== undefined) {
+      const main = patch.categoryId !== undefined ? patch.categoryId : a.categoryId;
+      const ids: string[] = [];
+      for (const id of e.categoryIds) if (id !== main && !ids.includes(id)) ids.push((await liveCategory(tx, id)).id);
+      patch.categoryIds = ids;
     }
-    return row(updated);
+    const [before] = await joined(tx).where(eq(articles.id, a.id)).limit(1);
+    await tx.update(articles).set(patch).where(eq(articles.id, a.id));
+    const [after] = await joined(tx).where(eq(articles.id, a.id)).limit(1);
+    // A live article whose address changed — new slug or new main category — keeps its old link working.
+    const was = articlePath(row(before));
+    const now = articlePath(row(after));
+    if (was !== now && a.status === "published") {
+      const [site] = await tx.select({ search: sites.search }).from(sites).limit(1);
+      if (!site || readSearchSettings(site.search).autoRedirect) await autoRedirect(tx, { siteId: p.siteId, from: was, to: now });
+    }
+    return row(after);
   });
 }
 
@@ -100,12 +132,12 @@ export async function setArticleStatus(p: { actorId: string; siteId: string; art
   await assertAccess(p.actorId, p.siteId);
   return withSite(p.siteId, async (tx) => {
     const a = await load(tx, p.articleId);
-    const [updated] = await tx
+    await tx
       .update(articles)
       .set({ status: p.status, publishedAt: p.status === "published" ? (a.publishedAt ?? new Date()) : a.publishedAt, updatedAt: new Date() })
-      .where(eq(articles.id, a.id))
-      .returning();
-    return row(updated);
+      .where(eq(articles.id, a.id));
+    const [j] = await joined(tx).where(eq(articles.id, a.id)).limit(1);
+    return row(j);
   });
 }
 
@@ -119,27 +151,30 @@ export async function deleteArticle(p: { actorId: string; siteId: string; articl
 
 // ───────────────────────── storefront ─────────────────────────
 
-/** The journal: every live article, newest first. */
-export async function publishedArticles(p: { siteId: string }): Promise<ArticleRow[]> {
+/** The journal: every live article, newest first; or just one category's (main or extra). */
+export async function publishedArticles(p: { siteId: string; categoryId?: string }): Promise<ArticleRow[]> {
   const rows = await withSite(p.siteId, (tx) =>
-    tx
-      .select()
-      .from(articles)
-      .where(and(eq(articles.status, "published"), isNull(articles.deletedAt)))
+    joined(tx)
+      .where(
+        and(
+          eq(articles.status, "published"),
+          isNull(articles.deletedAt),
+          p.categoryId ? sql`(${articles.categoryId} = ${p.categoryId} or ${articles.categoryIds} ? ${p.categoryId})` : undefined,
+        ),
+      )
       .orderBy(desc(articles.publishedAt), desc(articles.createdAt)),
   );
   return rows.map(row);
 }
 
+/** A live article by its own slug. The caller checks the category in the address matches, so a stale link can be sent on. */
 export async function publishedArticle(p: { siteId: string; slug: string }): Promise<ArticleRow | null> {
-  const [a] = await withSite(p.siteId, (tx) =>
-    tx
-      .select()
-      .from(articles)
+  const [j] = await withSite(p.siteId, (tx) =>
+    joined(tx)
       .where(and(eq(articles.slug, p.slug), eq(articles.status, "published"), isNull(articles.deletedAt)))
       .limit(1),
   );
-  return a ? row(a) : null;
+  return j ? row(j) : null;
 }
 
 /** Whether the storefront menu should show Journal at all. */
@@ -151,6 +186,12 @@ export async function hasPublishedArticles(p: { siteId: string }): Promise<boole
 }
 
 // ───────────────────────── helpers ─────────────────────────
+
+async function liveCategory(tx: Tx, id: string) {
+  const [c] = await tx.select({ id: articleCategories.id }).from(articleCategories).where(and(eq(articleCategories.id, id), isNull(articleCategories.deletedAt))).limit(1);
+  if (!c) throw new AccessError("That category doesn't exist.");
+  return c;
+}
 
 async function load(tx: Tx, id: string): Promise<Article> {
   if (!z.string().uuid().safeParse(id).success) throw new AccessError("That article doesn't exist.");
