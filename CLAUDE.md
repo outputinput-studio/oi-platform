@@ -48,6 +48,9 @@ A refusal about one field throws `FieldError(field, message)`; a lone value is p
 - O/I support (Carl, Oct 2026; `modules/auth/support.ts`): the addresses in OI_SUPPORT_EMAILS (Vercel only, never the
   database) are an Owner on every site with no membership — always on, a client can't remove it. They always need the
   app, count only once OI_SECRETS_KEY is set, show as "output/input" in Activity, and list sites via `all_site_ids()`.
+- Invitations (`modules/team/invitations.ts`, RLS table): the only way onto a team from the admin. 14 days; the
+  link (`/join/[token]`, found through `resolve_invitation()`) adds the invited address as its role, then hands on
+  to the emailed code. An expired link asks for a new one itself, sent to the invited address.
 - `src/app/admin/(site)` — the signed-in admin: its layout calls `requireSiteAccess`; pages under it are for one site.
   Pages link with public paths (`/team`, never `/admin/team`). `src/app/admin/ui.tsx` holds the few primitives.
 - `src/modules/pages/registry.ts` — the section registry: every block a page can hold, with its Zod schema. A new

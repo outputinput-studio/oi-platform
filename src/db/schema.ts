@@ -896,3 +896,35 @@ export const activity = pgTable(
   (t) => [index("activity_site_updated_idx").on(t.siteId, t.updatedAt)],
 );
 export type Activity = typeof activity.$inferSelect;
+
+/**
+ * Invitations (Stage 38, design/admin.html Team): an Owner invites an email
+ * as a role; the link in the email (or copied from Team) joins them. They
+ * last 14 days; an expired link lets them ask for a new one themselves.
+ * The token only ever adds the invited address to the team — signing in
+ * still takes that address's emailed code (and app, if they use one) — so
+ * it's kept as is, for "Copy the link".
+ */
+export const invitations = pgTable(
+  "invitations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    role: text("role", { enum: MEMBERSHIP_ROLES }).notNull().default("staff"),
+    token: text("token").notNull().unique(),
+    invitedBy: text("invited_by"),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    /** When an expired link last asked for a new one: once an hour at most. */
+    askedAgainAt: timestamp("asked_again_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("invitations_site_sent_idx").on(t.siteId, t.sentAt)],
+);
+export type Invitation = typeof invitations.$inferSelect;

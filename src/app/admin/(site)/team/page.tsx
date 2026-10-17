@@ -1,9 +1,11 @@
 import { requireSiteAccess } from "@/modules/auth/access";
+import { headers } from "next/headers";
 import { listMembers } from "@/modules/team/server";
+import { listInvitations } from "@/modules/team/invitations";
 import { supportContact } from "@/modules/auth/support";
 import { Label, PageHeader, Pill, Rows } from "../../ui";
 import { Avatar } from "../nav";
-import { AddMember, MemberRow } from "./team-forms";
+import { InviteRowView, InviteSomeone, MemberRow } from "./team-forms";
 
 export const dynamic = "force-dynamic";
 
@@ -14,14 +16,15 @@ export const dynamic = "force-dynamic";
  */
 export default async function TeamPage() {
   const { user, site, role } = await requireSiteAccess("manager");
-  const members = await listMembers({ actorId: user.id, siteId: site.id });
+  const host = (await headers()).get("x-oi-host") ?? "";
+  const [members, invites] = await Promise.all([listMembers({ actorId: user.id, siteId: site.id }), listInvitations({ actorId: user.id, siteId: site.id, host })]);
   const owners = members.filter((m) => m.role === "owner").length;
   const canManage = role === "owner";
   const support = supportContact();
 
   return (
     <>
-      <PageHeader title="Team" back="/" actions={canManage ? <AddMember /> : undefined} />
+      <PageHeader title="Team" back="/" actions={canManage ? <InviteSomeone /> : undefined} />
       <div className="pt-5 md:pt-6">
         <p data-testid="roles-intro" className="mb-6 max-w-[620px] text-[14px] leading-relaxed text-body">
           Three roles, fixed. An Owner can do everything, including the team and the domain, a Manager runs the shop and the site, and Staff handle
@@ -47,6 +50,20 @@ export default async function TeamPage() {
             </div>
           )}
         </Rows>
+
+        {invites.length > 0 && (
+          <section className="mt-8">
+            <Label>Waiting to accept</Label>
+            <Rows>
+              {invites.map((i) => (
+                <InviteRowView key={i.id} inv={i} canManage={canManage} />
+              ))}
+            </Rows>
+          </section>
+        )}
+        <p className="mt-3 text-[12.5px] leading-relaxed text-muted">
+          Invitations last 14 days. An expired link lets them ask for a new one themselves — nobody has to call us.
+        </p>
       </div>
     </>
   );

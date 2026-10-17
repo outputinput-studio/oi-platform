@@ -2,6 +2,7 @@ import { test, expect, type Browser, type Page } from "@playwright/test";
 import { base32Decode, hotp } from "../../src/modules/auth/totp";
 import { currentStep } from "./app-code";
 import { SIGNED_OUT } from "./state";
+import { invite, join } from "./invite";
 
 /**
  * The authenticator app for someone who isn't an Owner (Owners are made to
@@ -27,22 +28,16 @@ async function emailSignIn(browser: Browser): Promise<Page> {
 }
 
 test("a manager turns it on, signs in elsewhere with a recovery code, and an owner resets it", async ({ page, browser }) => {
-  // The owner adds them as a Manager.
+  // The owner invites them as a Manager; they join from the link. Managers aren't made to set up the app: straight in.
   await page.goto(admin + "/sites");
   await page.getByRole("button", { name: "Demo site" }).click();
+  const laptop = await join(browser, await invite(page, WHO, "Manager"));
+  await laptop.getByRole("button", { name: "Demo site" }).click();
+  await expect(laptop).toHaveURL(admin + "/");
   await page.goto(admin + "/team");
-  await page.getByRole("button", { name: "Add someone" }).click();
-  await page.getByLabel("Email").fill(WHO);
-  await page.getByRole("dialog").getByRole("radio", { name: /^Manager/ }).check();
-  await page.getByRole("button", { name: "Add to team" }).click();
   const row = page.getByTestId(`member-${WHO}`);
   await expect(row).toBeVisible();
   await expect(row.getByTestId("member-two-factor")).toHaveCount(0);
-
-  // Managers aren't made to: straight in.
-  const laptop = await emailSignIn(browser);
-  await laptop.getByRole("button", { name: "Demo site" }).click();
-  await expect(laptop).toHaveURL(admin + "/");
 
   // Your account → Set it up.
   await laptop.goto(admin + "/account");

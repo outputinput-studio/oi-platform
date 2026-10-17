@@ -5,7 +5,8 @@ import { headers } from "next/headers";
 import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { MEMBERSHIP_ROLES } from "@/db/schema";
-import { addMember, removeMember, setRole } from "./server";
+import { removeMember, setRole } from "./server";
+import { cancelInvite, invite, resendInvite, setInviteRole } from "./invitations";
 import { formError } from "@/lib/form-error";
 import { resetTwoFactor } from "@/modules/auth/two-factor";
 
@@ -15,18 +16,52 @@ import { resetTwoFactor } from "@/modules/auth/two-factor";
  */
 export type TeamFormState = { ok?: string; error?: string; fields?: string[] };
 
-export async function addMemberAction(_prev: TeamFormState, form: FormData): Promise<TeamFormState> {
+/** The admin host this request came in on, for the link in an invitation. */
+async function adminHost(): Promise<string> {
+  return (await headers()).get("x-oi-host") ?? "";
+}
+
+export async function inviteAction(_prev: TeamFormState, form: FormData): Promise<TeamFormState> {
   const { user, site } = await requireSiteAccess();
   try {
-    const email = z.string().trim().toLowerCase().email("That doesn't look like an email address.").parse(form.get("email"));
-    const host = (await headers()).get("x-oi-host") ?? "";
-    const signInUrl = `https://${host}/sign-in`;
     const role = z.enum(MEMBERSHIP_ROLES).catch("staff").parse(form.get("role") ?? "staff");
-    const r = await addMember({ actorId: user.id, siteId: site.id, email, role, invitation: { siteName: site.name, byName: user.name, signInUrl } });
+    const r = await invite({ actorId: user.id, siteId: site.id, email: String(form.get("email") ?? ""), role, host: await adminHost() });
     revalidatePath("/team");
-    if (!r.added) return { ok: `${r.email} is already on the team.` };
-    if (r.emailed) return { ok: `${r.email} added. We've emailed them how to sign in.` };
-    return { ok: `${r.email} added. The email didn't go out, so let them know to sign in at ${host}.` };
+    return { ok: r.emailed ? `Invitation sent to ${r.email}.` : `Invitation made, but the email didn't go out. Copy the link and send it to ${r.email} yourself.` };
+  } catch (err) {
+    return formError(err);
+  }
+}
+
+export async function setInviteRoleAction(_prev: TeamFormState, form: FormData): Promise<TeamFormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    const role = z.enum(MEMBERSHIP_ROLES).parse(form.get("role"));
+    await setInviteRole({ actorId: user.id, siteId: site.id, inviteId: String(form.get("inviteId") ?? ""), role });
+    revalidatePath("/team");
+    return {};
+  } catch (err) {
+    return formError(err);
+  }
+}
+
+export async function resendInviteAction(_prev: TeamFormState, form: FormData): Promise<TeamFormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    const sent = await resendInvite({ actorId: user.id, siteId: site.id, inviteId: String(form.get("inviteId") ?? ""), host: await adminHost() });
+    revalidatePath("/team");
+    return sent ? { ok: "Sent again. Good for another 14 days." } : { error: "The email didn't go out. Copy the link and send it yourself." };
+  } catch (err) {
+    return formError(err);
+  }
+}
+
+export async function cancelInviteAction(_prev: TeamFormState, form: FormData): Promise<TeamFormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await cancelInvite({ actorId: user.id, siteId: site.id, inviteId: String(form.get("inviteId") ?? "") });
+    revalidatePath("/team");
+    return {};
   } catch (err) {
     return formError(err);
   }

@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { goTo } from "./nav";
-import { SIGNED_OUT } from "./state";
+import { invite, join } from "./invite";
 
 /**
  * The admin shell and the team page, in a real browser on a phone-sized
@@ -34,7 +34,7 @@ test("the shell has navigation and shows the site", async ({ page }) => {
   await expect(page.getByTestId("site-name")).toHaveText("Demo site");
 });
 
-test("team: add, change role, remove", async ({ page }) => {
+test("team: invite, join from the link, change role, remove", async ({ page, browser }) => {
   await signInAsOwner(page);
   await goTo(page, "Team");
   await expect(page).toHaveURL(/\/team$/);
@@ -43,22 +43,35 @@ test("team: add, change role, remove", async ({ page }) => {
   await expect(me).toContainText("Owner");
   await expect(me).toContainText(/Signed in (just now|\d+ min ago)/);
 
-  // Add (a sheet from the header): Staff unless chosen otherwise.
-  await page.getByRole("button", { name: "Add someone" }).click();
-  await page.getByLabel("Email").fill("newstaff@example.com");
-  await page.getByRole("button", { name: "Add to team" }).click();
+  // Invite (a sheet from the header): Staff unless chosen otherwise. Not on the team until they join.
+  const link = await invite(page, "newstaff@example.com");
+  const pending = page.getByTestId("invite-newstaff@example.com").first();
+  await expect(pending).toContainText("Not opened yet");
+  await expect(pending.getByTestId("invite-role")).toHaveText("Staff");
+  await expect(page.getByTestId("member-newstaff@example.com")).toHaveCount(0);
+  // Change the role before they've joined.
+  await pending.getByRole("button", { name: "Change role" }).click();
+  await page.getByRole("dialog").getByRole("radio", { name: /^Manager/ }).check();
+  await page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
+  await expect(pending.getByTestId("invite-role")).toHaveText("Manager");
+
+  // They open the link, join, and sign in.
+  const them = await join(browser, link);
+  await them.getByRole("button", { name: "Demo site" }).click();
+  await expect(them).toHaveURL(admin + "/");
+  await page.reload();
+  await expect(page.getByTestId("invite-newstaff@example.com").first()).toContainText("Accepted");
   const row = page.getByTestId("member-newstaff@example.com");
-  await expect(row).toBeVisible();
-  await expect(row.getByTestId("member-role")).toHaveText("Staff");
-  await expect(row).toContainText("Not signed in yet");
+  await expect(row.getByTestId("member-role")).toHaveText("Manager");
+  await expect(row).toContainText(/Signed in (just now|\d+ min ago)/);
 
   // Change role: a sheet with the three roles and what each can do.
   await row.getByRole("button", { name: "Change role" }).click();
   const sheet = page.getByRole("dialog");
   await expect(sheet.getByText("Runs the shop and the site")).toBeVisible();
-  await sheet.getByRole("radio", { name: /^Manager/ }).check();
+  await sheet.getByRole("radio", { name: /^Staff/ }).check();
   await sheet.getByRole("button", { name: "Save" }).click();
-  await expect(row.getByTestId("member-role")).toHaveText("Manager");
+  await expect(row.getByTestId("member-role")).toHaveText("Staff");
 
   await row.getByRole("button", { name: "Change role" }).click();
   await page.getByRole("dialog").getByRole("radio", { name: /^Staff/ }).check();
@@ -71,18 +84,7 @@ test("team: add, change role, remove", async ({ page }) => {
 
 test("staff see orders, the inbox and contacts, and nothing else", async ({ page, browser }) => {
   await signInAsOwner(page);
-  await page.goto(admin + "/team");
-  await page.getByRole("button", { name: "Add someone" }).click();
-  await page.getByLabel("Email").fill("counter@example.com");
-  await page.getByRole("button", { name: "Add to team" }).click();
-  await expect(page.getByTestId("member-counter@example.com")).toBeVisible();
-
-  const staff = await (await browser.newContext({ viewport: { width: 390, height: 760 }, storageState: SIGNED_OUT })).newPage();
-  await staff.goto(admin + "/sign-in");
-  await staff.getByLabel("Email").fill("counter@example.com");
-  await staff.getByRole("button", { name: "Send code" }).click();
-  await staff.getByLabel("Code").fill((await staff.getByTestId("dev-code").textContent())!);
-  await staff.getByRole("button", { name: "Sign in" }).click();
+  const staff = await join(browser, await invite(page, "counter@example.com"), { width: 390, height: 760 });
   await staff.getByRole("button", { name: "Demo site" }).click();
   await expect(staff).toHaveURL(admin + "/");
   await expect(staff.getByTestId("role")).toHaveText("staff");
@@ -145,4 +147,15 @@ test("settings: rename the site", async ({ page }) => {
   await name.fill("Demo site");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("Saved")).toBeVisible();
+});
+
+test("a cancelled invitation's link says so", async ({ page }) => {
+  await signInAsOwner(page);
+  const link = await invite(page, "cancelme@example.com", "Manager");
+  const row = page.getByTestId("invite-cancelme@example.com").first();
+  await row.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel it" }).click();
+  await expect(page.getByTestId("invite-cancelme@example.com")).toHaveCount(0);
+  await page.goto(link);
+  await expect(page.getByRole("heading", { name: "This invitation was cancelled" })).toBeVisible();
 });
