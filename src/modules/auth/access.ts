@@ -1,12 +1,13 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db, withSite } from "@/db/client";
-import { memberships, sites, type MembershipRole, type Site, type User } from "@/db/schema";
+import { memberships, sites, users, type MembershipRole, type Site, type User } from "@/db/schema";
 import { secretsAvailable } from "@/lib/secrets";
 import { auth } from "./server";
 import { atLeast } from "./roles";
 import { signInState } from "./two-factor";
+import { isSupportEmail } from "./support";
 
 /**
  * Authorisation lives here, not in proxy.ts. Routing only decides which
@@ -85,16 +86,21 @@ export async function requireHalfSignIn(): Promise<{ user: User; sessionId: stri
 }
 
 /**
- * The membership a user holds on a site, or null. Pure database, no
- * cookies, so it is what the integration tests exercise directly.
+ * The role a user holds on a site, or null. Pure database, no cookies, so
+ * it is what the integration tests exercise directly. O/I support
+ * (support.ts) is an Owner everywhere without a membership; everyone else
+ * has exactly the membership they were given. One query either way.
  */
 export async function membershipFor(userId: string, siteId: string): Promise<MembershipRole | null> {
-  const rows = await db
-    .select({ role: memberships.role })
-    .from(memberships)
-    .where(and(eq(memberships.userId, userId), eq(memberships.siteId, siteId)))
+  const [r] = await db
+    .select({ email: users.email, role: memberships.role })
+    .from(users)
+    .leftJoin(memberships, and(eq(memberships.userId, users.id), eq(memberships.siteId, siteId)))
+    .where(eq(users.id, userId))
     .limit(1);
-  return rows[0]?.role ?? null;
+  if (!r) return null;
+  if (isSupportEmail(r.email)) return "owner";
+  return r.role ?? null;
 }
 
 /**
@@ -103,10 +109,13 @@ export async function membershipFor(userId: string, siteId: string): Promise<Mem
  * its own withSite(). People belong to a handful of sites at most.
  */
 export async function sitesFor(userId: string): Promise<Array<{ site: Site; role: MembershipRole }>> {
-  const rows = await db
-    .select({ siteId: memberships.siteId, role: memberships.role })
-    .from(memberships)
-    .where(eq(memberships.userId, userId));
+  const [u] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
+  const rows = isSupportEmail(u?.email)
+    ? (await db.execute<{ id: string }>(sql`select all_site_ids() as id`)).rows.map((r) => ({ siteId: r.id, role: "owner" as const }))
+    : await db
+        .select({ siteId: memberships.siteId, role: memberships.role })
+        .from(memberships)
+        .where(eq(memberships.userId, userId));
   const out: Array<{ site: Site; role: MembershipRole }> = [];
   for (const row of rows) {
     const [site] = await withSite(row.siteId, (tx) => tx.select().from(sites).limit(1));

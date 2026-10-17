@@ -10,6 +10,7 @@ import { formError } from "@/lib/form-error";
 import { auth } from "./server";
 import { ACTIVE_SITE_COOKIE, membershipFor, requireHalfSignIn, requireUser } from "./access";
 import { verifySecondStep } from "./two-factor";
+import { ensureSupportUser } from "./support";
 
 /**
  * The sign-in conversation, as server actions. The browser posts a form,
@@ -34,6 +35,7 @@ export async function sendCode(_prev: SignInState, form: FormData): Promise<Sign
   // answers success without sending anything, so the page cannot be used
   // to discover who works where. The code step's copy says what to do.
   try {
+    await ensureSupportUser(email); // O/I support has no invite: its account appears at its first code
     await auth.api.sendVerificationOTP({ body: { email, type: "sign-in" }, headers: await headers() });
   } catch (err) {
     if (err instanceof APIError) return { step: "email", error: "Couldn't send a code just now. Try again in a minute." };

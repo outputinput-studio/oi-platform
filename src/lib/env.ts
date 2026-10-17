@@ -63,6 +63,14 @@ const schema = z.object({
   OI_VERCEL_PROJECT_ID: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
   OI_VERCEL_TEAM_ID: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
   OI_VERCEL_ENVIRONMENT_ID: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
+
+  /**
+   * O/I support (Stage 38): the output/input addresses that look after every
+   * site as an Owner, comma separated. Only here, never in the database.
+   * Their sign-in always asks for the authenticator app, and they count only
+   * once OI_SECRETS_KEY is set. Unset → no support access anywhere.
+   */
+  OI_SUPPORT_EMAILS: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
 });
 
 export type Env = z.infer<typeof schema>;

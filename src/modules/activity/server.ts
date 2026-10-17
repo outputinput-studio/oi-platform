@@ -1,6 +1,7 @@
 import { and, desc, eq, gt, isNull, lt, sql } from "drizzle-orm";
 import { withSite, type Tx } from "@/db/client";
 import { activity, users } from "@/db/schema";
+import { isSupportEmail } from "@/modules/auth/support";
 import { assertAccess } from "@/modules/auth/access";
 import { activityParts, firstName } from "./words";
 
@@ -104,9 +105,8 @@ export async function listActivity(p: {
   );
   return rows.map(({ a, name, email }) => ({
     id: a.id,
-    who: firstName(
-      a.actorId === null ? null : name === null ? undefined : { name, email: email ?? "" },
-    ),
+    // O/I support shows as output/input, like the platform itself.
+    who: firstName(a.actorId === null || isSupportEmail(email) ? null : name === null ? undefined : { name, email: email ?? "" }),
     ...activityParts(a.action, a.subject, a.count),
     href: a.href,
     at: a.updatedAt,
