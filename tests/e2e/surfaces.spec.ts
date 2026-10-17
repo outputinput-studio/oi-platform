@@ -9,10 +9,12 @@ test("admin.localhost is the admin: it asks you to sign in", async ({ request })
   expect(res.headers()["location"]).toBe("/sign-in");
 });
 
-test("ops.localhost shows the ops placeholder", async ({ request }) => {
-  const res = await request.get(base + "/", { headers: { host: "ops.localhost" } });
-  expect(res.status()).toBe(200);
-  expect(await res.text()).toContain('data-surface="ops"');
+test("ops.localhost is operations: it asks you to sign in", async ({ request }) => {
+  const res = await request.get(base + "/", { headers: { host: "ops.localhost" }, maxRedirects: 0 });
+  expect(res.status()).toBe(307);
+  expect(res.headers()["location"]).toBe("/sign-in");
+  const page = await request.get(base + "/sign-in", { headers: { host: "ops.localhost" } });
+  expect(await page.text()).toContain('data-surface="ops"');
 });
 
 test("a storefront host answers as a site, published or not", async ({ request }) => {

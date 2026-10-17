@@ -46,6 +46,8 @@ export const sites = pgTable("sites", {
   cookies: jsonb("cookies").notNull().$type<Record<string, unknown>>().default({}),
   /** Settings · Custom code (owners only): start and end of every page, ten versions back. See modules/sites/custom-code-rules.ts. */
   customCode: jsonb("custom_code").notNull().$type<Record<string, unknown>>().default({}),
+  /** The plan output/input set in ops (modules/plans/plan.ts). Empty: no plan yet. Clients can't change it. */
+  plan: jsonb("plan").notNull().$type<Record<string, unknown>>().default({}),
   /**
    * The client's own domain (Settings · Domain), lower case, without www:
    * kinikouture.com.au. Its slug address keeps working alongside. Unique:
@@ -928,3 +930,20 @@ export const invitations = pgTable(
   (t) => [index("invitations_site_sent_idx").on(t.siteId, t.sentAt)],
 );
 export type Invitation = typeof invitations.$inferSelect;
+
+/**
+ * Visits to a storefront, counted per day (Settings · Plan, "Visits this
+ * month"). One per browser tab session, from a beacon; no cookie, no
+ * address, nothing about who — just how many.
+ */
+export const visits = pgTable(
+  "visits",
+  {
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    day: text("day").notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [uniqueIndex("visits_site_day_idx").on(t.siteId, t.day)],
+);

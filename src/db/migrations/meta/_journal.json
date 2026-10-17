@@ -232,6 +232,13 @@
       "when": 1792220015627,
       "tag": "0032_invitations",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792224082409,
+      "tag": "0033_plans_and_visits",
+      "breakpoints": true
     }
   ]
 }

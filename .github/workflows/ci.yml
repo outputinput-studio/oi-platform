@@ -27,6 +27,8 @@ jobs:
       BETTER_AUTH_SECRET: ci-only-secret-not-used-anywhere-else-0123456789
       # Test-only: encrypts the Stripe keys tests save. Never used outside CI.
       OI_SECRETS_KEY: Y2ktb25seS1rZXktbm90LXVzZWQtYW55d2hlcmUtMDE=
+      # Test-only: the O/I support address e2e signs in to ops with (fake, like all test data).
+      OI_SUPPORT_EMAILS: support@example.com
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

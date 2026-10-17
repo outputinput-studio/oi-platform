@@ -1,0 +1,63 @@
+import { headers } from "next/headers";
+import { adminOriginForOps } from "@/lib/hosts";
+import { ROLE_NAMES } from "@/modules/auth/roles";
+import { requireOps } from "@/modules/ops/access";
+import { opsSite } from "@/modules/ops/server";
+import { Label, PageHeader, Rows } from "../../../admin/ui";
+import { UsageMeters } from "../../../admin/usage-meters";
+import { OpsShell } from "../../ops-shell";
+import { PlanForm } from "./plan-form";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * One site, from ops (design/operations.html): its plan — ours to set —
+ * what it's using, and who can sign in (read-only; it mirrors their Team).
+ */
+export default async function OpsSitePage({ params }: { params: Promise<{ id: string }> }) {
+  const user = await requireOps();
+  const { site, plan, usage, people } = await opsSite({ actorId: user.id, siteId: (await params).id });
+  const admin = adminOriginForOps((await headers()).get("x-oi-host") ?? "");
+  return (
+    <OpsShell email={user.email}>
+      <PageHeader
+        title={site.name}
+        back="/"
+        actions={
+          <a href={`${admin}/sites`} className="inline-flex h-9 items-center rounded-button border border-accent px-3.5 text-[13.5px] font-medium text-text hover:bg-hover">
+            Open their admin
+          </a>
+        }
+      />
+      <p className="mt-4 text-[13px] text-muted">
+        <span className="font-mono">{site.domain ?? site.slug}</span> · {site.launchedAt ? "Live" : "Not live yet"} · Opening their admin signs you in as Output/Input · Support. It&apos;s logged, and they can see we were there.
+      </p>
+      <div className="mt-7 grid gap-8 md:grid-cols-[1fr_360px]">
+        <section>
+          <Label>Plan</Label>
+          <PlanForm siteId={site.id} plan={plan} />
+        </section>
+        <div className="space-y-8">
+          <section>
+            <Label>Usage</Label>
+            <UsageMeters plan={plan} usage={usage} />
+          </section>
+          <section>
+            <Label right={`${people.length}`}>People</Label>
+            <Rows variant="static">
+              {people.map((p) => (
+                <div key={p.email} className="px-4 py-3">
+                  <p className="text-[14.5px] font-medium">{p.name || p.email}</p>
+                  <p className="font-mono text-[12.5px] text-muted">
+                    {p.email} · {ROLE_NAMES[p.role]}
+                  </p>
+                </div>
+              ))}
+            </Rows>
+            <p className="mt-2 text-[12.5px] text-muted">Read-only here — this mirrors their own Team and roles.</p>
+          </section>
+        </div>
+      </div>
+    </OpsShell>
+  );
+}
