@@ -69,6 +69,11 @@ A refusal about one field throws `FieldError(field, message)`; a lone value is p
   (`/export/[siteId]/[token]`). The zip (`zip.ts`, node:zlib, no library, no Zip64 so 4 GB at most) is written as it
   downloads; nothing is stored. CSVs (`csv.ts`) carry a BOM and put ' before = + - @ so a spreadsheet won't run what a
   customer typed. Contacts · Export this list / this contact: Managers and Owners. Integrations come later.
+- First run and Get help (Carl, Oct 2026; `modules/welcome`, `modules/help`): everyone sees the welcome card on Home
+  once per site (`memberships.welcomed_at`), with Show me around; after it, anyone without the authenticator app is
+  asked once ("Not yet" → `secure_nudged_at`). Get help (More, every role) emails OI_SUPPORT_EMAILS with who, the site
+  and the screen (`?from=`); 10 a day each. "Or reach us directly" shows only OI_HELP_EMAIL / _PHONE / _HOURS — never
+  the support sign-in addresses.
 - Forms that can come back with a mistake submit with `onSubmit={keepValues(act)}` (`src/app/admin/keep-values.ts`),
   so React 19 doesn't clear what was typed.
 - Invitations (`modules/team/invitations.ts`, RLS table): the only way onto a team from the admin. 14 days; the

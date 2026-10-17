@@ -7,6 +7,8 @@ import { listMedia } from "@/modules/media/server";
 import { listPages } from "@/modules/pages/server";
 import { Card, PageHeader, Row, Rows } from "../ui";
 import { Greeting } from "./greeting";
+import { SecureNudge, Welcome } from "./welcome";
+import { welcomeState } from "@/modules/welcome/server";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +19,13 @@ export const dynamic = "force-dynamic";
  */
 export default async function AdminHome() {
   const { site, user, role } = await requireSiteAccess();
-  if (!atLeast(role, "manager")) return <StaffHome siteName={site.name} siteId={site.id} name={user.name || user.email} />;
+  const first = await welcomeState({ actorId: user.id, siteId: site.id });
+  const intro = first.welcome ? (
+    <Welcome name={user.name || user.email} live={!!site.launchedAt} staff={!atLeast(role, "manager")} />
+  ) : first.secure ? (
+    <SecureNudge />
+  ) : null;
+  if (!atLeast(role, "manager")) return <StaffHome siteName={site.name} siteId={site.id} name={user.name || user.email} intro={intro} />;
   const [pages, images] = await Promise.all([
     listPages({ actorId: user.id, siteId: site.id }),
     listMedia({ actorId: user.id, siteId: site.id }),
@@ -33,6 +41,7 @@ export default async function AdminHome() {
         <p className="sr-only">
           Signed in as <span data-testid="role">{role}</span>
         </p>
+        {intro}
 
         <div className="mt-5 grid grid-cols-2 gap-3">
           <Stat label="Pages live" value={live} sub={drafts ? `${drafts} draft${drafts === 1 ? "" : "s"}` : pages.length ? "no drafts" : "none yet"} href="/pages" />
@@ -54,7 +63,7 @@ export default async function AdminHome() {
   );
 }
 
-async function StaffHome({ siteName, siteId, name }: { siteName: string; siteId: string; name: string }) {
+async function StaffHome({ siteName, siteId, name, intro }: { siteName: string; siteId: string; name: string; intro: React.ReactNode }) {
   const [orders, inbox] = await Promise.all([newOrderCount({ siteId }), newSubmissionCount({ siteId })]);
   return (
     <>
@@ -64,6 +73,7 @@ async function StaffHome({ siteName, siteId, name }: { siteName: string; siteId:
         <p className="sr-only">
           Signed in as <span data-testid="role">staff</span>
         </p>
+        {intro}
         <div className="mt-5 grid grid-cols-2 gap-3">
           <Stat label="Orders to start" value={orders} sub={orders ? "paid, waiting for you" : "all caught up"} href="/orders" testId="stat-orders" />
           <Stat label="New in the inbox" value={inbox} sub={inbox ? "not answered yet" : "all caught up"} href="/inbox" />

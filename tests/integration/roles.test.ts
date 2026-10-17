@@ -23,6 +23,8 @@ import { planView } from "@/modules/plans/server";
 import { billingView, startPaying } from "@/modules/billing/server";
 import { addAddon, askAboutAddon, removeAddon, siteAddonsView } from "@/modules/addons/server";
 import { exportContacts, openExport, requestExport } from "@/modules/export/server";
+import { finishWelcome, skipSecureNudge, welcomeState } from "@/modules/welcome/server";
+import { askForHelp } from "@/modules/help/server";
 import { removeStripeKeys, saveStripeKeys } from "@/modules/payments/server";
 import { listProducts } from "@/modules/products/server";
 import { saveCustomCode } from "@/modules/sites/custom-code";
@@ -66,6 +68,10 @@ const rows: Array<[string, MembershipRole, Call]> = [
   ["see contacts", "staff", (actorId, siteId) => listContacts({ actorId, siteId })],
   ["add a contact", "staff", (actorId, siteId) => createContact({ actorId, siteId, details: { name: `Contact by ${actorId}` } })],
   ["see duplicates", "staff", (actorId, siteId) => findDuplicates({ actorId, siteId })],
+  ["see the welcome", "staff", (actorId, siteId) => welcomeState({ actorId, siteId })],
+  ["finish the welcome", "staff", (actorId, siteId) => finishWelcome({ actorId, siteId })],
+  ["say not yet to the app", "staff", (actorId, siteId) => skipSecureNudge({ actorId, siteId })],
+  ["ask us for help", "staff", (actorId, siteId) => askForHelp({ actorId, siteId, input: {} })],
   ["preview the site before it's live", "staff", (actorId, siteId) => teamPreviewPass({ actorId, siteId })],
   // Managers: the shop and the site.
   ["refund an order", "manager", (actorId, siteId) => refundOrder({ actorId, siteId, orderId: noOrder, refund: {} })],

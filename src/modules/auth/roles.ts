@@ -38,7 +38,7 @@ export function sortByRole<T extends { role: MembershipRole; name: string }>(peo
 }
 
 /** The screens Staff open. Everything else in the admin needs a Manager. */
-const STAFF_SCREENS = ["/orders", "/inbox", "/contacts", "/account"];
+const STAFF_SCREENS = ["/orders", "/inbox", "/contacts", "/account", "/help"];
 
 /** May this role open this admin screen (a public path, like "/settings/shop")? */
 export function canOpen(role: MembershipRole | null | undefined, href: string): boolean {

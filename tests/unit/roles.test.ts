@@ -37,8 +37,8 @@ describe("ranks", () => {
 });
 
 describe("screens", () => {
-  test("staff see Home, Orders, the inbox, contacts and their own account", () => {
-    for (const href of ["/", "/orders", "/orders/abc", "/inbox", "/inbox/abc", "/contacts", "/contacts/merge", "/account"]) {
+  test("staff see Home, Orders, the inbox, contacts, their own account and Get help", () => {
+    for (const href of ["/", "/orders", "/orders/abc", "/inbox", "/inbox/abc", "/contacts", "/contacts/merge", "/account", "/help"]) {
       expect(canOpen("staff", href), href).toBe(true);
     }
     for (const href of ["/products", "/pages", "/pages/abc", "/media", "/forms", "/articles", "/menus", "/settings", "/settings/shop", "/team", "/activity", "/ordersx"]) {

@@ -73,6 +73,16 @@ const schema = z.object({
   OI_SUPPORT_EMAILS: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
 
   /**
+   * Get help (Stage 41): how clients reach output/input directly, shown under
+   * "Or reach us directly". All optional; whatever is unset isn't shown.
+   * Messages sent from Get help go to OI_SUPPORT_EMAILS either way — those
+   * sign-in addresses are never shown to clients.
+   */
+  OI_HELP_EMAIL: z.preprocess((v) => (v === "" ? undefined : v), z.email().optional()),
+  OI_HELP_PHONE: z.preprocess((v) => (v === "" ? undefined : v), z.string().max(40).optional()),
+  OI_HELP_HOURS: z.preprocess((v) => (v === "" ? undefined : v), z.string().max(200).optional()),
+
+  /**
    * Billing (Stage 39b): clients pay output/input for their plan through
    * O/I's own Stripe account — not theirs. A restricted key (Customers,
    * Checkout Sessions, Subscriptions, Customer portal: write; Invoices,

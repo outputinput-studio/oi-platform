@@ -47,8 +47,9 @@ export async function requestExport(p: { actorId: string; siteId: string; adminO
   if (Number(n) >= PER_DAY) throw new Error("You've asked for this a few times today. Use the link in your email, or try again tomorrow.");
 
   const token = randomBytes(32).toString("base64url");
+  const now = new Date();
   await withSite(p.siteId, (tx) =>
-    tx.insert(exportLinks).values({ siteId: p.siteId, tokenHash: hash(token), requestedBy: p.actorId, expiresAt: new Date(Date.now() + LINK_DAYS * 86_400_000) }),
+    tx.insert(exportLinks).values({ siteId: p.siteId, tokenHash: hash(token), requestedBy: p.actorId, createdAt: now, expiresAt: new Date(now.getTime() + LINK_DAYS * 86_400_000) }),
   );
   const [site] = await withSite(p.siteId, (tx) => tx.select({ name: sites.name }).from(sites).limit(1));
   const link = `${p.adminOrigin}/export/${p.siteId}/${token}`;
