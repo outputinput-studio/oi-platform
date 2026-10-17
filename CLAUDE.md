@@ -73,7 +73,8 @@ A refusal about one field throws `FieldError(field, message)`; a lone value is p
   once per site (`memberships.welcomed_at`), with Show me around; after it, anyone without the authenticator app is
   asked once ("Not yet" → `secure_nudged_at`). Get help (More, every role) emails OI_SUPPORT_EMAILS with who, the site
   and the screen (`?from=`); 10 a day each. "Or reach us directly" shows only OI_HELP_EMAIL / _PHONE / _HOURS — never
-  the support sign-in addresses.
+  the support sign-in addresses. O/I's phone, wherever it appears (admin, ops, O/I's own site): +61425799122 (Carl),
+  through OI_HELP_PHONE — never a number from a design prototype.
 - Forms that can come back with a mistake submit with `onSubmit={keepValues(act)}` (`src/app/admin/keep-values.ts`),
   so React 19 doesn't clear what was typed.
 - Invitations (`modules/team/invitations.ts`, RLS table): the only way onto a team from the admin. 14 days; the
