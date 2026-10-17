@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
+import { keepValues } from "../keep-values";
 import { FieldErrors } from "@/lib/field-errors";
 import {
   codeForOrderAction,
@@ -327,7 +328,7 @@ export function TrackForm({ accounts, signedIn }: { accounts: boolean; signedIn:
       </div>
     );
   return (
-    <form action={act} className="space-y-4">
+    <form onSubmit={keepValues(act)} className="space-y-4">
       <div>
         <Label htmlFor="track-number">Order number</Label>
         <input id="track-number" name="number" inputMode="numeric" autoComplete="off" required className={`${inputClass} font-mono`} />
@@ -364,7 +365,7 @@ export function DetailsForm({ initial }: { initial: { name: string; email: strin
   const verify = state.verify && !confirm.ok ? state.verify : undefined;
   return (
     <div className="space-y-6">
-      <form action={act} className="space-y-4">
+      <form onSubmit={keepValues(act)} className="space-y-4">
         <div>
           <Label htmlFor="details-name">Name</Label>
           <input id="details-name" name="name" defaultValue={initial.name} autoComplete="name" maxLength={120} className={inputClass} />

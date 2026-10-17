@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { sendCode, verifyCode, type SignInState } from "@/modules/auth/actions";
 import { Button, Input, Notice } from "../ui";
+import { keepValues } from "../../keep-values";
 
 /** What a sign-in error is about, for outlining it. */
 const CODE = ["code"];
@@ -21,7 +22,7 @@ export function SignInForm({ email = "" }: { email?: string }) {
 
   if (state.step === "code") {
     return (
-      <form action={act} className="space-y-5">
+      <form onSubmit={keepValues(act)} className="space-y-5">
         <input type="hidden" name="email" value={state.email} />
         <p className="text-[13.5px] leading-relaxed text-muted">
           If <span className="text-text">{state.email}</span> belongs to a site, a code is on its way. Didn&apos;t get one? Check
@@ -55,7 +56,7 @@ export function SignInForm({ email = "" }: { email?: string }) {
   }
 
   return (
-    <form action={act} className="space-y-5">
+    <form onSubmit={keepValues(act)} className="space-y-5">
       <div>
         <label htmlFor="field-email" className="label mb-2 block">
           Email

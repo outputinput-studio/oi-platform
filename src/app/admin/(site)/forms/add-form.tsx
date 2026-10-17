@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { createFormAction, type FormState } from "@/modules/forms/actions";
 import { Button, Field, Input, Notice, Sheet } from "../../ui";
+import { keepValues } from "../../../keep-values";
 
 /** "Add form" opens a sheet asking only for a name; the form starts with name, email and message. */
 export function AddForm() {
@@ -15,7 +16,7 @@ export function AddForm() {
       </Button>
       {open && (
         <Sheet title="Add a form" onClose={() => setOpen(false)}>
-          <form action={act} className="space-y-4">
+          <form onSubmit={keepValues(act)} className="space-y-4">
             <Field label="Form name" htmlFor="new-form-name" hint="Only you see this: Contact, Enquiry, Newsletter.">
               <Input id="new-form-name" name="name" required maxLength={80} autoFocus />
             </Field>

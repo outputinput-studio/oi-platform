@@ -75,8 +75,10 @@ A refusal about one field throws `FieldError(field, message)`; a lone value is p
   and the screen (`?from=`); 10 a day each. "Or reach us directly" shows only OI_HELP_EMAIL / _PHONE / _HOURS — never
   the support sign-in addresses. O/I's phone, wherever it appears (admin, ops, O/I's own site): +61425799122 (Carl),
   through OI_HELP_PHONE — never a number from a design prototype.
-- Forms that can come back with a mistake submit with `onSubmit={keepValues(act)}` (`src/app/admin/keep-values.ts`),
-  so React 19 doesn't clear what was typed.
+- Forms that can come back with a mistake submit with `onSubmit={keepValues(act)}` (`src/app/keep-values.ts`), so
+  React 19 doesn't clear what was typed — every admin, ops and sign-in form with boxes to fill, plus checkout, Track
+  my order and account details on the storefront. A new form does the same; one that should empty after success
+  closes (unmounts) or resets itself.
 - Invitations (`modules/team/invitations.ts`, RLS table): the only way onto a team from the admin. 14 days; the
   link (`/join/[token]`, found through `resolve_invitation()`) adds the invited address as its role, then hands on
   to the emailed code. An expired link asks for a new one itself, sent to the invited address.

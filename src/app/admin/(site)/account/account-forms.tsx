@@ -13,6 +13,7 @@ import type { SignedIn } from "@/modules/auth/sessions";
 import { timeAgo } from "@/lib/time";
 import { Button, Card, Field, Input, Notice, Pill, Sheet } from "../../ui";
 import { RecoveryCodes } from "../../recovery-codes";
+import { keepValues } from "../../../keep-values";
 
 export function NameForm({ name }: { name: string }) {
   const [value, setValue] = useState(name);
@@ -23,7 +24,7 @@ export function NameForm({ name }: { name: string }) {
     return r;
   }, {} as AccountState);
   return (
-    <form action={act} className="space-y-3">
+    <form onSubmit={keepValues(act)} className="space-y-3">
       <Field label="Name" htmlFor="acc-name" hint="What the team sees: on Team, and in Activity.">
         <Input id="acc-name" name="name" value={value} maxLength={80} required onChange={(e) => setValue(e.target.value)} />
       </Field>
@@ -57,7 +58,7 @@ function CodeSheet({ title, intro, submit, danger, action, onClose }: { title: s
           </Button>
         </div>
       ) : (
-        <form action={act} className="space-y-4">
+        <form onSubmit={keepValues(act)} className="space-y-4">
           <p className="text-[14px] leading-relaxed text-body">{intro}</p>
           <Field label="Code from your app" htmlFor="sheet-code">
             <Input id="sheet-code" name="code" type="text" inputMode="numeric" autoComplete="one-time-code" required autoFocus className="font-mono tracking-[3px]" />
@@ -154,7 +155,7 @@ export function SessionRow({ session }: { session: SignedIn }) {
 export function SignOutOthers() {
   const [state, act, pending] = useActionState(signOutOthersAction, {} as AccountState);
   return (
-    <form action={act} className="space-y-2">
+    <form onSubmit={keepValues(act)} className="space-y-2">
       <Button type="submit" variant="danger" disabled={pending}>
         {pending ? "Signing out…" : "Sign out everywhere else"}
       </Button>

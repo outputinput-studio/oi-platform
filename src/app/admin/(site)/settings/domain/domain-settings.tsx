@@ -4,6 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 import { checkDomainAction, connectDomainAction, disconnectDomainAction, hideSiteAction, launchSiteAction, setDomainWwwAction, type DomainFormState } from "@/modules/sites/domain-actions";
 import type { DomainView } from "@/modules/sites/domain";
 import { Button, Card, Field, Input, Label, Notice, Pill } from "../../../ui";
+import { keepValues } from "../../../../keep-values";
 
 /**
  * Settings · Domain, as in design/admin.html: the address the site has now
@@ -39,7 +40,7 @@ function Connect({ canEdit }: { canEdit: boolean }) {
   return (
     <section>
       <Label>Your own domain</Label>
-      <form action={act} className="space-y-3">
+      <form onSubmit={keepValues(act)} className="space-y-3">
         <Field label="Domain" htmlFor="d-domain" hint="The one you bought, like kinikouture.com.au. No domain yet? Any registrar sells them — Crazy Domains, VentraIP, Namecheap.">
           <Input id="d-domain" name="domain" placeholder="kinikouture.com.au" autoComplete="off" autoCapitalize="none" spellCheck={false} readOnly={!canEdit} className="font-mono" />
         </Field>

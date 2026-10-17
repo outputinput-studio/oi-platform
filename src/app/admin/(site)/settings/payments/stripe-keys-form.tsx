@@ -3,12 +3,13 @@
 import { useActionState } from "react";
 import { saveStripeKeysAction, type PaymentsFormState } from "@/modules/payments/actions";
 import { Button, Field, Input, Notice } from "../../../ui";
+import { keepValues } from "../../../../keep-values";
 
 /** The two keys. Password boxes, never filled back in: what's saved stays out of the page. */
 export function StripeKeysForm({ hasKeys }: { hasKeys: boolean }) {
   const [state, act, pending] = useActionState(saveStripeKeysAction, {} as PaymentsFormState);
   return (
-    <form action={act} className="space-y-4" autoComplete="off">
+    <form onSubmit={keepValues(act)} className="space-y-4" autoComplete="off">
       <Field label="Secret key" htmlFor="stripe-secret" hint="Starts rk_live_ or sk_live_ (rk_test_ / sk_test_ while you're testing).">
         <Input id="stripe-secret" name="secretKey" type="password" required autoComplete="off" spellCheck={false} className="font-mono" />
       </Field>

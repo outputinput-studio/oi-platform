@@ -3,13 +3,14 @@
 import { useActionState, useState } from "react";
 import { verifyAppCode, type AppCodeState } from "@/modules/auth/actions";
 import { Button, Input, Notice } from "../../ui";
+import { keepValues } from "../../../keep-values";
 
 /** The app's six digits, or a recovery code when the phone isn't to hand. */
 export function AppCodeForm() {
   const [state, act, pending] = useActionState(verifyAppCode, {} as AppCodeState);
   const [recovery, setRecovery] = useState(false);
   return (
-    <form action={act} className="space-y-5">
+    <form onSubmit={keepValues(act)} className="space-y-5">
       <div>
         <label htmlFor="field-app-code" className="label mb-2 block">
           {recovery ? "Recovery code" : "Code from your app"}

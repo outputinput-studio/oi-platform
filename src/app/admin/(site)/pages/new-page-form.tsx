@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { createPageAction, type FormState } from "@/modules/pages/actions";
 import { slugFromTitle } from "@/modules/pages/slug";
 import { Button, Field, Input, Notice } from "../../ui";
+import { keepValues } from "../../../keep-values";
 
 export function NewPageForm({ suggestHome }: { suggestHome: boolean }) {
   const [state, act, pending] = useActionState(createPageAction, {} as FormState);
@@ -12,7 +13,7 @@ export function NewPageForm({ suggestHome }: { suggestHome: boolean }) {
   const [slugTouched, setSlugTouched] = useState(suggestHome);
 
   return (
-    <form action={act} className="space-y-4">
+    <form onSubmit={keepValues(act)} className="space-y-4">
       <Field label="Title" htmlFor="new-title">
         <Input
           id="new-title"

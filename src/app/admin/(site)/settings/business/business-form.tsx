@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { updateBusinessAction, type SettingsFormState } from "@/modules/sites/actions";
 import type { Business } from "@/modules/sites/business";
 import { Field, Input, SaveBar, Textarea } from "../../../ui";
+import { keepValues } from "../../../../keep-values";
 
 /** Who the business is. Each field says where it shows, so nothing turns up somewhere unexpected. */
 export function BusinessForm({ initial, siteName, canEdit }: { initial: Business; siteName: string; canEdit: boolean }) {
@@ -18,7 +19,7 @@ export function BusinessForm({ initial, siteName, canEdit }: { initial: Business
   const set = (k: keyof Business) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setV({ ...v, [k]: e.target.value });
 
   return (
-    <form action={act} className="space-y-5">
+    <form onSubmit={keepValues(act)} className="space-y-5">
       <Field label="Trading name" htmlFor="b-name" hint={`The name customers know. Signs your emails and receipts. Empty uses "${siteName}".`}>
         <Input id="b-name" name="tradingName" value={v.tradingName} maxLength={120} readOnly={!canEdit} placeholder={siteName} onChange={set("tradingName")} />
       </Field>

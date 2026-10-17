@@ -28,6 +28,13 @@ test("a miss shows up, gets a rule, and the rule works — for any depth of path
   await expect(miss).toContainText("from instagram.com");
   await miss.getByRole("button", { name: "Redirect this" }).click();
   await expect(page.getByLabel("From")).toHaveValue("/shop/teal-bikini.html");
+  // A mistake keeps what was typed (keepValues) and points at the box at fault.
+  await page.getByLabel("To").fill("/shop/teal-bikini.html");
+  await page.getByRole("button", { name: "Save rule" }).click();
+  await expect(page.getByText("That would send people round in a circle.")).toBeVisible();
+  await expect(page.getByLabel("To")).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByLabel("To")).toHaveValue("/shop/teal-bikini.html");
+  await expect(page.getByLabel("From")).toHaveValue("/shop/teal-bikini.html");
   await page.getByLabel("To").fill("/about-us");
   await page.getByRole("button", { name: "Save rule" }).click();
   await expect(page.getByTestId("not-found").filter({ hasText: "/shop/teal-bikini.html" })).toHaveCount(0);

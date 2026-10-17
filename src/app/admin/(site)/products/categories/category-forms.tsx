@@ -5,6 +5,7 @@ import { createProductCategoryAction as createCategoryAction, deleteProductCateg
 import { slugFromTitle } from "@/modules/pages/slug";
 import { Button, Card, Field, Input, Notice, Sheet, Textarea } from "../../../ui";
 import { SortableItem, SortableList } from "../../../sortable";
+import { keepValues } from "../../../../keep-values";
 
 export type CategoryCard = { id: string; name: string; slug: string; description: string; productCount: number };
 
@@ -41,7 +42,7 @@ export function NewCategorySheet({ onClose, onCreated }: { onClose: () => void; 
   }, {} as CategoryFormState);
   return (
     <Sheet title="Add a category" onClose={onClose}>
-      <form action={act} className="space-y-4">
+      <form onSubmit={keepValues(act)} className="space-y-4">
         <Field label="Name" htmlFor="c-name">
           <Input
             id="c-name"
@@ -147,7 +148,7 @@ function CategoryItem({ category: c, siteHost, handle }: { category: CategoryCar
       </Card>
       {open && (
         <Sheet title="Edit category" onClose={() => setOpen(false)}>
-          <form action={act} className="space-y-4">
+          <form onSubmit={keepValues(act)} className="space-y-4">
             <input type="hidden" name="categoryId" value={c.id} />
             <Field label="Name" htmlFor={`e-name-${c.id}`}>
               <Input id={`e-name-${c.id}`} name="name" defaultValue={c.name} required maxLength={80} />

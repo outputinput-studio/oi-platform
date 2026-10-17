@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { updateStatusNamesAction, type SettingsFormState } from "@/modules/sites/actions";
 import { DEFAULT_STATUS_NAMES, type StatusKey } from "@/modules/sites/shop";
 import { Field, Input, SaveBar } from "../../../ui";
+import { keepValues } from "../../../../keep-values";
 
 const ORDER: StatusKey[] = ["new", "inProgress", "sent", "done"];
 
@@ -19,7 +20,7 @@ export function StatusesForm({ initial, canEdit }: { initial: Record<StatusKey, 
   const dirty = JSON.stringify(v) !== JSON.stringify(saved);
 
   return (
-    <form action={act} className="space-y-4">
+    <form onSubmit={keepValues(act)} className="space-y-4">
       <p className="text-[14px] leading-[1.55] text-body">Four stages, in this order. Rename them to the words you use — they show on orders and in the app.</p>
       {ORDER.map((k) => (
         <Field key={k} label={`Default: ${DEFAULT_STATUS_NAMES[k]}`} htmlFor={`st-${k}`}>

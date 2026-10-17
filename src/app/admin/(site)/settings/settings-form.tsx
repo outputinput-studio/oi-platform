@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { renameSiteAction, type SettingsFormState } from "@/modules/sites/actions";
 import { Field, Input, SaveBar } from "../../ui";
+import { keepValues } from "../../../keep-values";
 
 export function SettingsForm({ name, slug, canEdit }: { name: string; slug: string; canEdit: boolean }) {
   const [saved, setSaved] = useState(name);
@@ -14,7 +15,7 @@ export function SettingsForm({ name, slug, canEdit }: { name: string; slug: stri
   }, {} as SettingsFormState);
 
   return (
-    <form action={act} className="space-y-4">
+    <form onSubmit={keepValues(act)} className="space-y-4">
       <Field label="Site name" htmlFor="site-name" hint={`Shown in the admin and on the site. The address stays ${slug}.`}>
         <Input id="site-name" name="name" value={value} maxLength={80} required readOnly={!canEdit} onChange={(e) => setValue(e.target.value)} />
       </Field>

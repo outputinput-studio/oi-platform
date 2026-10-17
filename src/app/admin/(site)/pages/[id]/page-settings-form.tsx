@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { updatePageAction, type FormState } from "@/modules/pages/actions";
 import { Field, Input, SaveBar } from "../../../ui";
+import { keepValues } from "../../../../keep-values";
 
 /** The page's address. Saves on demand from the floating bar; Save is live only while it differs from what's saved. */
 export function PageSettingsForm({ pageId, slug, isHome }: { pageId: string; slug: string; isHome: boolean }) {
@@ -15,7 +16,7 @@ export function PageSettingsForm({ pageId, slug, isHome }: { pageId: string; slu
   }, {} as FormState);
 
   return (
-    <form action={act}>
+    <form onSubmit={keepValues(act)}>
       <input type="hidden" name="pageId" value={pageId} />
       <Field
         label="Address"

@@ -4,6 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 import { checkSendingDomainAction, removeSendingDomainAction, setUpSendingDomainAction, type DomainFormState } from "@/modules/sites/domain-actions";
 import type { SendDomainView } from "@/modules/sites/sending-domain";
 import { Button, Card, Field, Input, Label, Notice, Pill } from "../../../ui";
+import { keepValues } from "../../../../keep-values";
 
 const STATUS: Record<string, { tone: "success" | "warning" | "alert" | "neutral"; text: string }> = {
   verified: { tone: "success", text: "Sending from it" },
@@ -33,7 +34,7 @@ export function SendingDomainCard({ view, suggested, canEdit }: { view: SendDoma
             <p className="mt-0.5 text-[12.5px] leading-[1.5] text-muted">Sending from your own domain needs email switched on for the whole platform first. output/input is on it; this turns on by itself when it&apos;s done.</p>
           </Card>
         ) : (
-          <form action={act} className="space-y-3">
+          <form onSubmit={keepValues(act)} className="space-y-3">
             <p className="text-[13px] leading-[1.5] text-body">Emails to customers come from your own address, like orders@{suggested || "yourdomain.com.au"}, and are less likely to land in junk. You&apos;ll add three records to the domain&apos;s DNS.</p>
             <div className="grid grid-cols-[140px_1fr] gap-3">
               <Field label="Address" htmlFor="sd-local">
