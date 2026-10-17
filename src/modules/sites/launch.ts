@@ -1,9 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { withSite } from "@/db/client";
 import { sites, type Site } from "@/db/schema";
 import { env } from "@/lib/env";
 import { AccessError, assertAccess } from "@/modules/auth/access";
+import { recordActivity } from "@/modules/activity/server";
 
 /**
  * Going live (Settings · Domain). Until an owner launches a site, visitors
@@ -45,7 +46,10 @@ export function siteVisible(site: Pick<Site, "id" | "launchedAt">, pass: string 
 /** Owners hide a live site again: visitors get the holding page, search engines are kept out, previews still work. */
 export async function hideSite(p: { actorId: string; siteId: string }): Promise<void> {
   await assertAccess(p.actorId, p.siteId, "owner");
-  await withSite(p.siteId, (tx) => tx.update(sites).set({ launchedAt: null }).where(eq(sites.id, p.siteId)));
+  await withSite(p.siteId, async (tx) => {
+    const hidden = await tx.update(sites).set({ launchedAt: null }).where(and(eq(sites.id, p.siteId), isNotNull(sites.launchedAt))).returning({ id: sites.id });
+    if (hidden.length) await recordActivity(tx, p.siteId, p.actorId, { action: "hid the site behind the holding page", href: "/settings/domain" });
+  });
 }
 
 /** Owners launch the site: from now on everyone sees it. Launching twice keeps the first date; after hiding, it starts afresh. */
@@ -56,6 +60,7 @@ export async function launchSite(p: { actorId: string; siteId: string }): Promis
     if (!cur) throw new AccessError("That site doesn't exist.");
     if (cur.launchedAt) return cur.launchedAt;
     const [s] = await tx.update(sites).set({ launchedAt: new Date() }).where(eq(sites.id, p.siteId)).returning({ launchedAt: sites.launchedAt });
+    await recordActivity(tx, p.siteId, p.actorId, { action: "launched the site", href: "/settings/domain" });
     return s.launchedAt!;
   });
 }

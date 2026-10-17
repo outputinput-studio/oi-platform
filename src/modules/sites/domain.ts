@@ -7,6 +7,7 @@ import { cleanDomain, hostsFor, isApex, recordsFor, DEFAULT_A, DEFAULT_CNAME, ty
 import { FieldError } from "@/lib/form-error";
 import { addProjectDomain, domainConfig, getProjectDomain, ourProjectDomain, removeProjectDomain, setRedirect, vercelConfig, VercelError, type VercelConfig } from "@/lib/vercel";
 import { AccessError, assertAccess } from "@/modules/auth/access";
+import { logActivity, recordActivity } from "@/modules/activity/server";
 
 /**
  * Settings · Domain (design/admin.html): the client's own domain. Owners
@@ -138,6 +139,7 @@ export async function connectDomain(p: { actorId: string; siteId: string; domain
       throw new Error("Couldn't connect it just now. Try again in a minute.");
     }
   }
+  await logActivity(p.siteId, p.actorId, { action: "connected {s}", subject: hostsFor(clean.domain, www).primary, href: "/settings/domain" });
   return domainStatus({ actorId: p.actorId, siteId: p.siteId, lookup: p.lookup });
 }
 
@@ -158,7 +160,10 @@ export async function setDomainWww(p: { actorId: string; siteId: string; www: bo
     await setRedirect(cfg, primary, null);
     await setRedirect(cfg, other, primary);
   }
-  await withSite(p.siteId, (tx) => tx.update(sites).set({ domainWww: p.www }).where(eq(sites.id, p.siteId)));
+  await withSite(p.siteId, async (tx) => {
+    await tx.update(sites).set({ domainWww: p.www }).where(eq(sites.id, p.siteId));
+    await recordActivity(tx, p.siteId, p.actorId, { action: "made {s} the main address", subject: primary, href: "/settings/domain" });
+  });
   return domainStatus(p);
 }
 
@@ -173,5 +178,8 @@ export async function disconnectDomain(p: { actorId: string; siteId: string }): 
     if (other) await removeProjectDomain(cfg, other);
     await removeProjectDomain(cfg, primary);
   }
-  await withSite(p.siteId, (tx) => tx.update(sites).set({ domain: null, domainWww: false, domainOkAt: null }).where(eq(sites.id, p.siteId)));
+  await withSite(p.siteId, async (tx) => {
+    await tx.update(sites).set({ domain: null, domainWww: false, domainOkAt: null }).where(eq(sites.id, p.siteId));
+    await recordActivity(tx, p.siteId, p.actorId, { action: "disconnected {s}", subject: hostsFor(site.domain!, site.domainWww).primary, href: "/settings/domain" });
+  });
 }

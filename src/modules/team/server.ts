@@ -5,6 +5,7 @@ import { AccessError, assertAccess } from "@/modules/auth/access";
 import { sendEmail } from "@/lib/email";
 import { z } from "zod";
 import { named } from "@/lib/form-error";
+import { logActivity } from "@/modules/activity/server";
 
 /**
  * A site's team: who belongs, as what. Memberships and users are platform
@@ -79,6 +80,8 @@ export async function addMember(p: {
     return { userId: user.id, name: user.name, email: user.email, role: m.role, since: m.createdAt, accountCreated, added: true };
   });
 
+  if (result.added) await logActivity(p.siteId, p.actorId, { action: `added {s} to the team as ${result.role === "owner" ? "an owner" : "staff"}`, subject: result.email, href: "/team" });
+
   // The invitation goes after the membership is in: a failed email never
   // undoes the add, it just tells the owner to pass the word on themselves.
   let emailed = false;
@@ -119,14 +122,23 @@ export async function setRole(p: { actorId: string; siteId: string; userId: stri
       .returning({ id: memberships.id });
     if (!r.length) throw new AccessError("That person isn't on this site.");
   });
+  await logActivity(p.siteId, p.actorId, { action: `made {s} ${role === "owner" ? "an owner" : "staff"}`, subject: await personName(p.userId), href: "/team" });
+}
+
+/** Who someone is, in Activity: their name, or their email when they haven't given one. */
+async function personName(userId: string): Promise<string> {
+  const [u] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
+  return u ? u.name || u.email : "someone";
 }
 
 export async function removeMember(p: { actorId: string; siteId: string; userId: string }): Promise<void> {
   await assertAccess(p.actorId, p.siteId, "owner");
-  await db.transaction(async (tx) => {
+  const who = await personName(p.userId);
+  const gone = await db.transaction(async (tx) => {
     await assertNotLastOwner(tx, p.siteId, p.userId);
-    await tx.delete(memberships).where(and(eq(memberships.userId, p.userId), eq(memberships.siteId, p.siteId)));
+    return tx.delete(memberships).where(and(eq(memberships.userId, p.userId), eq(memberships.siteId, p.siteId))).returning({ id: memberships.id });
   });
+  if (gone.length) await logActivity(p.siteId, p.actorId, { action: "took {s} off the team", subject: who, href: "/team" });
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { timeAgo } from "@/lib/time";
 import { requireSiteAccess } from "@/modules/auth/access";
-import { listContacts } from "@/modules/contacts/server";
-import { Card, PageHeader } from "../../ui";
+import { findDuplicates, listContacts } from "@/modules/contacts/server";
+import { Card, Chevron, PageHeader } from "../../ui";
 import { AddContact } from "./add-contact";
 import { SearchBox } from "./search-box";
 import { Avatar } from "../nav";
@@ -17,13 +17,26 @@ export const dynamic = "force-dynamic";
 export default async function ContactsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q = "" } = await searchParams;
   const { user, site } = await requireSiteAccess();
-  const rows = await listContacts({ actorId: user.id, siteId: site.id, q });
+  const [rows, dups] = await Promise.all([listContacts({ actorId: user.id, siteId: site.id, q }), q ? Promise.resolve([]) : findDuplicates({ actorId: user.id, siteId: site.id })]);
 
   return (
     <>
       <PageHeader title="Contacts" back="/" actions={<AddContact />} />
       <div className="pt-4 md:pt-5">
         <SearchBox initial={q} />
+        {dups.length > 0 && (
+          <Link
+            href={dups.length === 1 ? `/contacts/merge?a=${dups[0].a.id}&b=${dups[0].b.id}` : "/contacts/duplicates"}
+            data-testid="duplicates-banner"
+            className="mt-3 flex items-center gap-2.5 rounded-card border border-line bg-panel px-4 py-3 text-[14px] text-text hover:border-accent"
+          >
+            <span className="h-2 w-2 flex-none rounded-full bg-warning" aria-hidden />
+            <span className="flex-1">
+              {dups.length} possible duplicate{dups.length === 1 ? "" : "s"}
+            </span>
+            <Chevron />
+          </Link>
+        )}
         <div className="mt-4">
           {rows.length === 0 ? (
             <Card variant="static" className="px-5 py-8 text-center">

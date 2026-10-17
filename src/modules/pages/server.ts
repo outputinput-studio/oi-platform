@@ -11,6 +11,7 @@ import { autoRedirect } from "@/modules/redirects/server";
 import { readSearchSettings } from "@/modules/sites/search";
 import { FieldError, named } from "@/lib/form-error";
 import { likePattern } from "@/lib/search";
+import { recordActivity } from "@/modules/activity/server";
 
 /**
  * Pages and their sections. Every function authorises the actor, then
@@ -69,6 +70,7 @@ export async function createPage(p: { actorId: string; siteId: string; title: st
       .from(pages)
       .where(isNull(pages.deletedAt));
     const [page] = await tx.insert(pages).values({ siteId: p.siteId, title, slug, position: next }).returning();
+    await recordActivity(tx, p.siteId, p.actorId, { action: "added the page {s}", subject: title, href: `/pages/${page.id}` });
     return page;
   });
 }
@@ -98,6 +100,7 @@ export async function updatePage(p: {
     if (patch.slug && patch.slug !== page.slug && isLive(page) && (await wantsAutoRedirect(tx))) {
       await autoRedirect(tx, { siteId: p.siteId, from: `/${page.slug}`, to: patch.slug === HOME_SLUG ? "/" : `/${patch.slug}` });
     }
+    await recordActivity(tx, p.siteId, p.actorId, { action: "edited the page {s}", subject: updated.title, href: `/pages/${page.id}`, key: `page:${page.id}` });
     return updated;
   });
 }
@@ -123,6 +126,10 @@ export async function setPageStatus(p: {
       })
       .where(eq(pages.id, page.id))
       .returning();
+    if (p.status !== page.status) {
+      const action = p.status === "published" ? "published the page {s}" : p.status === "scheduled" ? "scheduled the page {s}" : "took the page {s} offline";
+      await recordActivity(tx, p.siteId, p.actorId, { action, subject: page.title, href: `/pages/${page.id}` });
+    }
     return updated;
   });
 }
@@ -134,6 +141,7 @@ export async function deletePage(p: { actorId: string; siteId: string; pageId: s
     const page = await loadPage(tx, p.pageId);
     if (page.slug === HOME_SLUG) throw new AccessError("The home page can't be deleted. Unpublish it instead.");
     await tx.update(pages).set({ deletedAt: new Date() }).where(eq(pages.id, page.id));
+    await recordActivity(tx, p.siteId, p.actorId, { action: "removed the page {s}", subject: page.title });
   });
 }
 
@@ -164,7 +172,7 @@ export async function addSection(p: {
       .values({ siteId: p.siteId, pageId: page.id, type: p.type, data, position })
       .returning();
     await renumber(tx, page.id, [...existing.slice(0, position), created, ...existing.slice(position)]);
-    await touch(tx, page.id);
+    await touch(tx, page.id, p);
     return { ...created, position };
   });
 }
@@ -184,7 +192,7 @@ export async function updateSection(p: {
       .set({ data, updatedAt: new Date() })
       .where(eq(sections.id, section.id))
       .returning();
-    await touch(tx, section.pageId);
+    await touch(tx, section.pageId, p);
     return updated;
   });
 }
@@ -204,7 +212,7 @@ export async function moveSection(p: {
     if (j < 0 || j >= list.length) return;
     [list[i], list[j]] = [list[j], list[i]];
     await renumber(tx, section.pageId, list);
-    await touch(tx, section.pageId);
+    await touch(tx, section.pageId, p);
   });
 }
 
@@ -224,7 +232,7 @@ export async function reorderSections(p: { actorId: string; siteId: string; page
     }
     const byId = new Map(list.map((s) => [s.id, s]));
     await renumber(tx, page.id, p.order.map((id) => byId.get(id)!));
-    await touch(tx, page.id);
+    await touch(tx, page.id, p);
   });
 }
 
@@ -234,7 +242,7 @@ export async function removeSection(p: { actorId: string; siteId: string; sectio
     const section = await loadSection(tx, p.sectionId);
     await tx.update(sections).set({ deletedAt: new Date() }).where(eq(sections.id, section.id));
     await renumber(tx, section.pageId, (await liveSections(tx, section.pageId)).filter((s) => s.id !== section.id));
-    await touch(tx, section.pageId);
+    await touch(tx, section.pageId, p);
   });
 }
 
@@ -329,8 +337,10 @@ async function renumber(tx: Tx, pageId: string, ordered: Section[]) {
   void pageId;
 }
 
-async function touch(tx: Tx, pageId: string) {
-  await tx.update(pages).set({ updatedAt: new Date() }).where(eq(pages.id, pageId));
+/** The page changed: its time moves on, and Activity says who edited it (one line per page per half hour). */
+async function touch(tx: Tx, pageId: string, by: { siteId: string; actorId: string }) {
+  const [page] = await tx.update(pages).set({ updatedAt: new Date() }).where(eq(pages.id, pageId)).returning({ title: pages.title });
+  if (page) await recordActivity(tx, by.siteId, by.actorId, { action: "edited the page {s}", subject: page.title, href: `/pages/${pageId}`, key: `page:${pageId}` });
 }
 
 async function assertSlugFree(tx: Tx, slug: string) {

@@ -7,6 +7,7 @@ import { environmentName } from "@/lib/env";
 import { decryptSecret, encryptSecret } from "@/lib/secrets";
 import { readPayments, secretKeySchema, webhookSecretSchema, type PaymentsSettings, type Provider } from "./settings";
 import { named } from "@/lib/form-error";
+import { logActivity } from "@/modules/activity/server";
 
 /**
  * Taking payments: each client uses their own Stripe account. They put
@@ -94,6 +95,7 @@ export async function saveStripeKeys(p: { actorId: string; siteId: string; secre
     ...account,
   };
   await save(p.siteId, next);
+  await logActivity(p.siteId, p.actorId, { action: next.livemode ? "connected Stripe {s}" : "connected Stripe in test mode {s}", subject: `(key ending ${next.keyLast4})`, href: "/settings/payments" });
   return paymentsStatus({ payments: next });
 }
 
@@ -113,6 +115,7 @@ export async function refreshStripeAccount(p: { actorId: string; siteId: string 
 export async function removeStripeKeys(p: { actorId: string; siteId: string }): Promise<void> {
   await assertAccess(p.actorId, p.siteId, "owner");
   await save(p.siteId, readPayments({}));
+  await logActivity(p.siteId, p.actorId, { action: "took the Stripe keys out", href: "/settings/payments" });
 }
 
 async function loadSite(siteId: string): Promise<Site> {

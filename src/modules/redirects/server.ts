@@ -4,6 +4,7 @@ import { withSite, type Tx } from "@/db/client";
 import { notFoundHits, redirects, type NotFoundHit, type Redirect } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { FieldError, named } from "@/lib/form-error";
+import { recordActivity } from "@/modules/activity/server";
 
 /**
  * Redirects and the not-found log. The team side authorises first; the
@@ -52,13 +53,18 @@ export async function addRedirect(p: { actorId: string; siteId: string; from: st
       .returning();
     // A redirected address is no longer "not found".
     await tx.delete(notFoundHits).where(eq(notFoundHits.path, from));
+    await recordActivity(tx, p.siteId, p.actorId, { action: "sent {s} somewhere new", subject: from, href: "/settings/redirects" });
     return row;
   });
 }
 
 export async function removeRedirect(p: { actorId: string; siteId: string; redirectId: string }): Promise<void> {
   await assertAccess(p.actorId, p.siteId);
-  const [row] = await withSite(p.siteId, (tx) => tx.delete(redirects).where(eq(redirects.id, p.redirectId)).returning({ id: redirects.id }));
+  const [row] = await withSite(p.siteId, async (tx) => {
+    const rows = await tx.delete(redirects).where(eq(redirects.id, p.redirectId)).returning({ id: redirects.id, fromPath: redirects.fromPath });
+    if (rows[0]) await recordActivity(tx, p.siteId, p.actorId, { action: "stopped redirecting {s}", subject: rows[0].fromPath, href: "/settings/redirects" });
+    return rows;
+  });
   if (!row) throw new AccessError("That rule doesn't exist.");
 }
 

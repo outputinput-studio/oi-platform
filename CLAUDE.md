@@ -42,6 +42,12 @@ A refusal about one field throws `FieldError(field, message)`; a lone value is p
   its own `<site_id>/` folder; local disk when R2 isn't configured outside production), rows in `media` (RLS).
   Sections reference an image by storage `key`, never by URL: the public address comes from `R2_PUBLIC_URL` at
   render time, so the bucket's domain can change without touching a page. The browser shrinks photos before upload.
+- `src/modules/activity` — Activity (More → Activity): everything the team changed, and who. A module function that
+  changes something calls `recordActivity(tx, siteId, actorId, { action: "moved order 1041 to {s}", subject, href, key })`
+  inside the same transaction (`logActivity` when the change wasn't in one). `key` folds a run of edits to one thing by
+  one person into one line (half an hour); `{n}` counts ("added {n} photos"). New changes get a line too.
+- `src/modules/contacts` — contacts, plus Merge contacts (`duplicates.ts`: the same phone or full name; "different
+  people" is remembered). A merged contact is soft deleted with `merged_into`, so its old link lands on the survivor.
 - `src/modules/customers` — storefront customer accounts and Track my order (design/storefront-accounts.html). Its own
   small sign-in, not Better Auth: customers belong to one site (RLS), staff don't. Codes are HMAC'd, session tokens
   SHA-256'd, passwords scrypt'd (node:crypto only); guessing is slowed by `throttles` (5 misses → 2 min, doubling to an

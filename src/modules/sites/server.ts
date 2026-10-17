@@ -1,6 +1,6 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { db, withSite } from "@/db/client";
+import { db, withSite, type Tx } from "@/db/client";
 import { forms, sites, type Site } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { parseTheme, readTheme, themeSchema, type Theme } from "./theme";
@@ -10,6 +10,7 @@ import { readShipping, shippingSchema, type Shipping } from "./shipping";
 import { businessSchema, sendingSchema, type Business, type Sending } from "./business";
 import { DEFAULT_TEMPLATES, TEMPLATE_KEYS, notifySchema, readMessages, recipientsSchema, templatesSchema, type Messages } from "./messages";
 import { named } from "@/lib/form-error";
+import { recordActivity } from "@/modules/activity/server";
 
 /**
  * A site's own settings. Everything here runs inside withSite(), so the
@@ -28,11 +29,18 @@ export async function siteSettings(p: { actorId: string; siteId: string }): Prom
 export async function renameSite(p: { actorId: string; siteId: string; name: string }): Promise<Site> {
   await assertAccess(p.actorId, p.siteId, "owner");
   const name = named("name", nameSchema, p.name);
-  const [site] = await withSite(p.siteId, (tx) =>
-    tx.update(sites).set({ name }).where(eq(sites.id, p.siteId)).returning(),
-  );
+  const [site] = await withSite(p.siteId, async (tx) => {
+    const rows = await tx.update(sites).set({ name }).where(eq(sites.id, p.siteId)).returning();
+    if (rows[0]) await recordActivity(tx, p.siteId, p.actorId, { action: "renamed the site to {s}", subject: name, href: "/settings/site", key: "settings:/settings/site" });
+    return rows;
+  });
   if (!site) throw new AccessError("That site doesn't exist.");
   return site;
+}
+
+/** One settings screen saved: a line in Activity, folded while the same person keeps tweaking it. */
+async function settingsChanged(tx: Tx, p: { siteId: string; actorId: string }, screen: string, href: string): Promise<void> {
+  await recordActivity(tx, p.siteId, p.actorId, { action: "changed {s}", subject: `Settings · ${screen}`, href, key: `settings:${href}` });
 }
 
 /** The site's look, with defaults filled in. */
@@ -41,7 +49,7 @@ export function siteTheme(site: Pick<Site, "theme">): Theme {
 }
 
 /** Owners change how the storefront looks. Validated against themeSchema; unknown keys are dropped. */
-export async function updateTheme(p: { actorId: string; siteId: string; theme: unknown }): Promise<Theme> {
+export async function updateTheme(p: { actorId: string; siteId: string; theme: unknown; screen?: [string, string] }): Promise<Theme> {
   await assertAccess(p.actorId, p.siteId, "owner");
   // Only what's sent changes: Branding and Footer each save their own part. (Each part is checked
   // on its own; a schema-wide partial would fill the parts not sent with their defaults.)
@@ -57,6 +65,8 @@ export async function updateTheme(p: { actorId: string; siteId: string; theme: u
       if (!f) throw new AccessError("That form isn't on this site.");
     }
     await tx.update(sites).set({ theme }).where(eq(sites.id, p.siteId));
+    const [screen, href] = p.screen ?? ["Branding", "/settings/branding"];
+    await settingsChanged(tx, p, screen, href);
     return theme;
   });
 }
@@ -68,7 +78,7 @@ export async function updateTheme(p: { actorId: string; siteId: string; theme: u
 export async function updateFooter(p: { actorId: string; siteId: string; footer: unknown; social: unknown }): Promise<{ theme: Theme; search: SearchSettings }> {
   await assertAccess(p.actorId, p.siteId, "owner");
   const social = named("social", socialSchema, p.social ?? {});
-  const theme = await updateTheme({ actorId: p.actorId, siteId: p.siteId, theme: { footer: p.footer } });
+  const theme = await updateTheme({ actorId: p.actorId, siteId: p.siteId, theme: { footer: p.footer }, screen: ["Footer", "/settings/footer"] });
   return withSite(p.siteId, async (tx) => {
     const [cur] = await tx.select({ search: sites.search }).from(sites).where(eq(sites.id, p.siteId)).limit(1);
     const search = readSearchSettings(cur?.search);
@@ -105,7 +115,11 @@ export function siteSearch(site: Pick<Site, "search">): SearchSettings {
 export async function updateSearchSettings(p: { actorId: string; siteId: string; settings: unknown }): Promise<SearchSettings> {
   await assertAccess(p.actorId, p.siteId, "owner");
   const settings = searchSettingsSchema.parse(p.settings);
-  const [site] = await withSite(p.siteId, (tx) => tx.update(sites).set({ search: settings }).where(eq(sites.id, p.siteId)).returning());
+  const [site] = await withSite(p.siteId, async (tx) => {
+    const rows = await tx.update(sites).set({ search: settings }).where(eq(sites.id, p.siteId)).returning();
+    if (rows[0]) await settingsChanged(tx, p, "Search engines", "/settings/search");
+    return rows;
+  });
   if (!site) throw new AccessError("That site doesn't exist.");
   return settings;
 }
@@ -124,6 +138,7 @@ export async function updateShopSettings(p: { actorId: string; siteId: string; s
     if (!cur) throw new AccessError("That site doesn't exist.");
     const settings = { ...readShopSettings(cur.shop), ...patch };
     await tx.update(sites).set({ shop: settings }).where(eq(sites.id, p.siteId));
+    await settingsChanged(tx, p, "Tax and currency", "/settings/shop");
     return settings;
   });
 }
@@ -141,6 +156,7 @@ export async function setEnquiryForm(p: { actorId: string; siteId: string; formI
     if (!cur) throw new AccessError("That site doesn't exist.");
     const settings = { ...readShopSettings(cur.shop), enquiryFormId: formId };
     await tx.update(sites).set({ shop: settings }).where(eq(sites.id, p.siteId));
+    await settingsChanged(tx, p, "Enquiries", "/settings/enquiries");
     return settings;
   });
 }
@@ -154,7 +170,11 @@ export function siteShipping(site: Pick<Site, "shipping">): Shipping {
 export async function updateShipping(p: { actorId: string; siteId: string; settings: unknown }): Promise<Shipping> {
   await assertAccess(p.actorId, p.siteId, "owner");
   const settings = shippingSchema.parse(p.settings);
-  const [site] = await withSite(p.siteId, (tx) => tx.update(sites).set({ shipping: settings }).where(eq(sites.id, p.siteId)).returning());
+  const [site] = await withSite(p.siteId, async (tx) => {
+    const rows = await tx.update(sites).set({ shipping: settings }).where(eq(sites.id, p.siteId)).returning();
+    if (rows[0]) await settingsChanged(tx, p, "Shipping", "/settings/shipping");
+    return rows;
+  });
   if (!site) throw new AccessError("That site doesn't exist.");
   return settings;
 }
@@ -168,6 +188,7 @@ export async function updateStatusNames(p: { actorId: string; siteId: string; na
     if (!cur) throw new AccessError("That site doesn't exist.");
     const settings = { ...readShopSettings(cur.shop), statusNames: names };
     await tx.update(sites).set({ shop: settings }).where(eq(sites.id, p.siteId));
+    await settingsChanged(tx, p, "Order statuses", "/settings/statuses");
     return settings;
   });
 }
@@ -185,6 +206,7 @@ export async function updateBusiness(p: { actorId: string; siteId: string; busin
       .update(sites)
       .set({ business, search: { ...search, business: { ...search.business, name: "", phone: "", email: "" } } })
       .where(eq(sites.id, p.siteId));
+    await settingsChanged(tx, p, "Business profile", "/settings/business");
     return business;
   });
 }
@@ -200,6 +222,7 @@ export async function updateSending(p: { actorId: string; siteId: string; sendin
       .update(sites)
       .set({ messages: { ...(cur.messages ?? {}), sending } })
       .where(eq(sites.id, p.siteId));
+    await settingsChanged(tx, p, "Sending", "/settings/sending");
     return sending;
   });
 }
@@ -246,6 +269,8 @@ export async function updateMessages(p: {
         .returning({ id: forms.id });
       if (!row) throw new AccessError("That form isn't on this site.");
     }
+    if (templates || p.keepCopy !== undefined) await settingsChanged(tx, p, "Customer emails", "/settings/emails");
+    else await settingsChanged(tx, p, "Who gets notified", "/settings/notify");
     return readMessages(next);
   });
 }
@@ -261,6 +286,7 @@ export async function updateDetailRows(p: { actorId: string; siteId: string; row
     if (!cur) throw new AccessError("That site doesn't exist.");
     const settings = { ...readShopSettings(cur.shop), detailRows: rows };
     await tx.update(sites).set({ shop: settings }).where(eq(sites.id, p.siteId));
+    await settingsChanged(tx, p, "Product details", "/settings/product-details");
     return settings;
   });
 }

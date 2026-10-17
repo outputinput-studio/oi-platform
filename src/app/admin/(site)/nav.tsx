@@ -48,6 +48,7 @@ const secondary: Item[] = [
   { href: "/media", label: "Images", icon: ImageIcon },
   { href: "/contacts", label: "Contacts", icon: ContactsIcon },
   { href: "/team", label: "Team", icon: PeopleIcon },
+  { href: "/activity", label: "Activity", icon: ClockIcon },
   { href: "/settings", label: "Settings", icon: CogIcon },
 ];
 
@@ -281,6 +282,15 @@ function Badge({ n, name }: { n: number; name: string }) {
     >
       {n > 99 ? "99+" : n}
     </span>
+  );
+}
+
+function ClockIcon({ size }: IconProps) {
+  return (
+    <svg {...svg(size)}>
+      <circle cx="12" cy="12" r="9.5" />
+      <path d="M12 7v5l3.5 2" />
+    </svg>
   );
 }
 

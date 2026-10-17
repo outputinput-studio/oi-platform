@@ -197,6 +197,13 @@
       "when": 1792160857494,
       "tag": "0027_domains_and_launch",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792207501480,
+      "tag": "0028_merge_and_activity",
+      "breakpoints": true
     }
   ]
 }

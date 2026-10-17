@@ -6,6 +6,7 @@ import { AccessError, assertAccess } from "@/modules/auth/access";
 import type { Currency } from "@/modules/sites/shop";
 import { applyCode, codeEditSchema, codeTextSchema, type Applied, type Line } from "./rules";
 import { FieldError } from "@/lib/form-error";
+import { recordActivity } from "@/modules/activity/server";
 
 /** Discount codes for the team, and the checkout's way of looking one up. */
 
@@ -33,12 +34,14 @@ export async function saveCode(p: { actorId: string; siteId: string; codeId?: st
     if (p.codeId) {
       const cur = await load(tx, p.codeId);
       const [row] = await tx.update(discountCodes).set(values).where(eq(discountCodes.id, cur.id)).returning();
+      await recordActivity(tx, p.siteId, p.actorId, { action: "changed the code {s}", subject: row.code, href: `/products/discounts/${row.id}`, key: `code:${row.id}` });
       return row;
     }
     const [row] = await tx
       .insert(discountCodes)
       .values({ siteId: p.siteId, ...values })
       .returning();
+    await recordActivity(tx, p.siteId, p.actorId, { action: "made the code {s}", subject: row.code, href: `/products/discounts/${row.id}` });
     return row;
   });
 }
@@ -48,6 +51,7 @@ export async function deleteCode(p: { actorId: string; siteId: string; codeId: s
   await withSite(p.siteId, async (tx) => {
     const cur = await load(tx, p.codeId);
     await tx.update(discountCodes).set({ deletedAt: new Date() }).where(eq(discountCodes.id, cur.id));
+    await recordActivity(tx, p.siteId, p.actorId, { action: "removed the code {s}", subject: cur.code });
   });
 }
 

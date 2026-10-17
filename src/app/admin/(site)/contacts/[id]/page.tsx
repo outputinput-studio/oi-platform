@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { timeAgo } from "@/lib/time";
 import { requireSiteAccess } from "@/modules/auth/access";
-import { getContact } from "@/modules/contacts/server";
+import { getContact, resolveContactId } from "@/modules/contacts/server";
 import { deleteContactAction } from "@/modules/contacts/actions";
-import { Button, Card, Label, PageHeader, Pill } from "../../../ui";
+import { Button, Card, Chevron, Label, PageHeader, Pill } from "../../../ui";
 import { Avatar } from "../../nav";
 import { ContactDetailsForm, Notes } from "./contact-forms";
 
@@ -13,6 +14,9 @@ export const dynamic = "force-dynamic";
 export default async function ContactPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { user, site } = await requireSiteAccess();
+  // Merged into someone else: their page now.
+  const now = await resolveContactId({ actorId: user.id, siteId: site.id, contactId: id });
+  if (now && now !== id) redirect(`/contacts/${now}`);
   const c = await getContact({ actorId: user.id, siteId: site.id, contactId: id });
   const title = c.name || c.email || c.phone || "Contact";
 
@@ -71,7 +75,12 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
 
         <Notes contactId={c.id} notes={c.notes} />
 
-        <form action={deleteContactAction} className="mt-8 rounded-card border border-line bg-surface p-4">
+        <Link href={`/contacts/merge?a=${c.id}`} className="mt-8 flex items-center gap-3 rounded-card border border-line bg-surface px-4 py-3.5 text-[14.5px] text-text hover:bg-hover">
+          <span className="flex-1">Merge with someone else</span>
+          <Chevron />
+        </Link>
+
+        <form action={deleteContactAction} className="mt-3 rounded-card border border-line bg-surface p-4">
           <input type="hidden" name="contactId" value={c.id} />
           <Button type="submit" variant="danger" size="sm">
             Remove this contact
