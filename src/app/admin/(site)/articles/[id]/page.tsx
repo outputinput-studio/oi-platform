@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export default async function EditArticlePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { user, site } = await requireSiteAccess();
+  const { user, site } = await requireSiteAccess("manager");
   const [a, cats] = await Promise.all([getArticle({ actorId: user.id, siteId: site.id, articleId: id }), listCategories({ actorId: user.id, siteId: site.id })]);
   const adminHost = (await headers()).get("x-oi-host") ?? "";
   const siteHost = siteAddress(site, adminHost);

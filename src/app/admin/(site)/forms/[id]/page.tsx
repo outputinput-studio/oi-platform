@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function EditFormPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { user, site } = await requireSiteAccess();
+  const { user, site } = await requireSiteAccess("manager");
   const form = await getForm({ actorId: user.id, siteId: site.id, formId: id });
   return (
     <FormEditor

@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 /** Settings · Domain (design/admin.html): where the site lives, the client's own domain, and Going live. */
 export default async function DomainPage() {
-  const { site, role, user } = await requireSiteAccess();
+  const { site, role, user } = await requireSiteAccess("manager");
   const h = await headers();
   const adminHost = h.get("x-oi-host") ?? "";
   // Locally the site is on http and a port; on Vercel, https.

@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
  * own. More rows arrive with each module (selling, messages, domains…).
  */
 export default async function SettingsPage() {
-  const { site, role, user } = await requireSiteAccess();
+  const { site, role, user } = await requireSiteAccess("manager");
   const shop = siteShop(site);
   const shipping = siteShipping(site);
   const profile = businessOf(site);

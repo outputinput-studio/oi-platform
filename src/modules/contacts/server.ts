@@ -30,7 +30,7 @@ export const contactDetailsSchema = z.object({
 export type ContactDetails = z.infer<typeof contactDetailsSchema>;
 
 export async function listContacts(p: { actorId: string; siteId: string; q?: string }): Promise<ContactRow[]> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   const q = (p.q ?? "").trim();
   return withSite(p.siteId, async (tx) => {
     const rows = await tx
@@ -57,7 +57,7 @@ export async function listContacts(p: { actorId: string; siteId: string; q?: str
 export type ContactSubmission = { id: string; formName: string; status: "new" | "done"; createdAt: Date; fields: Field[]; answers: Record<string, string>; headline: string };
 
 export async function getContact(p: { actorId: string; siteId: string; contactId: string }): Promise<Contact & { submissions: ContactSubmission[] }> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   return withSite(p.siteId, async (tx) => {
     const [c] = await tx.select().from(contacts).where(and(eq(contacts.id, p.contactId), isNull(contacts.deletedAt))).limit(1);
     if (!c) throw new AccessError("That contact doesn't exist.");
@@ -80,7 +80,7 @@ export async function getContact(p: { actorId: string; siteId: string; contactId
 }
 
 export async function createContact(p: { actorId: string; siteId: string; details: unknown }): Promise<Contact> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   const d = contactDetailsSchema.parse(p.details);
   if (!d.name && !d.email && !d.phone) throw new FieldError("name", "Give them a name, an email or a phone number.");
   return withSite(p.siteId, async (tx) => {
@@ -95,7 +95,7 @@ export async function createContact(p: { actorId: string; siteId: string; detail
 }
 
 export async function updateContact(p: { actorId: string; siteId: string; contactId: string; details: unknown }): Promise<Contact> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   const d = contactDetailsSchema.parse(p.details);
   return withSite(p.siteId, async (tx) => {
     if (d.email) {
@@ -118,7 +118,7 @@ export async function updateContact(p: { actorId: string; siteId: string; contac
 }
 
 export async function addNote(p: { actorId: string; siteId: string; contactId: string; text: string }): Promise<Contact> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   const text = named("text", z.string().trim().min(1, "Write something first.").max(2_000), p.text);
   return withSite(p.siteId, async (tx) => {
     const [c] = await tx.select().from(contacts).where(and(eq(contacts.id, p.contactId), isNull(contacts.deletedAt))).limit(1);
@@ -130,7 +130,7 @@ export async function addNote(p: { actorId: string; siteId: string; contactId: s
 }
 
 export async function deleteContact(p: { actorId: string; siteId: string; contactId: string }): Promise<void> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   const [row] = await withSite(p.siteId, async (tx) => {
     const rows = await tx.update(contacts).set({ deletedAt: new Date() }).where(and(eq(contacts.id, p.contactId), isNull(contacts.deletedAt))).returning();
     if (rows[0]) await recordActivity(tx, p.siteId, p.actorId, { action: "removed {s} from contacts", subject: label(rows[0]) });
@@ -167,7 +167,7 @@ const label = (c: Pick<Contact, "name" | "email" | "phone">) => c.name || c.emai
 
 /** A merged-away contact's id leads to the one it became (old links, bookmarks). Null when there's nothing to go to. */
 export async function resolveContactId(p: { actorId: string; siteId: string; contactId: string }): Promise<string | null> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   return withSite(p.siteId, async (tx) => {
     let id = p.contactId;
     for (let hop = 0; hop < 5; hop++) {
@@ -185,7 +185,7 @@ export type DuplicatePair = { a: Contact; b: Contact; reason: string };
 
 /** Possible duplicates: the same phone or the same full name, minus pairs the team said are different people. */
 export async function findDuplicates(p: { actorId: string; siteId: string }): Promise<DuplicatePair[]> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   const rows = await withSite(p.siteId, (tx) => tx.select().from(contacts).where(isNull(contacts.deletedAt)).orderBy(desc(contacts.updatedAt)).limit(5000));
   const byId = new Map(rows.map((r) => [r.id, r]));
   return duplicatePairs(rows.map((r) => ({ id: r.id, name: r.name, phone: r.phone, notSame: r.notSame ?? [] }))).map((d) => ({ a: byId.get(d.a)!, b: byId.get(d.b)!, reason: d.reason }));
@@ -205,7 +205,7 @@ async function side(tx: Tx, id: string): Promise<MergeSide> {
 
 /** The two side by side, the fields where they differ, and why they were suggested (if they were). */
 export async function mergePreview(p: { actorId: string; siteId: string; aId: string; bId: string }): Promise<{ a: MergeSide; b: MergeSide; differ: (keyof ContactValues)[]; reason: string }> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   if (p.aId === p.bId) throw new Error("Pick two different people to merge.");
   return withSite(p.siteId, async (tx) => {
     const a = await side(tx, p.aId);
@@ -227,7 +227,7 @@ const pickSchema = z.object({ name: z.enum(["a", "b"]).default("a"), email: z.en
  * points at it. Can't be undone.
  */
 export async function mergeContacts(p: { actorId: string; siteId: string; keepId: string; otherId: string; pick: unknown }): Promise<string> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   if (p.keepId === p.otherId) throw new Error("Pick two different people to merge.");
   const pick = pickSchema.parse(p.pick ?? {});
   return withSite(p.siteId, async (tx) => {
@@ -249,7 +249,7 @@ export async function mergeContacts(p: { actorId: string; siteId: string; keepId
 
 /** "They are different people": never suggested as a pair again. */
 export async function markNotSame(p: { actorId: string; siteId: string; aId: string; bId: string }): Promise<void> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   if (p.aId === p.bId) return;
   await withSite(p.siteId, async (tx) => {
     const rows = await tx.select({ id: contacts.id, notSame: contacts.notSame }).from(contacts).where(and(isNull(contacts.deletedAt), sql`${contacts.id} in (${p.aId}, ${p.bId})`));

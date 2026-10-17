@@ -34,6 +34,11 @@ A refusal about one field throws `FieldError(field, message)`; a lone value is p
   helpers (`requireUser`, `requireSiteAccess`, `membershipFor`, `assertAccess`) that every admin page and action
   goes through. A module is `server.ts` (pure functions taking `actorId` + `siteId`, authorising first, testable
   without a browser) and `actions.ts` (thin server actions that read the form and call it).
+- Roles (Carl, Oct 2026; `modules/auth/roles.ts`): Owner everything; Manager the shop and the site, refunds too, but
+  not the team, payment keys, the domain, custom code or going live; Staff orders, the inbox and contacts.
+  `assertAccess` defaults to Manager, so pass `"staff"` or `"owner"` on purpose. A Manager's screen calls
+  `requireSiteAccess("manager")` (lower roles land on Home); the nav hides what `canOpen` says no to.
+  The whole matrix is pinned in `tests/integration/roles.test.ts`: a new function gets a row there.
 - `src/app/admin/(site)` — the signed-in admin: its layout calls `requireSiteAccess`; pages under it are for one site.
   Pages link with public paths (`/team`, never `/admin/team`). `src/app/admin/ui.tsx` holds the few primitives.
 - `src/modules/pages/registry.ts` — the section registry: every block a page can hold, with its Zod schema. A new

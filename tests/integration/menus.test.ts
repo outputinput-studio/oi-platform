@@ -24,7 +24,7 @@ beforeAll(async () => {
        ($1,'Ann','ann@menus.invalid',true,now()), ($2,'Bob','bob@menus.invalid',true,now())`,
     [ann, bob],
   );
-  await owner.query(`insert into memberships (user_id, site_id, role) values ($1,$3,'staff'), ($2,$4,'owner')`, [ann, bob, siteA, siteB]);
+  await owner.query(`insert into memberships (user_id, site_id, role) values ($1,$3,'manager'), ($2,$4,'owner')`, [ann, bob, siteA, siteB]);
 });
 
 afterAll(async () => {

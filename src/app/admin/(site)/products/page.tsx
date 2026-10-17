@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function ProductsPage({ searchParams }: { searchParams: Promise<{ category?: string }> }) {
   const { category } = await searchParams;
-  const { user, site } = await requireSiteAccess();
+  const { user, site } = await requireSiteAccess("manager");
   const [all, cats, codes, waiting] = await Promise.all([
     listProducts({ actorId: user.id, siteId: site.id }),
     listProductCategories({ actorId: user.id, siteId: site.id }),

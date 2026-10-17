@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function RedirectsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const { tab } = await searchParams;
-  const { user, site, role } = await requireSiteAccess();
+  const { user, site } = await requireSiteAccess("manager");
   const [misses, rules] = await Promise.all([listNotFound({ actorId: user.id, siteId: site.id }), listRedirects({ actorId: user.id, siteId: site.id })]);
   const showRules = tab === "rules";
   const chips = [
@@ -98,7 +98,7 @@ export default async function RedirectsPage({ searchParams }: { searchParams: Pr
         )}
 
         <div className="mt-8 rounded-card border border-line bg-surface p-4">
-          <AutoRedirectSwitch initial={siteSearch(site).autoRedirect} settings={siteSearch(site)} canEdit={role === "owner"} />
+          <AutoRedirectSwitch initial={siteSearch(site).autoRedirect} settings={siteSearch(site)} canEdit />
         </div>
       </div>
     </>

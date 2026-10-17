@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 /** Settings · Product details, as in design/admin.html: the rows every product page opens up. */
 export default async function ProductDetailsPage() {
-  const { user, site, role } = await requireSiteAccess();
+  const { user, site } = await requireSiteAccess("manager");
   const shop = siteShop(site);
   const usage = await detailRowUsage({ actorId: user.id, siteId: site.id });
   return (
@@ -20,7 +20,7 @@ export default async function ProductDetailsPage() {
           initial={shop.detailRows}
           usage={usage}
           deliveryPreview={deliveryText(siteShipping(site), shop.currency, { digital: false, make: "ready", leadTime: null, leadUnit: "weeks" })}
-          canEdit={role === "owner"}
+          canEdit
         />
       </div>
     </>

@@ -6,9 +6,9 @@ import { CookiesForm } from "./cookies-form";
 
 export const dynamic = "force-dynamic";
 
-/** Settings · Cookie notice: on or off, what it says, and a privacy page to link to. Owners only. */
+/** Settings · Cookie notice: on or off, what it says, and a privacy page to link to. Owners and managers. */
 export default async function CookiesPage() {
-  const { site, role, user } = await requireSiteAccess();
+  const { site, user } = await requireSiteAccess("manager");
   const pages = (await listPages({ actorId: user.id, siteId: site.id })).filter((p) => p.status === "published");
   const a = readAnalytics(site.analytics);
   return (
@@ -19,7 +19,7 @@ export default async function CookiesPage() {
           initial={readCookieNotice(site.cookies)}
           pages={pages.map((p) => ({ path: `/${p.slug}`, title: p.title }))}
           hasAnalytics={!!(a.gaId || a.metaPixelId)}
-          canEdit={role === "owner"}
+          canEdit
         />
       </div>
     </>

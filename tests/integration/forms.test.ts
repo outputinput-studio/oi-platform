@@ -24,7 +24,7 @@ import {
 const owner = new Pool({ connectionString: process.env.MIGRATE_DATABASE_URL, max: 1 });
 let siteA = "";
 let siteB = "";
-const ann = "test-forms-ann"; // staff at A
+const ann = "test-forms-ann"; // manager at A
 const bob = "test-forms-bob"; // owner of B
 
 beforeAll(async () => {
@@ -37,7 +37,7 @@ beforeAll(async () => {
        ($1,'Ann','ann@forms.invalid',true,now()), ($2,'Bob','bob@forms.invalid',true,now())`,
     [ann, bob],
   );
-  await owner.query(`insert into memberships (user_id, site_id, role) values ($1,$3,'staff'), ($2,$4,'owner')`, [ann, bob, siteA, siteB]);
+  await owner.query(`insert into memberships (user_id, site_id, role) values ($1,$3,'manager'), ($2,$4,'owner')`, [ann, bob, siteA, siteB]);
 });
 
 afterAll(async () => {

@@ -60,13 +60,13 @@ describe("cookie notice", () => {
 });
 
 describe("custom code", () => {
-  test("owners only; each save keeps the one before; staff can read it but not change it", async () => {
+  test("owners only; each save keeps the one before; staff can't change it", async () => {
     await expect(saveCustomCode({ actorId: sal, siteId: siteA, code: { head: "<script>x()</script>", body: "" } })).rejects.toBeInstanceOf(AccessError);
     await saveCustomCode({ actorId: oli, siteId: siteA, code: { head: "<script>one()</script>", body: "" } });
     const c = await saveCustomCode({ actorId: oli, siteId: siteA, code: { head: "<script>two()</script>", body: "<p>end</p>" } });
     expect(c).toMatchObject({ head: "<script>two()</script>", body: "<p>end</p>", by: "Oli" });
     expect(c.history.map((h) => h.head)).toEqual(["<script>one()</script>"]);
-    expect(readCustomCode((await siteSettings({ actorId: sal, siteId: siteA })).customCode).head).toBe("<script>two()</script>");
+    expect(readCustomCode((await siteSettings({ actorId: oli, siteId: siteA })).customCode).head).toBe("<script>two()</script>");
   });
 
   test("an earlier version put back; another site can't touch it", async () => {

@@ -4,14 +4,14 @@ import { SettingsForm } from "../settings-form";
 
 export const dynamic = "force-dynamic";
 
-/** The site's name. Owners change it; staff can see it. */
+/** The site's name. Owners and managers change it. */
 export default async function SiteSettingsPage() {
-  const { site, role } = await requireSiteAccess();
+  const { site } = await requireSiteAccess("manager");
   return (
     <>
       <PageHeader title="Site name" back="/settings" />
       <div className="pt-5 md:pt-6">
-        <SettingsForm name={site.name} slug={site.slug} canEdit={role === "owner"} />
+        <SettingsForm name={site.name} slug={site.slug} canEdit />
       </div>
     </>
   );

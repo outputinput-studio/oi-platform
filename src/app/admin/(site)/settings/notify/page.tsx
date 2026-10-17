@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 /** Settings · Who gets notified, as in design/admin.html: the emails that come to the team, event by event and form by form. */
 export default async function NotifyPage() {
-  const { site, role, user } = await requireSiteAccess();
+  const { site, user } = await requireSiteAccess("manager");
   const forms = await listForms({ actorId: user.id, siteId: site.id });
   return (
     <>
@@ -19,7 +19,7 @@ export default async function NotifyPage() {
             notify: readMessages(site.messages).notify,
             forms: forms.map((f) => ({ id: f.id, name: f.name, on: f.notifyOn, to: f.notifyEmails, cc: f.notifyCc, bcc: f.notifyBcc })),
           }}
-          canEdit={role === "owner"}
+          canEdit
         />
       </div>
     </>

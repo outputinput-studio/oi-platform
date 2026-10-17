@@ -7,16 +7,16 @@ import { ShippingEditor } from "./shipping-editor";
 
 export const dynamic = "force-dynamic";
 
-/** Settings · Shipping, as in design/admin.html: dispatch time, zones, and the rates in each. Owners change it. */
+/** Settings · Shipping, as in design/admin.html: dispatch time, zones, and the rates in each. Owners and managers change it. */
 export default async function ShippingPage() {
-  const { site, role } = await requireSiteAccess();
+  const { site } = await requireSiteAccess("manager");
   const enquiryId = siteShop(site).enquiryFormId;
   const hasEnquiryForm = enquiryId ? !!(await publicForm({ siteId: site.id, formId: enquiryId })) : false;
   return (
     <>
       <PageHeader title="Shipping" back="/settings" />
       <div className="max-w-[640px] pt-5 md:pt-6">
-        <ShippingEditor initial={siteShipping(site)} currency={siteShop(site).currency} countries={COUNTRIES} canEdit={role === "owner"} hasEnquiryForm={hasEnquiryForm} />
+        <ShippingEditor initial={siteShipping(site)} currency={siteShop(site).currency} countries={COUNTRIES} canEdit hasEnquiryForm={hasEnquiryForm} />
       </div>
     </>
   );

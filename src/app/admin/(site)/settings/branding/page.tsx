@@ -7,9 +7,9 @@ import { BrandingForm } from "./branding-form";
 
 export const dynamic = "force-dynamic";
 
-/** Settings · Branding, as in design/admin.html: logo, favicon and the site's colours. Owners change it. */
+/** Settings · Branding, as in design/admin.html: logo, favicon and the site's colours. Owners and managers change it. */
 export default async function BrandingPage() {
-  const { site, role } = await requireSiteAccess();
+  const { site } = await requireSiteAccess("manager");
   const t = siteTheme(site);
   // An older site's logo for Google stands in until Branding has its own.
   const logo = t.logo ?? siteSearch(site).business.logo;
@@ -22,7 +22,7 @@ export default async function BrandingPage() {
           urls={{ logo: logo ? mediaUrl(logo.key) : undefined, favicon: t.favicon ? mediaUrl(t.favicon.key) : undefined }}
           siteName={site.name}
           mediaAvailable={mediaAvailable()}
-          canEdit={role === "owner"}
+          canEdit
         />
       </div>
     </>

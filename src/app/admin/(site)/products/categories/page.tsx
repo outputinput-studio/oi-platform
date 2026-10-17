@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 /** Product categories, as in design/admin.html: how people browse the shop, in the order you drag them. */
 export default async function ProductCategoriesPage() {
-  const { user, site } = await requireSiteAccess();
+  const { user, site } = await requireSiteAccess("manager");
   const cats = await listProductCategories({ actorId: user.id, siteId: site.id });
   const siteHost = siteAddress(site, (await headers()).get("x-oi-host") ?? "");
   return (

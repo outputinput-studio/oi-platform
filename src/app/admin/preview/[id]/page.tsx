@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function PreviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { user, site } = await requireSiteAccess();
+  const { user, site } = await requireSiteAccess("manager");
   const [page, menus] = await Promise.all([getPage({ actorId: user.id, siteId: site.id, pageId: id }), siteMenus({ siteId: site.id })]);
   const path = page.slug === HOME_SLUG ? "/" : `/${page.slug}`;
   // A draft page isn't in the automatic menu yet; show it where it will go.

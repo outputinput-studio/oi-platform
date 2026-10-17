@@ -18,7 +18,7 @@ const owner = new Pool({ connectionString: process.env.MIGRATE_DATABASE_URL, max
 let siteA = "";
 let siteB = "";
 const mia = "test-activity-mia"; // owner of A
-const ned = "test-activity-ned"; // staff at A
+const ned = "test-activity-ned"; // manager at A
 const zed = "test-activity-zed"; // owner of B
 const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
@@ -43,7 +43,7 @@ beforeAll(async () => {
     [mia, ned, zed],
   );
   await owner.query(
-    `insert into memberships (user_id, site_id, role) values ($1,$4,'owner'), ($2,$4,'staff'), ($3,$5,'owner')`,
+    `insert into memberships (user_id, site_id, role) values ($1,$4,'owner'), ($2,$4,'manager'), ($3,$5,'owner')`,
     [mia, ned, zed, siteA, siteB],
   );
 });

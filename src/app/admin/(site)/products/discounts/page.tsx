@@ -13,7 +13,7 @@ const STATE = { active: ["Active", "success"], scheduled: ["Scheduled", "warning
 
 /** Discount codes, as in design/admin.html: each with what it does, whether it's running and how often it's been used. */
 export default async function DiscountsPage() {
-  const { user, site } = await requireSiteAccess();
+  const { user, site } = await requireSiteAccess("manager");
   const [codes, cats] = await Promise.all([listCodes({ actorId: user.id, siteId: site.id }), listProductCategories({ actorId: user.id, siteId: site.id })]);
   const { currency } = siteShop(site);
   return (

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSyncExternalStore, useState } from "react";
+import type { MembershipRole } from "@/db/schema";
+import { canOpen, ROLE_NAMES } from "@/modules/auth/roles";
 import { Sheet } from "../ui";
 
 /**
@@ -32,18 +34,20 @@ const useFolded = () => useSyncExternalStore(subscribe, readFolded, () => false)
  * person at the bottom. Phone: a tab bar with Home, Orders, Inbox, Products and
  * More, where More opens a sheet with the rest. One <nav>, two lists,
  * CSS picks which shows, so there is exactly one "Team" link on the page.
+ * Each person sees only the screens their role opens (roles.ts): Staff get
+ * Home, Orders, Inbox and Contacts.
  *
  * Paths are the public ones (the proxy maps them onto /admin/*).
  */
 type Item = { href: string; label: string; icon: (p: IconProps) => React.ReactNode; hint?: string };
 
-const primary: Item[] = [
+const PRIMARY: Item[] = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/orders", label: "Orders", icon: OrdersIcon },
   { href: "/inbox", label: "Inbox", icon: InboxIcon },
   { href: "/products", label: "Products", icon: TagIcon },
 ];
-const secondary: Item[] = [
+const SECONDARY: Item[] = [
   { href: "/pages", label: "Content", icon: ContentIcon, hint: "Pages" },
   { href: "/media", label: "Images", icon: ImageIcon },
   { href: "/contacts", label: "Contacts", icon: ContactsIcon },
@@ -63,7 +67,7 @@ export function Nav({
 }: {
   siteName: string;
   userName: string;
-  role: string;
+  role: MembershipRole;
   envName: string | null;
   /** New submissions waiting: the badge on Inbox. */
   inboxCount: number;
@@ -73,6 +77,8 @@ export function Nav({
 }) {
   const pathname = usePathname();
   const [more, setMore] = useState(false);
+  const primary = PRIMARY.filter((i) => canOpen(role, i.href));
+  const secondary = SECONDARY.filter((i) => canOpen(role, i.href));
   const folded = useFolded();
   const count = (href: string) => (href === "/inbox" ? inboxCount : href === "/orders" ? ordersCount : 0);
   const active = (href: string) =>
@@ -131,7 +137,7 @@ export function Nav({
           <Avatar name={userName} />
           <span className={folded ? "sr-only" : "min-w-0 flex-1"}>
             <span className="block truncate text-[14.5px] font-medium">{userName}</span>
-            <span className="block text-[12.5px] capitalize text-muted">{role}</span>
+            <span className="block text-[12.5px] text-muted">{ROLE_NAMES[role]}</span>
           </span>
           {!folded && (
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-faint" aria-hidden>

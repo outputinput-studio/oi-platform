@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function EditMenuPage({ params }: { params: Promise<{ key: string }> }) {
   const { key } = await params;
-  const { user, site } = await requireSiteAccess();
+  const { user, site } = await requireSiteAccess("manager");
   const { menu, targets } = await getMenu({ actorId: user.id, siteId: site.id, key });
   return (
     <MenuEditor

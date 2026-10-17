@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 export default async function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { user, site } = await requireSiteAccess();
+  const { user, site } = await requireSiteAccess("manager");
   const [p, cats, waiting] = await Promise.all([
     getProduct({ actorId: user.id, siteId: site.id, productId: id }),
     listProductCategories({ actorId: user.id, siteId: site.id }),

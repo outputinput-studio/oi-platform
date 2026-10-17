@@ -1,5 +1,8 @@
 import { isLive } from "@/modules/pages/live";
 import { requireSiteAccess } from "@/modules/auth/access";
+import { atLeast } from "@/modules/auth/roles";
+import { newSubmissionCount } from "@/modules/forms/server";
+import { newOrderCount } from "@/modules/orders/admin";
 import { listMedia } from "@/modules/media/server";
 import { listPages } from "@/modules/pages/server";
 import { Card, PageHeader, Row, Rows } from "../ui";
@@ -9,11 +12,12 @@ export const dynamic = "force-dynamic";
 
 /**
  * Home, as in design/admin.html: the day, a greeting, the numbers that
- * matter, and what needs you. Orders and enquiries arrive with their
- * modules; until then the numbers are pages and images.
+ * matter, and what needs you. Staff (orders, the inbox, contacts) see
+ * what's waiting for them; everyone else sees pages and images.
  */
 export default async function AdminHome() {
   const { site, user, role } = await requireSiteAccess();
+  if (!atLeast(role, "manager")) return <StaffHome siteName={site.name} siteId={site.id} name={user.name || user.email} />;
   const [pages, images] = await Promise.all([
     listPages({ actorId: user.id, siteId: site.id }),
     listMedia({ actorId: user.id, siteId: site.id }),
@@ -50,9 +54,28 @@ export default async function AdminHome() {
   );
 }
 
-function Stat({ label, value, sub, href }: { label: string; value: number; sub: string; href: string }) {
+async function StaffHome({ siteName, siteId, name }: { siteName: string; siteId: string; name: string }) {
+  const [orders, inbox] = await Promise.all([newOrderCount({ siteId }), newSubmissionCount({ siteId })]);
   return (
-    <Card className="p-[15px]">
+    <>
+      <PageHeader title={siteName} titleTestId="site-name" />
+      <div className="pt-5 md:pt-7">
+        <Greeting name={name} />
+        <p className="sr-only">
+          Signed in as <span data-testid="role">staff</span>
+        </p>
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <Stat label="Orders to start" value={orders} sub={orders ? "paid, waiting for you" : "all caught up"} href="/orders" testId="stat-orders" />
+          <Stat label="New in the inbox" value={inbox} sub={inbox ? "not answered yet" : "all caught up"} href="/inbox" />
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Stat({ label, value, sub, href, testId }: { label: string; value: number; sub: string; href: string; testId?: string }) {
+  return (
+    <Card className="p-[15px]" data-testid={testId}>
       <a href={href} className="block">
         <p className="label">{label}</p>
         <p className="mt-2 text-[34px] font-semibold leading-none tracking-[-1px]">{value}</p>

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 /** Article categories, as in design/admin.html: each is a page on the site, so the address matters. */
 export default async function CategoriesPage() {
-  const { user, site } = await requireSiteAccess();
+  const { user, site } = await requireSiteAccess("manager");
   const cats = await listCategories({ actorId: user.id, siteId: site.id });
   const siteHost = siteAddress(site, (await headers()).get("x-oi-host") ?? "");
   return (

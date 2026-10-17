@@ -30,7 +30,7 @@ function parsed(f: Form): FormWithFields {
 }
 
 export async function listForms(p: { actorId: string; siteId: string }): Promise<(FormWithFields & { newCount: number })[]> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   return withSite(p.siteId, async (tx) => {
     const rows = await tx.select().from(forms).where(isNull(forms.deletedAt)).orderBy(asc(forms.position), asc(forms.createdAt));
     const counts = await tx
@@ -280,7 +280,7 @@ async function ownerEmails(siteId: string): Promise<string[]> {
 // ───────────────────────── the inbox ─────────────────────────
 
 export async function listSubmissions(p: { actorId: string; siteId: string; formId?: string; status?: SubmissionStatus }): Promise<SubmissionRow[]> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   const status = p.status ?? "new";
   return withSite(p.siteId, async (tx) => {
     const rows = await tx
@@ -295,7 +295,7 @@ export async function listSubmissions(p: { actorId: string; siteId: string; form
 }
 
 export async function getSubmission(p: { actorId: string; siteId: string; submissionId: string }): Promise<SubmissionRow> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   const [row] = await withSite(p.siteId, (tx) =>
     tx.select({ s: submissions, formName: forms.name }).from(submissions).innerJoin(forms, eq(forms.id, submissions.formId)).where(eq(submissions.id, p.submissionId)).limit(1),
   );
@@ -304,7 +304,7 @@ export async function getSubmission(p: { actorId: string; siteId: string; submis
 }
 
 export async function setSubmissionStatus(p: { actorId: string; siteId: string; submissionId: string; status: SubmissionStatus }): Promise<void> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   const [row] = await withSite(p.siteId, (tx) =>
     tx
       .update(submissions)
