@@ -24,7 +24,7 @@ const VISIBLE = ["paid", "refunded"] as const;
 
 
 export async function listOrders(p: { actorId: string; siteId: string; status?: OrderStatus }): Promise<Order[]> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   return withSite(p.siteId, (tx) =>
     tx
       .select()
@@ -36,7 +36,7 @@ export async function listOrders(p: { actorId: string; siteId: string; status?: 
 }
 
 export async function orderCounts(p: { actorId: string; siteId: string }): Promise<Record<OrderStatus | "all", number>> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   const rows = await withSite(p.siteId, (tx) =>
     tx
       .select({ status: orders.status, n: count() })
@@ -64,7 +64,7 @@ export async function newOrderCount(p: { siteId: string }): Promise<number> {
 }
 
 export async function getOrder(p: { actorId: string; siteId: string; orderId: string }): Promise<Order> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   if (!z.string().uuid().safeParse(p.orderId).success) throw new AccessError("That order doesn't exist.");
   const [o] = await withSite(p.siteId, (tx) =>
     tx
@@ -96,7 +96,7 @@ const moveSchema = z.object({
 
 /** Move an order along; with `email`, the customer hears about it. */
 export async function moveOrder(p: { actorId: string; siteId: string; orderId: string; change: unknown }): Promise<Order> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   const c = moveSchema.parse(p.change);
   const cur = await getOrder(p);
   const [updated] = await withSite(p.siteId, async (tx) => {
@@ -187,13 +187,14 @@ async function stripeRefund(siteId: string, o: Order, amount: number): Promise<v
 }
 
 /**
- * Refund all or part of an order. Owners only: it moves money. The money
+ * Refund all or part of an order. Owners and managers (Carl, Oct 2026),
+ * not Staff: it moves money. The money
  * goes back first; only then does the order change, so a refused refund
  * leaves everything as it was. Optionally puts the stock back and emails
  * the customer.
  */
 export async function refundOrder(p: { actorId: string; siteId: string; orderId: string; refund: unknown; refunder?: Refunder }): Promise<Order> {
-  await assertAccess(p.actorId, p.siteId, "owner");
+  await assertAccess(p.actorId, p.siteId);
   const r = refundSchema.parse(p.refund);
   const o = await getOrder(p);
   const left = o.total - o.refunded;

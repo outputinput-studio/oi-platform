@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 /** Content → Menus, as in design/admin.html: Header and Footer always here, then any the team added. */
 export default async function MenusPage() {
-  const { user, site } = await requireSiteAccess();
+  const { user, site } = await requireSiteAccess("manager");
   const all = await listMenus({ actorId: user.id, siteId: site.id });
   return (
     <>

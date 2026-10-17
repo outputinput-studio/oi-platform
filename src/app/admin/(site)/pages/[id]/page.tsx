@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 /** Loads the page and hands it to the editor, with each image's address worked out here (it depends on settings). */
 export default async function EditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { user, site } = await requireSiteAccess();
+  const { user, site } = await requireSiteAccess("manager");
   const [page, forms] = await Promise.all([getPage({ actorId: user.id, siteId: site.id, pageId: id }), listForms({ actorId: user.id, siteId: site.id })]);
   // The public address: the admin host with "admin" swapped for the site's slug.
   const adminHost = (await headers()).get("x-oi-host") ?? "";

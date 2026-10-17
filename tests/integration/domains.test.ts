@@ -54,21 +54,21 @@ const owner = new Pool({ connectionString: process.env.MIGRATE_DATABASE_URL, max
 let siteA = "";
 let siteB = "";
 const own = "test-domains-owner";
-const staff = "test-domains-staff";
+const manager = "test-domains-mgr"; // manages A: sees the domain, can't change it
 const allFound = async () => ({ a: ["76.76.21.21"], cname: { "www.kini-a.test": "cname.vercel-dns.com." } });
 const nothing = async () => ({ a: [], cname: {} });
 
 beforeAll(async () => {
-  await owner.query(`delete from users where id in ($1,$2)`, [own, staff]);
+  await owner.query(`delete from users where id in ($1,$2)`, [own, manager]);
   await owner.query(`delete from sites where slug in ('dom-a','dom-b')`);
   siteA = (await owner.query(`insert into sites (slug, name) values ('dom-a','Kini A') returning id`)).rows[0].id;
   siteB = (await owner.query(`insert into sites (slug, name) values ('dom-b','Other B') returning id`)).rows[0].id;
-  await owner.query(`insert into users (id, name, email, email_verified, updated_at) values ($1,'Own','own@dom.invalid',true,now()), ($2,'Staff','staff@dom.invalid',true,now())`, [own, staff]);
-  await owner.query(`insert into memberships (user_id, site_id, role) values ($1,$3,'owner'), ($1,$4,'owner'), ($2,$3,'staff')`, [own, staff, siteA, siteB]);
+  await owner.query(`insert into users (id, name, email, email_verified, updated_at) values ($1,'Own','own@dom.invalid',true,now()), ($2,'Staff','staff@dom.invalid',true,now())`, [own, manager]);
+  await owner.query(`insert into memberships (user_id, site_id, role) values ($1,$3,'owner'), ($1,$4,'owner'), ($2,$3,'manager')`, [own, manager, siteA, siteB]);
 });
 
 afterAll(async () => {
-  await owner.query(`delete from users where id in ($1,$2)`, [own, staff]);
+  await owner.query(`delete from users where id in ($1,$2)`, [own, manager]);
   await owner.query(`delete from sites where slug in ('dom-a','dom-b')`);
   await owner.end();
 });
@@ -79,7 +79,7 @@ beforeEach(() => {
 
 describe("your own domain", () => {
   test("only an owner connects one; what's typed is cleaned up; nonsense points at the box", async () => {
-    await expect(connectDomain({ actorId: staff, siteId: siteA, domain: "kini-a.test", lookup: nothing })).rejects.toBeInstanceOf(AccessError);
+    await expect(connectDomain({ actorId: manager, siteId: siteA, domain: "kini-a.test", lookup: nothing })).rejects.toBeInstanceOf(AccessError);
     await expect(connectDomain({ actorId: own, siteId: siteA, domain: "kini", lookup: nothing })).rejects.toMatchObject({ field: "domain" });
     const v = await connectDomain({ actorId: own, siteId: siteA, domain: "https://Kini-A.test/shop", lookup: nothing });
     expect(v).toMatchObject({ domain: "kini-a.test", primary: "kini-a.test", other: "www.kini-a.test", connected: false, automatic: true });
@@ -135,7 +135,7 @@ describe("your own domain", () => {
   });
 
   test("records found and Vercel happy: connected, and from then on the address the public is given", async () => {
-    const v = await domainStatus({ actorId: staff, siteId: siteA, lookup: allFound });
+    const v = await domainStatus({ actorId: manager, siteId: siteA, lookup: allFound });
     expect(v).toMatchObject({ connected: true });
     expect(v.records.every((r) => r.status === "found")).toBe(true);
     const row = (await owner.query(`select domain_ok_at from sites where id = $1`, [siteA])).rows[0];
@@ -143,7 +143,7 @@ describe("your own domain", () => {
   });
 
   test("with www: www becomes the main address, the bare one redirects to it", async () => {
-    await expect(setDomainWww({ actorId: staff, siteId: siteA, www: true })).rejects.toBeInstanceOf(AccessError);
+    await expect(setDomainWww({ actorId: manager, siteId: siteA, www: true })).rejects.toBeInstanceOf(AccessError);
     const v = await setDomainWww({ actorId: own, siteId: siteA, www: true, lookup: allFound });
     expect(v).toMatchObject({ primary: "www.kini-a.test", other: "kini-a.test", www: true });
     const patches = calls.filter((c) => c.method === "PATCH").map((c) => [c.url.split("/domains/")[1].split("?")[0], c.body?.redirect]);
@@ -165,7 +165,7 @@ describe("going live", () => {
   test("a new site isn't live; a pass is for its own site, and runs out", async () => {
     const a = (await siteFromHost("dom-a.localhost"))!;
     expect(a.launchedAt).toBeNull();
-    const pass = await teamPreviewPass({ actorId: staff, siteId: siteA });
+    const pass = await teamPreviewPass({ actorId: manager, siteId: siteA });
     expect(siteVisible(a, undefined)).toBe(false);
     expect(siteVisible(a, pass)).toBe(true);
     expect(passValid(siteB, pass)).toBe(false);
@@ -175,7 +175,7 @@ describe("going live", () => {
   });
 
   test("an owner launches it, once", async () => {
-    await expect(launchSite({ actorId: staff, siteId: siteA })).rejects.toBeInstanceOf(AccessError);
+    await expect(launchSite({ actorId: manager, siteId: siteA })).rejects.toBeInstanceOf(AccessError);
     const first = await launchSite({ actorId: own, siteId: siteA });
     expect(await launchSite({ actorId: own, siteId: siteA })).toEqual(first);
     expect(siteVisible((await siteFromHost("dom-a.localhost"))!, undefined)).toBe(true);
@@ -183,12 +183,12 @@ describe("going live", () => {
 
   test("an owner hides it again: back behind the holding page; launching again starts a new date", async () => {
     const first = (await siteFromHost("dom-a.localhost"))!.launchedAt!;
-    await expect(hideSite({ actorId: staff, siteId: siteA })).rejects.toBeInstanceOf(AccessError);
+    await expect(hideSite({ actorId: manager, siteId: siteA })).rejects.toBeInstanceOf(AccessError);
     await hideSite({ actorId: own, siteId: siteA });
     const hidden = (await siteFromHost("dom-a.localhost"))!;
     expect(hidden.launchedAt).toBeNull();
     expect(siteVisible(hidden, undefined)).toBe(false);
-    expect(siteVisible(hidden, await teamPreviewPass({ actorId: staff, siteId: siteA }))).toBe(true);
+    expect(siteVisible(hidden, await teamPreviewPass({ actorId: manager, siteId: siteA }))).toBe(true);
     await hideSite({ actorId: own, siteId: siteA });
     const again = await launchSite({ actorId: own, siteId: siteA });
     expect(again.getTime()).toBeGreaterThanOrEqual(first.getTime());
@@ -198,7 +198,7 @@ describe("going live", () => {
 
 describe("your own sending domain", () => {
   test("set up in Resend; emails keep the platform's address until it's verified, then use it", async () => {
-    await expect(setUpSendingDomain({ actorId: staff, siteId: siteA, domain: "kini-a.test", local: "orders" })).rejects.toBeInstanceOf(AccessError);
+    await expect(setUpSendingDomain({ actorId: manager, siteId: siteA, domain: "kini-a.test", local: "orders" })).rejects.toBeInstanceOf(AccessError);
     await expect(setUpSendingDomain({ actorId: own, siteId: siteA, domain: "kini-a.test", local: "Not Valid!" })).rejects.toThrow(/Letters, numbers/);
     const v = await setUpSendingDomain({ actorId: own, siteId: siteA, domain: "Kini-A.test", local: "Orders" });
     expect(v.setUp).toMatchObject({ name: "kini-a.test", local: "orders", resendId: "rd_1", status: "not_started" });

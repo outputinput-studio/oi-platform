@@ -25,7 +25,7 @@ import { listActivity } from "@/modules/activity/server";
 const owner = new Pool({ connectionString: process.env.MIGRATE_DATABASE_URL, max: 1 });
 let siteA = "";
 let siteB = "";
-const kay = "test-merge-kay"; // staff at A
+const kay = "test-merge-kay"; // manager at A
 const lou = "test-merge-lou"; // owner of B
 let amelia = "";
 let frost = "";
@@ -44,7 +44,7 @@ beforeAll(async () => {
     [kay, lou],
   );
   await owner.query(
-    `insert into memberships (user_id, site_id, role) values ($1,$3,'staff'), ($2,$4,'owner')`,
+    `insert into memberships (user_id, site_id, role) values ($1,$3,'manager'), ($2,$4,'owner')`,
     [kay, lou, siteA, siteB],
   );
 

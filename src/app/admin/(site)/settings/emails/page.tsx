@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 /** Settings · Customer emails, as in design/admin.html: the four order emails, a test of each, and keeping a copy. */
 export default async function CustomerEmailsPage() {
-  const { site, role, user } = await requireSiteAccess();
+  const { site, user } = await requireSiteAccess("manager");
   const m = readMessages(site.messages);
   const names = statusNames(siteShop(site));
   return (
@@ -22,7 +22,7 @@ export default async function CustomerEmailsPage() {
           stageNames={{ inProgress: names.inProgress, sent: names.sent, done: names.done }}
           copyTo={senderFor(site).replyTo ?? ""}
           me={user.email}
-          canEdit={role === "owner"}
+          canEdit
         />
       </div>
     </>

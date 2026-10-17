@@ -67,6 +67,6 @@ export async function launchSite(p: { actorId: string; siteId: string }): Promis
 
 /** A preview link's pass, for someone on the team. */
 export async function teamPreviewPass(p: { actorId: string; siteId: string }): Promise<string> {
-  await assertAccess(p.actorId, p.siteId);
+  await assertAccess(p.actorId, p.siteId, "staff");
   return previewPass(p.siteId);
 }

@@ -1,4 +1,5 @@
 import { requireSiteAccess } from "@/modules/auth/access";
+import { atLeast } from "@/modules/auth/roles";
 import { siteShop } from "@/modules/sites/server";
 import { tradingName } from "@/modules/sites/business";
 import { getOrder, trackingUrl, type Tracking } from "@/modules/orders/admin";
@@ -154,7 +155,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           <p className="mt-2 text-[12.5px] text-muted">{o.provider === "stripe" ? "Paid by card · Stripe." : "Test payment — no real money moved."}</p>
         </div>
 
-        {role === "owner" && o.refunded < o.total && (
+        {atLeast(role, "manager") && o.refunded < o.total && (
           <RefundOrder orderId={o.id} left={priceInput(o.total - o.refunded)} leftLabel={formatPrice(o.total - o.refunded, cur)} full={o.refunded === 0} draft={{ subject: `Your refund for order ${o.number}`, message: `Hi ${o.name.split(" ")[0]},\n\nI've refunded ${formatPrice(o.total - o.refunded, cur)} for order ${o.number}. It goes back to the card you paid with and usually shows within 5–10 business days.\n\n${tradingName(site)}` }} currency={cur} />
         )}
         {next && <MoveOrder orderId={o.id} next={next} label={markAs(names[next])} template={templateFor(readMessages(site.messages), next)} vars={orderVars(o, tradingName(site))} tracking={{ carrier: tracking.carrier ?? "", number: tracking.number ?? "" }} />}

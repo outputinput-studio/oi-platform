@@ -14,24 +14,25 @@ import { readProductDetails, resolveDetails } from "@/modules/products/details";
 const owner = new Pool({ connectionString: process.env.MIGRATE_DATABASE_URL, max: 1 });
 let siteA = "";
 let siteB = "";
-const ann = "test-products-ann"; // staff on A
+const ann = "test-products-ann"; // manager at A
 const bob = "test-products-bob"; // owner on B
+const cy = "test-products-cy"; // staff on A: orders, not products
 
 beforeAll(async () => {
-  await owner.query(`delete from users where id in ($1,$2)`, [ann, bob]);
+  await owner.query(`delete from users where id in ($1,$2,$3)`, [ann, bob, cy]);
   await owner.query(`delete from sites where slug in ('products-a','products-b')`);
   siteA = (await owner.query(`insert into sites (slug, name) values ('products-a','Products A') returning id`)).rows[0].id;
   siteB = (await owner.query(`insert into sites (slug, name) values ('products-b','Products B') returning id`)).rows[0].id;
   await owner.query(
     `insert into users (id, name, email, email_verified, updated_at) values
-       ($1,'Ann','ann@products.invalid',true,now()), ($2,'Bob','bob@products.invalid',true,now())`,
-    [ann, bob],
+       ($1,'Ann','ann@products.invalid',true,now()), ($2,'Bob','bob@products.invalid',true,now()), ($3,'Cy','cy@products.invalid',true,now())`,
+    [ann, bob, cy],
   );
-  await owner.query(`insert into memberships (user_id, site_id, role) values ($1,$3,'staff'), ($2,$4,'owner')`, [ann, bob, siteA, siteB]);
+  await owner.query(`insert into memberships (user_id, site_id, role) values ($1,$3,'manager'), ($2,$4,'owner'), ($5,$3,'staff')`, [ann, bob, siteA, siteB, cy]);
 });
 
 afterAll(async () => {
-  await owner.query(`delete from users where id in ($1,$2)`, [ann, bob]);
+  await owner.query(`delete from users where id in ($1,$2,$3)`, [ann, bob, cy]);
   await owner.query(`delete from sites where slug in ('products-a','products-b')`);
   await owner.end();
 });
@@ -79,10 +80,10 @@ describe("products", () => {
     expect(await listProductCategories({ actorId: ann, siteId: siteA })).toEqual([]);
   });
 
-  test("bad input is refused; only owners change the currency; another site's products are out of reach", async () => {
+  test("bad input is refused; staff can't change the currency; another site's products are out of reach", async () => {
     await expect(updateProduct({ actorId: ann, siteId: siteA, productId: bikini, edit: { price: -5 } })).rejects.toThrow();
     await expect(updateProduct({ actorId: ann, siteId: siteA, productId: bikini, edit: { photos: [{ key: "https://evil.example/x.jpg", alt: "", width: 1, height: 1 }] } })).rejects.toThrow();
-    await expect(updateShopSettings({ actorId: ann, siteId: siteA, settings: { currency: "THB" } })).rejects.toBeInstanceOf(AccessError);
+    await expect(updateShopSettings({ actorId: cy, siteId: siteA, settings: { currency: "THB" } })).rejects.toBeInstanceOf(AccessError);
     expect(await updateShopSettings({ actorId: bob, siteId: siteB, settings: { currency: "THB", taxName: "VAT", taxRate: 7 } })).toMatchObject({ currency: "THB", pricesIncludeTax: true, taxName: "VAT", taxRate: 7 });
 
     const theirs = await createProduct({ actorId: bob, siteId: siteB, name: "Theirs" });
@@ -102,8 +103,8 @@ describe("product details", () => {
     { id: "delivery", kind: "delivery", title: "Delivery" },
   ];
 
-  test("only owners write the rows; ids are unique and one delivery row is enough", async () => {
-    await expect(updateDetailRows({ actorId: ann, siteId: siteA, rows })).rejects.toBeInstanceOf(AccessError);
+  test("staff can't write the rows; ids are unique and one delivery row is enough", async () => {
+    await expect(updateDetailRows({ actorId: cy, siteId: siteA, rows })).rejects.toBeInstanceOf(AccessError);
     await expect(updateDetailRows({ actorId: bob, siteId: siteB, rows: [rows[0], { ...rows[0], title: "Again" }] })).rejects.toThrow(/share an id/);
     await expect(updateDetailRows({ actorId: bob, siteId: siteB, rows: [rows[1], { ...rows[1], id: "post" }] })).rejects.toThrow(/One delivery row/);
     await expect(updateDetailRows({ actorId: bob, siteId: siteB, rows: [{ id: "x", title: "" }] })).rejects.toThrow();

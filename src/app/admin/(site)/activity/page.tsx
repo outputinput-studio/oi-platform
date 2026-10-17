@@ -15,7 +15,7 @@ export default async function ActivityPage({
   searchParams: Promise<{ before?: string }>;
 }) {
   const { before } = await searchParams;
-  const { user, site } = await requireSiteAccess();
+  const { user, site } = await requireSiteAccess("manager");
   const from = before ? new Date(before) : undefined;
   const lines = await listActivity({
     actorId: user.id,

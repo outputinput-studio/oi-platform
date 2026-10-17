@@ -5,9 +5,9 @@ import { CustomCodeForm } from "./custom-code-form";
 
 export const dynamic = "force-dynamic";
 
-/** Settings · Custom code: owners only; staff can read it. Earlier versions can be put back. */
+/** Settings · Custom code: owners only; managers can read it. Earlier versions can be put back. */
 export default async function CustomCodePage() {
-  const { site, role } = await requireSiteAccess();
+  const { site, role } = await requireSiteAccess("manager");
   const code = readCustomCode(site.customCode);
   return (
     <>

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 /** Content → Forms: every form the site has, with how many submissions are waiting. */
 export default async function FormsPage() {
-  const { user, site } = await requireSiteAccess();
+  const { user, site } = await requireSiteAccess("manager");
   const all = await listForms({ actorId: user.id, siteId: site.id });
   return (
     <>

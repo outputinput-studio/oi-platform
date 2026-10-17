@@ -8,9 +8,9 @@ import { SearchForm } from "./search-form";
 
 export const dynamic = "force-dynamic";
 
-/** Settings · Search engines, as in design/admin.html. Owners only. */
+/** Settings · Search engines, as in design/admin.html. Owners and managers. */
 export default async function SearchSettingsPage() {
-  const { site, role } = await requireSiteAccess();
+  const { site } = await requireSiteAccess("manager");
   const adminHost = (await headers()).get("x-oi-host") ?? "";
   const siteHost = siteAddress(site, adminHost);
   const s = siteSearch(site);
@@ -24,7 +24,7 @@ export default async function SearchSettingsPage() {
           siteHost={siteHost}
           shareImageUrl={s.shareImage ? mediaUrl(s.shareImage.key) : undefined}
           mediaAvailable={mediaAvailable()}
-          canEdit={role === "owner"}
+          canEdit
         />
       </div>
     </>

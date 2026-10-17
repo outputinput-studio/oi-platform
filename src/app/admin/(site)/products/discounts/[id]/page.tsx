@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function CodePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { user, site } = await requireSiteAccess();
+  const { user, site } = await requireSiteAccess("manager");
   const [code, cats, products] = await Promise.all([
     id === "new" ? null : getCode({ actorId: user.id, siteId: site.id, codeId: id }),
     listProductCategories({ actorId: user.id, siteId: site.id }),

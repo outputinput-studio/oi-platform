@@ -101,10 +101,10 @@ describe("who gets notified", () => {
   });
 
   test("send me a test goes only to the person asking, filled in with a sample order", async () => {
-    await sendTemplateTest({ actorId: staff, siteId, to: "staff@notify.invalid", key: "sent", template: { subject: "Posted, {name}", body: "Hi {name}, {tracking}" } });
+    await sendTemplateTest({ actorId: own, siteId, to: "staff@notify.invalid", key: "sent", template: { subject: "Posted, {name}", body: "Hi {name}, {tracking}" } });
     expect(sent).toHaveLength(1);
     expect(sent[0]).toMatchObject({ to: "staff@notify.invalid", subject: "Test: Posted, Sam" });
     expect(sent[0].text).toContain("Australia Post tracking: 33ANJ482019");
-    await expect(sendTemplateTest({ actorId: staff, siteId, to: "x@y.z", key: "nope", template: { subject: "", body: "" } })).rejects.toThrow();
+    await expect(sendTemplateTest({ actorId: own, siteId, to: "x@y.z", key: "nope", template: { subject: "", body: "" } })).rejects.toThrow();
   });
 });

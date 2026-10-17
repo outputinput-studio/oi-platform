@@ -28,7 +28,7 @@ export async function siteSettings(p: { actorId: string; siteId: string }): Prom
 }
 
 export async function renameSite(p: { actorId: string; siteId: string; name: string }): Promise<Site> {
-  await assertAccess(p.actorId, p.siteId, "owner");
+  await assertAccess(p.actorId, p.siteId);
   const name = named("name", nameSchema, p.name);
   const [site] = await withSite(p.siteId, async (tx) => {
     const rows = await tx.update(sites).set({ name }).where(eq(sites.id, p.siteId)).returning();
@@ -51,7 +51,7 @@ export function siteTheme(site: Pick<Site, "theme">): Theme {
 
 /** Owners change how the storefront looks. Validated against themeSchema; unknown keys are dropped. */
 export async function updateTheme(p: { actorId: string; siteId: string; theme: unknown; screen?: [string, string] }): Promise<Theme> {
-  await assertAccess(p.actorId, p.siteId, "owner");
+  await assertAccess(p.actorId, p.siteId);
   // Only what's sent changes: Branding and Footer each save their own part. (Each part is checked
   // on its own; a schema-wide partial would fill the parts not sent with their defaults.)
   const input = (p.theme && typeof p.theme === "object" ? p.theme : {}) as Record<string, unknown>;
@@ -77,7 +77,7 @@ export async function updateTheme(p: { actorId: string; siteId: string; theme: u
  * links (kept with the business for Google, which lists them too).
  */
 export async function updateFooter(p: { actorId: string; siteId: string; footer: unknown; social: unknown }): Promise<{ theme: Theme; search: SearchSettings }> {
-  await assertAccess(p.actorId, p.siteId, "owner");
+  await assertAccess(p.actorId, p.siteId);
   const social = named("social", socialSchema, p.social ?? {});
   const theme = await updateTheme({ actorId: p.actorId, siteId: p.siteId, theme: { footer: p.footer }, screen: ["Footer", "/settings/footer"] });
   return withSite(p.siteId, async (tx) => {
@@ -114,7 +114,7 @@ export function siteSearch(site: Pick<Site, "search">): SearchSettings {
 
 /** Owners change how the site is found. */
 export async function updateSearchSettings(p: { actorId: string; siteId: string; settings: unknown }): Promise<SearchSettings> {
-  await assertAccess(p.actorId, p.siteId, "owner");
+  await assertAccess(p.actorId, p.siteId);
   const settings = searchSettingsSchema.parse(p.settings);
   const [site] = await withSite(p.siteId, async (tx) => {
     const rows = await tx.update(sites).set({ search: settings }).where(eq(sites.id, p.siteId)).returning();
@@ -132,7 +132,7 @@ export function siteShop(site: Pick<Site, "shop">): ShopSettings {
 
 /** Owners set the currency and tax: it changes what every price means. The enquiry form is kept as it was. */
 export async function updateShopSettings(p: { actorId: string; siteId: string; settings: unknown }): Promise<ShopSettings> {
-  await assertAccess(p.actorId, p.siteId, "owner");
+  await assertAccess(p.actorId, p.siteId);
   const patch = shopSettingsSchema.omit({ enquiryFormId: true, statusNames: true, detailRows: true }).parse(p.settings);
   return withSite(p.siteId, async (tx) => {
     const [cur] = await tx.select({ shop: sites.shop }).from(sites).where(eq(sites.id, p.siteId)).limit(1);
@@ -146,7 +146,7 @@ export async function updateShopSettings(p: { actorId: string; siteId: string; s
 
 /** Owners pick which form takes enquiries (or none). It must be one of this site's forms. */
 export async function setEnquiryForm(p: { actorId: string; siteId: string; formId: string | null }): Promise<ShopSettings> {
-  await assertAccess(p.actorId, p.siteId, "owner");
+  await assertAccess(p.actorId, p.siteId);
   const formId = z.string().uuid().nullable().parse(p.formId);
   return withSite(p.siteId, async (tx) => {
     if (formId) {
@@ -169,7 +169,7 @@ export function siteShipping(site: Pick<Site, "shipping">): Shipping {
 
 /** Owners set what delivery costs. */
 export async function updateShipping(p: { actorId: string; siteId: string; settings: unknown }): Promise<Shipping> {
-  await assertAccess(p.actorId, p.siteId, "owner");
+  await assertAccess(p.actorId, p.siteId);
   const settings = shippingSchema.parse(p.settings);
   const [site] = await withSite(p.siteId, async (tx) => {
     const rows = await tx.update(sites).set({ shipping: settings }).where(eq(sites.id, p.siteId)).returning();
@@ -182,7 +182,7 @@ export async function updateShipping(p: { actorId: string; siteId: string; setti
 
 /** Owners rename the four order stages. Empty puts a stage back to its default name. */
 export async function updateStatusNames(p: { actorId: string; siteId: string; names: unknown }): Promise<ShopSettings> {
-  await assertAccess(p.actorId, p.siteId, "owner");
+  await assertAccess(p.actorId, p.siteId);
   const names = shopSettingsSchema.shape.statusNames.parse(p.names);
   return withSite(p.siteId, async (tx) => {
     const [cur] = await tx.select({ shop: sites.shop }).from(sites).where(eq(sites.id, p.siteId)).limit(1);
@@ -196,7 +196,7 @@ export async function updateStatusNames(p: { actorId: string; siteId: string; na
 
 /** Owners keep the business profile: it signs emails, makes receipts tax invoices, and tells Google who runs the site. */
 export async function updateBusiness(p: { actorId: string; siteId: string; business: unknown }): Promise<Business> {
-  await assertAccess(p.actorId, p.siteId, "owner");
+  await assertAccess(p.actorId, p.siteId);
   const business = businessSchema.parse(p.business);
   return withSite(p.siteId, async (tx) => {
     const [cur] = await tx.select({ search: sites.search }).from(sites).where(eq(sites.id, p.siteId)).limit(1);
@@ -214,7 +214,7 @@ export async function updateBusiness(p: { actorId: string; siteId: string; busin
 
 /** Owners set how the site's emails read: the name they're from and where replies go. */
 export async function updateSending(p: { actorId: string; siteId: string; sending: unknown }): Promise<Sending> {
-  await assertAccess(p.actorId, p.siteId, "owner");
+  await assertAccess(p.actorId, p.siteId);
   const sending = sendingSchema.parse(p.sending);
   return withSite(p.siteId, async (tx) => {
     const [cur] = await tx.select({ messages: sites.messages }).from(sites).where(eq(sites.id, p.siteId)).limit(1);
@@ -242,7 +242,7 @@ export async function updateMessages(p: {
   notify?: unknown;
   forms?: { id: string; on: boolean; to: string; cc: string; bcc: string }[];
 }): Promise<Messages> {
-  await assertAccess(p.actorId, p.siteId, "owner");
+  await assertAccess(p.actorId, p.siteId);
   const templates = p.templates === undefined ? undefined : named("templates", templatesSchema, p.templates);
   if (templates) {
     for (const k of TEMPLATE_KEYS) {
@@ -278,7 +278,7 @@ export async function updateMessages(p: {
 
 /** Owners write the product details rows (Settings · Product details); products keep their own changes by row id. */
 export async function updateDetailRows(p: { actorId: string; siteId: string; rows: unknown }): Promise<ShopSettings> {
-  await assertAccess(p.actorId, p.siteId, "owner");
+  await assertAccess(p.actorId, p.siteId);
   const rows = named("rows", detailRowsSchema, p.rows);
   if (new Set(rows.map((r) => r.id)).size !== rows.length) throw new Error("Two rows share an id. Reload and try again.");
   if (rows.filter((r) => r.kind === "delivery").length > 1) throw new Error("One delivery row is enough.");
@@ -294,7 +294,7 @@ export async function updateDetailRows(p: { actorId: string; siteId: string; row
 
 /** Owners set the analytics IDs (Settings · Analytics). IDs only: the storefront writes the snippets. */
 export async function updateAnalytics(p: { actorId: string; siteId: string; analytics: unknown }): Promise<Analytics> {
-  await assertAccess(p.actorId, p.siteId, "owner");
+  await assertAccess(p.actorId, p.siteId);
   const analytics = analyticsSchema.parse(p.analytics ?? {});
   await withSite(p.siteId, async (tx) => {
     await tx.update(sites).set({ analytics }).where(eq(sites.id, p.siteId));
@@ -305,7 +305,7 @@ export async function updateAnalytics(p: { actorId: string; siteId: string; anal
 
 /** Owners switch the cookie notice on or off, and say what it says (Settings · Cookie notice). */
 export async function updateCookieNotice(p: { actorId: string; siteId: string; notice: unknown }): Promise<CookieNotice> {
-  await assertAccess(p.actorId, p.siteId, "owner");
+  await assertAccess(p.actorId, p.siteId);
   const notice = cookieNoticeSchema.parse(p.notice ?? {});
   await withSite(p.siteId, async (tx) => {
     await tx.update(sites).set({ cookies: notice }).where(eq(sites.id, p.siteId));

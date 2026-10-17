@@ -142,8 +142,8 @@ export const verifications = pgTable(
   (table) => [index("verifications_identifier_idx").on(table.identifier)],
 );
 
-/** Which sites a person belongs to, and as what. One account, many sites. */
-export const MEMBERSHIP_ROLES = ["owner", "staff"] as const;
+/** Which sites a person belongs to, and as what. One account, many sites. What each role may do: src/modules/auth/roles.ts. */
+export const MEMBERSHIP_ROLES = ["owner", "manager", "staff"] as const;
 export type MembershipRole = (typeof MEMBERSHIP_ROLES)[number];
 
 export const memberships = pgTable(

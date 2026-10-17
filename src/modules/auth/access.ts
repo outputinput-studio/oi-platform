@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { db, withSite } from "@/db/client";
 import { memberships, sites, type MembershipRole, type Site, type User } from "@/db/schema";
 import { auth } from "./server";
+import { atLeast } from "./roles";
 
 /**
  * Authorisation lives here, not in proxy.ts. Routing only decides which
@@ -23,18 +24,17 @@ export class AccessError extends Error {
 
 /**
  * The check every module function starts with: is this person a member
- * of this site, and (when `atLeast` is "owner") do they own it? Pure
+ * of this site, with at least role `min`? A Manager unless said otherwise,
+ * so a new function is closed to Staff until someone decides they need it:
+ * pass "staff" for orders, the inbox and contacts, "owner" for the team,
+ * payment keys, the domain, custom code and going live (roles.ts). Pure
  * database, no cookies, so modules stay testable and the rule lives in
  * exactly one place.
  */
-export async function assertAccess(
-  actorId: string,
-  siteId: string,
-  atLeast: MembershipRole = "staff",
-): Promise<MembershipRole> {
+export async function assertAccess(actorId: string, siteId: string, min: MembershipRole = "manager"): Promise<MembershipRole> {
   const role = await membershipFor(actorId, siteId);
   if (!role) throw new AccessError("You're not a member of this site.");
-  if (atLeast === "owner" && role !== "owner") throw new AccessError("Only an owner can do that.");
+  if (!atLeast(role, min)) throw new AccessError(min === "owner" ? "Only an owner can do that." : "Only an owner or a manager can do that.");
   return role;
 }
 
@@ -88,14 +88,17 @@ export async function sitesFor(userId: string): Promise<Array<{ site: Site; role
 /**
  * The site the person is working in right now: signed in, cookie set, and
  * a membership that says they may. Anything less redirects to the site
- * picker, which is also where someone with no sites at all ends up.
+ * picker, which is also where someone with no sites at all ends up. A
+ * screen for a higher role than theirs (`min`) sends them Home: the nav
+ * never shows it, so this is someone following an old link.
  */
-export async function requireSiteAccess(): Promise<SiteAccess> {
+export async function requireSiteAccess(min: MembershipRole = "staff"): Promise<SiteAccess> {
   const user = await requireUser();
   const siteId = (await cookies()).get(ACTIVE_SITE_COOKIE)?.value;
   if (!siteId) redirect("/sites");
   const role = await membershipFor(user.id, siteId);
   if (!role) redirect("/sites");
+  if (!atLeast(role, min)) redirect("/");
   const [site] = await withSite(siteId, (tx) => tx.select().from(sites).limit(1));
   if (!site) redirect("/sites");
   return { user, site, role };

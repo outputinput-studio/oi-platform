@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 /** Content → Articles: the journal, newest first, with cover, status and date. */
 export default async function ArticlesPage() {
-  const { user, site } = await requireSiteAccess();
+  const { user, site } = await requireSiteAccess("manager");
   const all = await listArticles({ actorId: user.id, siteId: site.id });
   const date = (d: Date | null) => (d ? d.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }) : "");
   return (

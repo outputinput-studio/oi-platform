@@ -9,7 +9,7 @@ import { recordActivity } from "@/modules/activity/server";
 /** Settings · Customer accounts, the team side. Owners turn accounts and passwords on and off. */
 
 export async function updateAccountSettings(p: { actorId: string; siteId: string; settings: unknown }): Promise<AccountSettings> {
-  await assertAccess(p.actorId, p.siteId, "owner");
+  await assertAccess(p.actorId, p.siteId);
   const settings = named("settings", accountSettingsSchema, p.settings);
   // Passwords only mean anything with accounts on.
   const next = { ...settings, passwords: settings.enabled && settings.passwords };

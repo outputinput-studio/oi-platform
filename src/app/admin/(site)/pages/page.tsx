@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  * forms and menus join as tabs when they're built.
  */
 export default async function PagesPage() {
-  const { user, site } = await requireSiteAccess();
+  const { user, site } = await requireSiteAccess("manager");
   const all = await listPages({ actorId: user.id, siteId: site.id });
   const hasHome = all.some((p) => p.slug === HOME_SLUG);
 

@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  * history, disputes and tax paperwork all live in their Stripe.
  */
 export default async function PaymentsPage() {
-  const { site, role } = await requireSiteAccess();
+  const { site, role } = await requireSiteAccess("manager");
   const s = paymentsStatus(site);
   const owner = role === "owner";
   const host = (await headers()).get("x-oi-host") ?? "";
