@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { ping } from "@/db/client";
 import { env, environmentName } from "@/lib/env";
+import { secretsAvailable } from "@/lib/secrets";
 
 export const dynamic = "force-dynamic";
 
-/** Reports the environment, the commit and whether the database answered. */
+/**
+ * Reports the environment, the commit, whether the database answered, and
+ * whether secure storage (OI_SECRETS_KEY: Stripe keys, authenticator apps)
+ * is set up. Never a value, only yes or no.
+ */
 export async function GET() {
   let database = false;
   try {
@@ -21,6 +26,7 @@ export async function GET() {
       environment: environmentName(),
       commit: env().VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
       database,
+      secureStorage: secretsAvailable(),
     },
     { status: database ? 200 : 503 },
   );

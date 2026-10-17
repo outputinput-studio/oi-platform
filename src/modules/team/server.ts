@@ -3,6 +3,7 @@ import { db } from "@/db/client";
 import { MEMBERSHIP_ROLES, memberships, sessions, users, type MembershipRole } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { roleWords, sortByRole } from "@/modules/auth/roles";
+import { usingTwoFactor } from "@/modules/auth/two-factor";
 import { sendEmail } from "@/lib/email";
 import { z } from "zod";
 import { named } from "@/lib/form-error";
@@ -25,6 +26,8 @@ export type Member = {
   since: Date;
   /** The last time they signed in or came back (a session renews when used); null if they never have. */
   lastSignedIn: Date | null;
+  /** They use an authenticator app. */
+  twoFactor: boolean;
 };
 
 const emailSchema = z.string().trim().toLowerCase().email();
@@ -52,7 +55,8 @@ export async function listMembers(p: { actorId: string; siteId: string }): Promi
         .groupBy(sessions.userId)
     : [];
   const last = new Map(seen.map((s) => [s.userId, s.at]));
-  return sortByRole(rows.map((r) => ({ ...r, lastSignedIn: last.get(r.userId) ?? null })));
+  const app = await usingTwoFactor(rows.map((r) => r.userId));
+  return sortByRole(rows.map((r) => ({ ...r, lastSignedIn: last.get(r.userId) ?? null, twoFactor: app.has(r.userId) })));
 }
 
 /** What the invitation email needs to say: who added them, to what, and where to sign in. */
@@ -65,7 +69,7 @@ export async function addMember(p: {
   role?: MembershipRole;
   /** When given, a newly added member is told by email. Left out in tests and scripts. */
   invitation?: Invitation;
-}): Promise<Omit<Member, "lastSignedIn"> & { accountCreated: boolean; added: boolean; emailed: boolean }> {
+}): Promise<Omit<Member, "lastSignedIn" | "twoFactor"> & { accountCreated: boolean; added: boolean; emailed: boolean }> {
   await assertAccess(p.actorId, p.siteId, "owner");
   const email = named("email", emailSchema, p.email);
   const role = named("role", roleSchema, p.role ?? "staff");

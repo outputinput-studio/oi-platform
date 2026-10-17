@@ -14,11 +14,8 @@ const admin = base.replace("127.0.0.1", "admin.localhost");
 test.use({ viewport: { width: 390, height: 760 } });
 
 async function signIn(page: Page) {
-  await page.goto(admin + "/sign-in");
-  await page.getByLabel("Email").fill("owner@example.com");
-  await page.getByRole("button", { name: "Send code" }).click();
-  await page.getByLabel("Code").fill((await page.getByTestId("dev-code").textContent())!);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  // Already signed in: the setup project did the emailed code and the app (auth.setup.ts).
+  await page.goto(admin + "/sites");
   await page.getByRole("button", { name: "output/input" }).click();
   await expect(page).toHaveURL(admin + "/");
 }

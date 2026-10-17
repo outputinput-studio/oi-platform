@@ -6,8 +6,10 @@ import { z } from "zod";
 import { APIError } from "better-auth/api";
 import { emailDelivery } from "@/lib/email";
 import { environmentName } from "@/lib/env";
+import { formError } from "@/lib/form-error";
 import { auth } from "./server";
-import { ACTIVE_SITE_COOKIE, membershipFor, requireUser } from "./access";
+import { ACTIVE_SITE_COOKIE, membershipFor, requireHalfSignIn, requireUser } from "./access";
+import { verifySecondStep } from "./two-factor";
 
 /**
  * The sign-in conversation, as server actions. The browser posts a form,
@@ -60,6 +62,23 @@ export async function verifyCode(prev: SignInState, form: FormData): Promise<Sig
       return { step: "code", email, error: "That code didn't work. Check it, or send a new one." };
     }
     throw err;
+  }
+  redirect("/sites");
+}
+
+export type AppCodeState = { error?: string; fields?: string[] };
+
+/**
+ * The second step, for people who use an authenticator app: the code it
+ * shows, or one of their recovery codes. Only for a session that got past
+ * the emailed code; it's that session that's let in.
+ */
+export async function verifyAppCode(_prev: AppCodeState, form: FormData): Promise<AppCodeState> {
+  const { user, sessionId } = await requireHalfSignIn();
+  try {
+    await verifySecondStep(user.id, sessionId, String(form.get("code") ?? ""));
+  } catch (err) {
+    return formError(err, { field: "code" });
   }
   redirect("/sites");
 }

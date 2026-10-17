@@ -3,8 +3,10 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db, withSite } from "@/db/client";
 import { memberships, sites, type MembershipRole, type Site, type User } from "@/db/schema";
+import { secretsAvailable } from "@/lib/secrets";
 import { auth } from "./server";
 import { atLeast } from "./roles";
+import { signInState } from "./two-factor";
 
 /**
  * Authorisation lives here, not in proxy.ts. Routing only decides which
@@ -12,7 +14,7 @@ import { atLeast } from "./roles";
  * may touch. Every admin page and action goes through one of them.
  */
 
-export type SiteAccess = { user: User; site: Site; role: MembershipRole };
+export type SiteAccess = { user: User; site: Site; role: MembershipRole; sessionId: string };
 
 /** Thrown by module functions when the actor may not do this. Pages turn it into a message. */
 export class AccessError extends Error {
@@ -41,17 +43,45 @@ export async function assertAccess(actorId: string, siteId: string, min: Members
 /** Cookie naming the site the person is currently working in. */
 export const ACTIVE_SITE_COOKIE = "oi_site";
 
-/** The signed-in user, or null. */
-export async function currentUser(): Promise<User | null> {
-  const session = await auth.api.getSession({ headers: await headers() });
-  return (session?.user as User | undefined) ?? null;
+/** The session cookie's person and session, or null. Half-way (still owing the app code) counts here. */
+async function currentSession(): Promise<{ user: User; sessionId: string } | null> {
+  const s = await auth.api.getSession({ headers: await headers() });
+  return s ? { user: s.user as User, sessionId: s.session.id } : null;
 }
 
-/** The signed-in user, or a redirect to sign-in. */
+/** The signed-in user, or null (including someone still owing the app code). */
+export async function currentUser(): Promise<User | null> {
+  return (await currentSession())?.user ?? null;
+}
+
+/**
+ * Signed in all the way: the emailed code, then the authenticator app if
+ * they use one (Stage 38). Checked on every request from the session row,
+ * so a session that only got as far as the email can't do anything but
+ * finish signing in or sign out — whichever way it was made.
+ */
+export async function requireSignIn(): Promise<{ user: User; sessionId: string; twoFactorOn: boolean }> {
+  const s = await currentSession();
+  if (!s) redirect("/sign-in");
+  const state = await signInState(s.sessionId);
+  if (!state) redirect("/sign-in");
+  if (state.twoFactorOn && !state.passed) redirect("/sign-in/app");
+  return { ...s, twoFactorOn: state.twoFactorOn };
+}
+
+/** The signed-in user, or a redirect to sign-in (or to the app-code step). */
 export async function requireUser(): Promise<User> {
-  const user = await currentUser();
-  if (!user) redirect("/sign-in");
-  return user;
+  return (await requireSignIn()).user;
+}
+
+/** The app-code step: signed in with the emailed code, still owing the app's. Anyone else goes on. */
+export async function requireHalfSignIn(): Promise<{ user: User; sessionId: string }> {
+  const s = await currentSession();
+  if (!s) redirect("/sign-in");
+  const state = await signInState(s.sessionId);
+  if (!state) redirect("/sign-in");
+  if (!state.twoFactorOn || state.passed) redirect("/sites");
+  return s;
 }
 
 /**
@@ -90,16 +120,19 @@ export async function sitesFor(userId: string): Promise<Array<{ site: Site; role
  * a membership that says they may. Anything less redirects to the site
  * picker, which is also where someone with no sites at all ends up. A
  * screen for a higher role than theirs (`min`) sends them Home: the nav
- * never shows it, so this is someone following an old link.
+ * never shows it, so this is someone following an old link. An Owner
+ * without the authenticator app sets it up before anything else (Carl:
+ * "Required for Owners") — once the server can keep its key (OI_SECRETS_KEY).
  */
 export async function requireSiteAccess(min: MembershipRole = "staff"): Promise<SiteAccess> {
-  const user = await requireUser();
+  const { user, sessionId, twoFactorOn } = await requireSignIn();
   const siteId = (await cookies()).get(ACTIVE_SITE_COOKIE)?.value;
   if (!siteId) redirect("/sites");
   const role = await membershipFor(user.id, siteId);
   if (!role) redirect("/sites");
+  if (role === "owner" && !twoFactorOn && secretsAvailable()) redirect("/two-factor");
   if (!atLeast(role, min)) redirect("/");
   const [site] = await withSite(siteId, (tx) => tx.select().from(sites).limit(1));
   if (!site) redirect("/sites");
-  return { user, site, role };
+  return { user, site, role, sessionId };
 }

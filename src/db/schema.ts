@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, boolean, index, uniqueIndex, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, boolean, index, uniqueIndex, integer, jsonb, bigint } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { PRODUCT_AVAILABILITY, PRODUCT_BUY_WITH, PRODUCT_MAKES } from "../modules/products/kinds";
 import { DISCOUNT_KINDS, DISCOUNT_SCOPES } from "../modules/discounts/kinds";
@@ -98,6 +98,8 @@ export const sessions = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    /** When this session got past the authenticator app (ours, not Better Auth's). Null: not yet, or never asked. */
+    twoFactorAt: timestamp("two_factor_at", { withTimezone: true }),
   },
   (table) => [index("sessions_user_id_idx").on(table.userId)],
 );
@@ -166,6 +168,31 @@ export const memberships = pgTable(
 );
 
 export type Membership = typeof memberships.$inferSelect;
+
+/**
+ * A person's authenticator app (Stage 38): a platform table like sessions,
+ * because it belongs to the person, not to any one site. The secret is
+ * sealed with OI_SECRETS_KEY (src/lib/secrets.ts); recovery codes are kept
+ * only as hashes. Not confirmed until the first code from the app works.
+ */
+export const twoFactors = pgTable("two_factors", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  secret: text("secret").notNull(),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  recovery: jsonb("recovery").$type<string[]>().notNull().default([]),
+  /** The last 30-second step a code was accepted for: each code works once. */
+  lastStep: bigint("last_step", { mode: "number" }),
+  /** Guessing is slowed like customer sign-in: 5 misses → 2 minutes, doubling to an hour. */
+  misses: integer("misses").notNull().default(0),
+  strikes: integer("strikes").notNull().default(0),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type TwoFactor = typeof twoFactors.$inferSelect;
 
 // ───────────────────────── client tables (cont.) ─────────────────────────
 

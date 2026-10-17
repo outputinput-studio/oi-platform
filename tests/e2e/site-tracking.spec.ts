@@ -1,4 +1,5 @@
 import { test, expect, type Browser, type Page } from "@playwright/test";
+import { SIGNED_OUT } from "./state";
 
 /**
  * Settings · Analytics, Cookie notice and Custom code, end to end on the
@@ -15,17 +16,14 @@ const GA = 'script[src*="googletagmanager.com/gtag/js?id=G-AB12CD34EF"]';
 test.use({ viewport: { width: 1200, height: 900 } });
 
 async function signIn(page: Page) {
-  await page.goto(admin + "/sign-in");
-  await page.getByLabel("Email").fill("owner@example.com");
-  await page.getByRole("button", { name: "Send code" }).click();
-  await page.getByLabel("Code").fill((await page.getByTestId("dev-code").textContent())!);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  // Already signed in: the setup project did the emailed code and the app (auth.setup.ts).
+  await page.goto(admin + "/sites");
   await page.getByRole("button", { name: "output/input" }).click();
   await expect(page).toHaveURL(admin + "/");
 }
 
 async function visitor(browser: Browser) {
-  const p = await (await browser.newContext()).newPage();
+  const p = await (await browser.newContext({ storageState: SIGNED_OUT })).newPage();
   await p.route(/googletagmanager\.com|connect\.facebook\.net/, (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: "" }));
   return p;
 }
