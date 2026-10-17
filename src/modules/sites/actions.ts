@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
-import { renameSite, setEnquiryForm, updateBusiness, updateDetailRows, updateFooter, updateMessages, updateSearchSettings, updateSending, updateShipping, updateShopSettings, updateStatusNames, updateTheme } from "./server";
+import { renameSite, setEnquiryForm, updateAnalytics, updateBusiness, updateCookieNotice, updateDetailRows, updateFooter, updateMessages, updateSearchSettings, updateSending, updateShipping, updateShopSettings, updateStatusNames, updateTheme } from "./server";
+import { revertCustomCode, saveCustomCode } from "./custom-code";
 import { formError } from "@/lib/form-error";
 
 export type SettingsFormState = { ok?: string; error?: string; fields?: string[] };
@@ -171,5 +172,57 @@ export async function saveDetailRowsAction(rows: unknown): Promise<SettingsFormS
     return { ok: "Saved" };
   } catch (err) {
     return failed(err);
+  }
+}
+
+/** Settings · Analytics: the two IDs. */
+export async function saveAnalyticsAction(_prev: SettingsFormState, form: FormData): Promise<SettingsFormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await updateAnalytics({ actorId: user.id, siteId: site.id, analytics: { gaId: form.get("gaId") ?? "", metaPixelId: form.get("metaPixelId") ?? "" } });
+    revalidatePath("/", "layout");
+    return { ok: "Saved" };
+  } catch (err) {
+    return formError(err);
+  }
+}
+
+/** Settings · Cookie notice. */
+export async function saveCookieNoticeAction(_prev: SettingsFormState, form: FormData): Promise<SettingsFormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await updateCookieNotice({
+      actorId: user.id,
+      siteId: site.id,
+      notice: { enabled: form.get("enabled") === "on", message: form.get("message") ?? "", policyPath: form.get("policyPath") ?? "" },
+    });
+    revalidatePath("/", "layout");
+    return { ok: "Saved" };
+  } catch (err) {
+    return formError(err);
+  }
+}
+
+/** Settings · Custom code: both boxes, saved together. */
+export async function saveCustomCodeAction(_prev: SettingsFormState, form: FormData): Promise<SettingsFormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await saveCustomCode({ actorId: user.id, siteId: site.id, code: { head: form.get("head") ?? "", body: form.get("body") ?? "" } });
+    revalidatePath("/", "layout");
+    return { ok: "Saved" };
+  } catch (err) {
+    return formError(err);
+  }
+}
+
+/** Settings · Custom code: put an earlier version back. */
+export async function revertCustomCodeAction(versionAt: string): Promise<SettingsFormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await revertCustomCode({ actorId: user.id, siteId: site.id, versionAt });
+    revalidatePath("/", "layout");
+    return { ok: "Put back" };
+  } catch (err) {
+    return formError(err);
   }
 }

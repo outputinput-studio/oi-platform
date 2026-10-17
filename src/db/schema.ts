@@ -40,6 +40,12 @@ export const sites = pgTable("sites", {
   messages: jsonb("messages").notNull().$type<Record<string, unknown>>().default({}),
   /** Customer accounts on the storefront: on or off, passwords allowed. See modules/customers/settings.ts. */
   accounts: jsonb("accounts").notNull().$type<Record<string, unknown>>().default({}),
+  /** Settings · Analytics: a Google Analytics ID and a Meta pixel ID, nothing else. See modules/sites/tracking.ts. */
+  analytics: jsonb("analytics").notNull().$type<Record<string, unknown>>().default({}),
+  /** Settings · Cookie notice: on or off, its words, a privacy page. See modules/sites/tracking.ts. */
+  cookies: jsonb("cookies").notNull().$type<Record<string, unknown>>().default({}),
+  /** Settings · Custom code (owners only): start and end of every page, ten versions back. See modules/sites/custom-code-rules.ts. */
+  customCode: jsonb("custom_code").notNull().$type<Record<string, unknown>>().default({}),
   /**
    * The client's own domain (Settings · Domain), lower case, without www:
    * kinikouture.com.au. Its slug address keeps working alongside. Unique:

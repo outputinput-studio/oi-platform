@@ -57,6 +57,9 @@ A refusal about one field throws `FieldError(field, message)`; a lone value is p
   is current); only published pages render. Storefront pages, their `<head>` and storefront actions get the site
   through `storefrontSite()` / `visibleSiteFromHost()` (`src/modules/sites/storefront.ts`): a site that hasn't launched
   is invisible to them, and `src/app/site/layout.tsx` shows the holding page (a signed `oi_pass` cookie lets the team in).
+  The same layout adds, around a visible site's pages: Custom code (owners only, `modules/sites/custom-code*.ts`, ten
+  versions kept), analytics from IDs only (`modules/sites/tracking.ts` writes Google's and Meta's snippets; never pasted
+  code) once the site is live, and the cookie notice — with it on, analytics wait for Accept (`oi_consent` cookie).
 - Addresses between surfaces come from `src/lib/hosts.ts` (`adminOriginFor`, `siteAddress`, `publicHost`) — never by
   rewriting the first label of a host, which breaks on a client's own domain. Domains go on Vercel through
   `src/lib/vercel.ts` (OI_VERCEL_*); sending domains through Resend (`src/lib/email.ts`).

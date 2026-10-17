@@ -11,6 +11,7 @@ import { businessSchema, sendingSchema, type Business, type Sending } from "./bu
 import { DEFAULT_TEMPLATES, TEMPLATE_KEYS, notifySchema, readMessages, recipientsSchema, templatesSchema, type Messages } from "./messages";
 import { named } from "@/lib/form-error";
 import { recordActivity } from "@/modules/activity/server";
+import { analyticsSchema, cookieNoticeSchema, type Analytics, type CookieNotice } from "./tracking";
 
 /**
  * A site's own settings. Everything here runs inside withSite(), so the
@@ -289,4 +290,26 @@ export async function updateDetailRows(p: { actorId: string; siteId: string; row
     await settingsChanged(tx, p, "Product details", "/settings/product-details");
     return settings;
   });
+}
+
+/** Owners set the analytics IDs (Settings · Analytics). IDs only: the storefront writes the snippets. */
+export async function updateAnalytics(p: { actorId: string; siteId: string; analytics: unknown }): Promise<Analytics> {
+  await assertAccess(p.actorId, p.siteId, "owner");
+  const analytics = analyticsSchema.parse(p.analytics ?? {});
+  await withSite(p.siteId, async (tx) => {
+    await tx.update(sites).set({ analytics }).where(eq(sites.id, p.siteId));
+    await settingsChanged(tx, p, "Analytics", "/settings/analytics");
+  });
+  return analytics;
+}
+
+/** Owners switch the cookie notice on or off, and say what it says (Settings · Cookie notice). */
+export async function updateCookieNotice(p: { actorId: string; siteId: string; notice: unknown }): Promise<CookieNotice> {
+  await assertAccess(p.actorId, p.siteId, "owner");
+  const notice = cookieNoticeSchema.parse(p.notice ?? {});
+  await withSite(p.siteId, async (tx) => {
+    await tx.update(sites).set({ cookies: notice }).where(eq(sites.id, p.siteId));
+    await settingsChanged(tx, p, "Cookie notice", "/settings/cookies");
+  });
+  return notice;
 }
