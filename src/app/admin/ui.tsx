@@ -211,6 +211,16 @@ export function Rows({ children, className = "", variant }: { children: React.Re
   );
 }
 
+/** The download arrow (Export this list, Export this contact). */
+export function DownloadIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="flex-none text-body" aria-hidden>
+      <path d="M12 3v12M7 11l5 5 5-5" />
+      <path d="M4 19h16" />
+    </svg>
+  );
+}
+
 export function Chevron({ className = "" }: { className?: string }) {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={`flex-none text-faint ${className}`} aria-hidden>

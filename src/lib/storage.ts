@@ -19,6 +19,8 @@ export type Storage = {
   kind: "r2" | "local";
   put(key: string, bytes: Uint8Array, contentType: string): Promise<void>;
   remove(key: string): Promise<void>;
+  /** The stored bytes, or null if they aren't there (Export everything reads them back). */
+  get(key: string): Promise<Uint8Array | null>;
   /** The public address of a stored object. */
   url(key: string): string;
 };
@@ -58,6 +60,13 @@ function r2Storage(cfg: R2Config): Storage {
       const res = await client.fetch(objectUrl(key), { method: "DELETE" });
       if (!res.ok && res.status !== 404) throw new Error(`R2 refused the delete (${res.status}).`);
     },
+    async get(key) {
+      checkKey(key);
+      const res = await client.fetch(objectUrl(key), { method: "GET" });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`R2 refused the read (${res.status}).`);
+      return new Uint8Array(await res.arrayBuffer());
+    },
     url: (key) => `${cfg.publicUrl}/${key}`,
   };
 }
@@ -79,6 +88,10 @@ function localStorage(): Storage {
     async remove(key) {
       checkKey(key);
       await unlink(path.join(dir, key)).catch(() => undefined);
+    },
+    async get(key) {
+      checkKey(key);
+      return readFile(path.join(dir, key)).catch(() => null);
     },
     url: (key) => `/api/media-local/${key}`,
   };
