@@ -19,6 +19,7 @@ import { createForm, listForms, listSubmissions } from "@/modules/forms/server";
 import { listMedia } from "@/modules/media/server";
 import { listOrders, moveOrder, refundOrder, sendTemplateTest } from "@/modules/orders/admin";
 import { createPage, listPages } from "@/modules/pages/server";
+import { planView } from "@/modules/plans/server";
 import { removeStripeKeys, saveStripeKeys } from "@/modules/payments/server";
 import { listProducts } from "@/modules/products/server";
 import { saveCustomCode } from "@/modules/sites/custom-code";
@@ -91,6 +92,7 @@ const rows: Array<[string, MembershipRole, Call]> = [
   ["change custom code", "owner", (actorId, siteId) => saveCustomCode({ actorId, siteId, code: { head: "", body: "" } })],
   ["launch the site", "owner", (actorId, siteId) => launchSite({ actorId, siteId })],
   ["hide the site", "owner", (actorId, siteId) => hideSite({ actorId, siteId })],
+  ["see the plan and usage", "owner", (actorId, siteId) => planView({ actorId, siteId })],
 ];
 
 /** True unless the access check said no. */

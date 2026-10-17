@@ -12,7 +12,7 @@ export function Shell({ children, footer }: { children: React.ReactNode; footer?
     <main className="flex min-h-screen flex-col px-5 pb-8 pt-14 md:items-center md:justify-center md:pt-8">
       <div className="flex w-full max-w-[360px] flex-1 flex-col md:flex-none">
         <div className="mb-10 flex items-center gap-3">
-          <Wordmark />
+          <Wordmark className="h-[22px]" />
           {envName !== "production" && <span className="label !text-faint">{envName}</span>}
         </div>
         <div className="flex-1">{children}</div>

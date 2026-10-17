@@ -40,3 +40,10 @@ export function publicHost(site: { domain: string | null; domainWww: boolean; do
 export function siteAddress(site: { slug: string; domain: string | null; domainWww: boolean; domainOkAt: Date | null }, adminHost: string): string {
   return publicHost(site, slugHost(adminHost, site.slug));
 }
+
+/** From the ops surface (always a platform host, ops.<base>): the admin of the same platform. */
+export function adminOriginForOps(opsHost: string, bases = platformBases()): string {
+  const h = opsHost.split(":")[0];
+  const base = platformBaseOf(h, bases) ?? bases.find((b) => b !== "localhost") ?? "localhost";
+  return `https://admin.${base}`;
+}

@@ -55,13 +55,15 @@ export async function sendCode(_prev: SignInState, form: FormData): Promise<Sign
 export async function verifyCode(prev: SignInState, form: FormData): Promise<SignInState> {
   const parsed = codeSchema.safeParse({ email: form.get("email"), code: form.get("code") });
   const email = prev.step === "code" ? prev.email : String(form.get("email") ?? "");
-  if (!parsed.success) return { step: "code", email, error: "That code didn't work. Codes are six digits." };
+  // A mistyped code keeps the on-screen code (staging, previews, CI) in view, so it can be tried again.
+  const devCode = prev.step === "code" ? prev.devCode : undefined;
+  if (!parsed.success) return { step: "code", email, devCode, error: "That code didn't work. Codes are six digits." };
 
   try {
     await auth.api.signInEmailOTP({ body: { email: parsed.data.email, otp: parsed.data.code }, headers: await headers() });
   } catch (err) {
     if (err instanceof APIError) {
-      return { step: "code", email, error: "That code didn't work. Check it, or send a new one." };
+      return { step: "code", email, devCode, error: "That code didn't work. Check it, or send a new one." };
     }
     throw err;
   }

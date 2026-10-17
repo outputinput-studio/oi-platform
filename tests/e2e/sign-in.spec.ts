@@ -38,13 +38,18 @@ test("an email nobody has invited gets no code, and no hint that it is unknown",
   await expect(page.getByTestId("dev-code")).toHaveCount(0);
 });
 
-test("a wrong code is refused", async ({ page }) => {
+test("a wrong code is refused; the on-screen code stays, and still works", async ({ page }) => {
   await page.goto(admin + "/sign-in");
   await page.getByLabel("Email").fill(seededOwner);
   await page.getByRole("button", { name: "Send code" }).click();
-  await page.getByLabel("Code").fill("000000");
+  const code = await page.getByTestId("dev-code").textContent();
+  await page.getByLabel("Code").fill(code === "000000" ? "111111" : "000000");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByText("That code didn't work")).toBeVisible();
+  await expect(page.getByTestId("dev-code")).toHaveText(code!);
+  await page.getByLabel("Code").fill(code!);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/sign-in\/app$/);
 });
 
 test("email → code → the app's code → pick a site → signed in → sign out", async ({ page }) => {

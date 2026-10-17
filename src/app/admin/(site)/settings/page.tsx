@@ -9,6 +9,8 @@ import { readMessages, splitList, type Messages } from "@/modules/sites/messages
 import { readAccountSettings } from "@/modules/customers/settings";
 import { readAnalytics, readCookieNotice } from "@/modules/sites/tracking";
 import { readCustomCode } from "@/modules/sites/custom-code-rules";
+import { readPlan } from "@/modules/plans/plan";
+import { formatPrice } from "@/modules/sites/shop";
 import { Label, PageHeader, Row, Rows } from "../../ui";
 
 export const dynamic = "force-dynamic";
@@ -76,6 +78,14 @@ export default async function SettingsPage() {
             <Row title="Your account" detail={user.email} href="/account" />
           </Rows>
         </section>
+        {role === "owner" && (
+          <section>
+            <Label>With us</Label>
+            <Rows>
+              <Row title="Plan" detail={planLine(site.plan)} href="/settings/plan" />
+            </Rows>
+          </section>
+        )}
         <section>
           <Label>Advanced</Label>
           <Rows>
@@ -85,6 +95,11 @@ export default async function SettingsPage() {
       </div>
     </>
   );
+}
+
+function planLine(raw: unknown): string {
+  const p = readPlan(raw);
+  return p ? `${p.name} · ${formatPrice(p.price, p.currency)} a month` : "What you're on, and what you're using";
 }
 
 function paymentsLine(s: ReturnType<typeof paymentsStatus>): string {

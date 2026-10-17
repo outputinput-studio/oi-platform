@@ -9,6 +9,7 @@ import { CONSENT_COOKIE, canTrack, readAnalytics, readCookieNotice } from "@/mod
 import { readCustomCode } from "@/modules/sites/custom-code-rules";
 import { AnalyticsScripts } from "./tracking";
 import { CookieNotice } from "./cookie-notice";
+import { VisitBeacon } from "./visit-beacon";
 
 /**
  * Every storefront page sits inside this. A site that hasn't launched
@@ -37,6 +38,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       {children}
       {code.body && <div data-custom-code="end" className="contents" dangerouslySetInnerHTML={{ __html: code.body }} />}
       {tracked && canTrack(notice, consent) && <AnalyticsScripts a={analytics} />}
+      {site.launchedAt && <VisitBeacon />}
       {notice.enabled && consent !== "yes" && consent !== "no" && (
         <div style={themeVars(theme) as React.CSSProperties}>
           <CookieNotice message={notice.message} policyPath={notice.policyPath} analytics={tracked ? analytics : null} />

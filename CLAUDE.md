@@ -48,6 +48,10 @@ A refusal about one field throws `FieldError(field, message)`; a lone value is p
 - O/I support (Carl, Oct 2026; `modules/auth/support.ts`): the addresses in OI_SUPPORT_EMAILS (Vercel only, never the
   database) are an Owner on every site with no membership — always on, a client can't remove it. They always need the
   app, count only once OI_SECRETS_KEY is set, show as "output/input" in Activity, and list sites via `all_site_ids()`.
+- Ops and plans (Carl, Oct 2026; `src/app/ops`, `modules/ops`, `modules/plans`): ops is O/I support's own surface —
+  anyone else lands on "not ours" (`requireOps`). We set each site's plan there (`sites.plan`, `planSchema`; only
+  `setPlan` by support, checked in the module); Owners see it and their usage in Settings · Plan. Visits are counted
+  per site per day in `visits` (RLS) by `/api/visit`, launched sites only, bots skipped.
 - Invitations (`modules/team/invitations.ts`, RLS table): the only way onto a team from the admin. 14 days; the
   link (`/join/[token]`, found through `resolve_invitation()`) adds the invited address as its role, then hands on
   to the emailed code. An expired link asks for a new one itself, sent to the invited address.

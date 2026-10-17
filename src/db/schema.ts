@@ -46,6 +46,8 @@ export const sites = pgTable("sites", {
   cookies: jsonb("cookies").notNull().$type<Record<string, unknown>>().default({}),
   /** Settings · Custom code (owners only): start and end of every page, ten versions back. See modules/sites/custom-code-rules.ts. */
   customCode: jsonb("custom_code").notNull().$type<Record<string, unknown>>().default({}),
+  /** The plan output/input set in ops (modules/plans/plan.ts). Empty: no plan yet. Clients can't change it. */
+  plan: jsonb("plan").notNull().$type<Record<string, unknown>>().default({}),
   /**
    * The client's own domain (Settings · Domain), lower case, without www:
    * kinikouture.com.au. Its slug address keeps working alongside. Unique:
@@ -928,3 +930,39 @@ export const invitations = pgTable(
   (t) => [index("invitations_site_sent_idx").on(t.siteId, t.sentAt)],
 );
 export type Invitation = typeof invitations.$inferSelect;
+
+/**
+ * Visits to a storefront, counted per day (Settings · Plan, "Visits this
+ * month"). Once per visitor per day (`visits_seen`), from a beacon; no
+ * cookie, no address kept, nothing about who — just how many.
+ */
+export const visits = pgTable(
+  "visits",
+  {
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    day: text("day").notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [uniqueIndex("visits_site_day_idx").on(t.siteId, t.day)],
+);
+
+/**
+ * Who has already been counted today, so a visit counts once per visitor
+ * per site per day (Carl, Oct 2026: a script can't push the number up).
+ * `visitor` is an HMAC of the connection's address and the day, under a
+ * server secret: it can't be turned back into an address, and it doesn't
+ * match from one day to the next. Earlier days are deleted as today's come in.
+ */
+export const visitsSeen = pgTable(
+  "visits_seen",
+  {
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    day: text("day").notNull(),
+    visitor: text("visitor").notNull(),
+  },
+  (t) => [uniqueIndex("visits_seen_site_day_visitor_idx").on(t.siteId, t.day, t.visitor)],
+);
