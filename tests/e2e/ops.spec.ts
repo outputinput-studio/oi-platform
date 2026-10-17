@@ -118,6 +118,42 @@ test("support sets a site's plan in ops; the Owner sees it in Settings · Plan",
   await expect(page.getByTestId("plan-card")).toContainText("$200 a month");
 });
 
+test("our default plans: add one, put a site on it, change it and the site follows", async ({ page, browser }) => {
+  const sup = await opsSignIn(browser, SUPPORT);
+  await sup.getByRole("link", { name: "Plans", exact: true }).click();
+  await sup.getByRole("link", { name: "New plan" }).click();
+  await sup.getByLabel("Name").fill("Shop");
+  await sup.getByLabel("What it includes").fill("Products, orders and contacts.");
+  await sup.getByLabel("Price a month").fill("150");
+  await sup.getByLabel("Photos and files (GB)").fill("10");
+  await sup.getByLabel("Products").fill("500");
+  await sup.getByLabel("People who can log in").fill("3");
+  await sup.getByLabel("Visits a month").fill("");
+  await sup.getByRole("button", { name: "Add plan" }).click();
+  await expect(sup.getByText("Added. Put sites on it from their page.")).toBeVisible();
+
+  // On the site's page: pick it, and they're on it.
+  await sup.getByRole("link", { name: "Sites", exact: true }).click();
+  await sup.getByTestId("ops-site-demo").click();
+  await sup.getByLabel("Plan", { exact: true }).selectOption({ label: "Shop · $150 a month" });
+  await expect(sup.getByTestId("plan-summary")).toContainText("10 GB · 500 products · 3 people · no limit on visits a month");
+  await sup.getByRole("button", { name: "Put them on this plan" }).click();
+  await expect(sup.getByText("On Shop")).toBeVisible();
+
+  // Change the plan: the site follows.
+  await sup.getByRole("link", { name: "Change it for every site on it" }).click();
+  await sup.getByLabel("Price a month").fill("160");
+  await sup.getByRole("button", { name: "Save plan" }).click();
+  await expect(sup.getByText("Saved — 1 site follows")).toBeVisible();
+  await expect(sup.getByRole("button", { name: "Remove this plan" })).toBeDisabled();
+
+  await page.goto(admin + "/sites");
+  await page.getByRole("button", { name: "Demo site" }).click();
+  await page.goto(admin + "/settings/plan");
+  await expect(page.getByTestId("plan-card")).toContainText("Shop");
+  await expect(page.getByTestId("plan-card")).toContainText("$160 a month");
+});
+
 test("ops is ours: a client's Owner signing in there is told so", async ({ browser }) => {
   test.skip(!hasKey("owner@example.com"), "needs the owner's app key from the setup project");
   const p = await opsSignIn(browser, "owner@example.com");

@@ -47,3 +47,9 @@ export function formatBytes(n: number): string {
   if (gb >= 1) return `${gb >= 10 ? Math.round(gb) : Math.round(gb * 10) / 10} GB`;
   return `${Math.round(n / 1024 ** 2)} MB`;
 }
+
+/** "5 GB · no limit on products · 2 people · 10,000 visits a month" — a plan's limits on one line, for ops. */
+export function limitsLine(p: Plan): string {
+  const n = (v: number | null, one: string, many: string) => (v === null ? `no limit on ${many}` : `${v.toLocaleString("en-AU")} ${v === 1 ? one : many}`);
+  return [`${p.limits.storageGb} GB`, n(p.limits.products, "product", "products"), n(p.limits.people, "person", "people"), `${n(p.limits.visits, "visit", "visits")} a month`].join(" · ");
+}

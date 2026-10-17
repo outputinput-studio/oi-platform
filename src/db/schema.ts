@@ -49,6 +49,11 @@ export const sites = pgTable("sites", {
   /** The plan output/input set in ops (modules/plans/plan.ts). Empty: no plan yet. Clients can't change it. */
   plan: jsonb("plan").notNull().$type<Record<string, unknown>>().default({}),
   /**
+   * One of our default plans (`plans`), when the site is on one: `plan` is then a copy of it, kept in
+   * step whenever the default plan changes. Null: no plan, or a custom one made for this site alone.
+   */
+  planId: uuid("plan_id"),
+  /**
    * The client's own domain (Settings · Domain), lower case, without www:
    * kinikouture.com.au. Its slug address keeps working alongside. Unique:
    * one domain, one site.
@@ -995,3 +1000,25 @@ export const billing = pgTable("billing", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 export type Billing = typeof billing.$inferSelect;
+
+/**
+ * output/input's default plans (Carl, Oct 2026), set in ops · Plans. A
+ * platform table — O/I's own price list, not a client's data — so no RLS;
+ * only module functions that check for O/I support change it. A site on one
+ * keeps a copy in `sites.plan`, updated with every edit here ("they all
+ * follow"); a custom plan is just a site's own `sites.plan` with no `plan_id`.
+ */
+export const plans = pgTable("plans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  /** Cents a month. */
+  price: integer("price").notNull(),
+  currency: text("currency").notNull(),
+  limits: jsonb("limits").notNull().$type<Record<string, unknown>>(),
+  /** Their order in ops and the picker. */
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type PlanRow = typeof plans.$inferSelect;

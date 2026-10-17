@@ -19,6 +19,9 @@ export function OpsShell({ email, children }: { email: string; children: React.R
             <Link href="/" className="rounded-[6px] px-3 py-1.5 text-[14px] text-body hover:bg-hover">
               Sites
             </Link>
+            <Link href="/plans" className="rounded-[6px] px-3 py-1.5 text-[14px] text-body hover:bg-hover">
+              Plans
+            </Link>
           </nav>
           <div className="ml-auto flex items-center gap-3 text-[13px] text-muted">
             <span className="hidden font-mono sm:inline">{email}</span>
