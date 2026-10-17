@@ -5,7 +5,7 @@ import { sites, type Site } from "@/db/schema";
 import { platformBases } from "@/lib/env";
 import { cleanDomain, hostsFor, isApex, recordsFor, DEFAULT_A, DEFAULT_CNAME, type DnsRecord } from "@/lib/domains";
 import { FieldError } from "@/lib/form-error";
-import { addProjectDomain, domainConfig, getProjectDomain, removeProjectDomain, setRedirect, vercelConfig, VercelError, type VercelConfig } from "@/lib/vercel";
+import { addProjectDomain, domainConfig, getProjectDomain, ourProjectDomain, removeProjectDomain, setRedirect, vercelConfig, VercelError, type VercelConfig } from "@/lib/vercel";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 
 /**
@@ -123,13 +123,15 @@ export async function connectDomain(p: { actorId: string; siteId: string; domain
   const cfg = safeConfig();
   if (cfg) {
     const { primary, other } = hostsFor(clean.domain, www);
+    const created: string[] = [];
     try {
-      await addProjectDomain(cfg, primary);
-      if (other) await addProjectDomain(cfg, other, primary);
+      if ((await addProjectDomain(cfg, primary)).created) created.push(primary);
+      if (other && (await addProjectDomain(cfg, other, primary)).created) created.push(other);
     } catch (err) {
-      // Couldn't put it on Vercel: take it back off the site, and say why in words.
+      // Couldn't put it on Vercel: take it back off the site, undo only what this added, and say why in words.
       await withSite(p.siteId, (tx) => tx.update(sites).set({ domain: null, domainWww: false }).where(eq(sites.id, p.siteId)));
-      await removeProjectDomain(cfg, primary).catch(() => {});
+      for (const host of created) await removeProjectDomain(cfg, host).catch(() => {});
+      if (err instanceof VercelError && err.code === "domain_in_other_environment") throw new FieldError("domain", "That domain is already set up elsewhere on output/input, so it can't be connected here. Get in touch and we'll sort it out.");
       if (err instanceof VercelError && err.status === 409) throw new FieldError("domain", "That domain is in use on another Vercel account. Take it off there first, or get in touch and we'll help.");
       if (err instanceof VercelError && err.status === 400) throw new FieldError("domain", "Vercel won't take that domain. Check it's spelt right.");
       console.error("vercel add domain failed", err);
@@ -149,6 +151,9 @@ export async function setDomainWww(p: { actorId: string; siteId: string; www: bo
   const cfg = safeConfig();
   const { primary, other } = hostsFor(site.domain, p.www);
   if (cfg && other) {
+    // Never re-point the other side's (live vs staging) addresses from here.
+    const [a, b] = await Promise.all([ourProjectDomain(cfg, primary), ourProjectDomain(cfg, other)]);
+    if (!a || !b) throw new Error("That domain is set up elsewhere on output/input, so its addresses can't be changed from here. Get in touch and we'll sort it out.");
     // The new main address stops redirecting first, so there's never a moment where both redirect.
     await setRedirect(cfg, primary, null);
     await setRedirect(cfg, other, primary);

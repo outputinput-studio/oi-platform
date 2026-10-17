@@ -50,23 +50,58 @@ async function call<T>(cfg: VercelConfig, method: string, path: string, body?: u
 const project = (cfg: VercelConfig) => `/v10/projects/${encodeURIComponent(cfg.projectId)}`;
 const projectV9 = (cfg: VercelConfig) => `/v9/projects/${encodeURIComponent(cfg.projectId)}`;
 
-export type ProjectDomain = { name: string; verified: boolean; redirect?: string | null; verification?: { type: string; domain: string; value: string; reason?: string }[] };
+export type ProjectDomain = {
+  name: string;
+  verified: boolean;
+  redirect?: string | null;
+  customEnvironmentId?: string | null;
+  gitBranch?: string | null;
+  verification?: { type: string; domain: string; value: string; reason?: string }[];
+};
 
-/** Put a host on the project (on staging's environment when set), maybe redirecting to another. Already there is fine. */
-export async function addProjectDomain(cfg: VercelConfig, name: string, redirect?: string): Promise<ProjectDomain> {
+/**
+ * Staging and production share one Vercel project, so a domain on it may
+ * belong to the other side. Ours: on our environment (staging's custom
+ * one, or none for production) and not tied to a branch. Anything else is
+ * never adopted, redirected or removed from here.
+ */
+export function onOurSide(cfg: VercelConfig, d: Pick<ProjectDomain, "customEnvironmentId" | "gitBranch">): boolean {
+  return (d.customEnvironmentId ?? null) === (cfg.environmentId ?? null) && !d.gitBranch;
+}
+
+const ELSEWHERE = "That domain is set up on the other side of output/input (live or staging).";
+
+/** The host as it stands on the project, if it's there and on our side; null when it isn't there or isn't ours. */
+export async function ourProjectDomain(cfg: VercelConfig, name: string): Promise<ProjectDomain | null> {
   try {
-    return await call<ProjectDomain>(cfg, "POST", `${project(cfg)}/domains`, {
+    const d = await getProjectDomain(cfg, name);
+    return onOurSide(cfg, d) ? d : null;
+  } catch (err) {
+    if (err instanceof VercelError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+/**
+ * Put a host on the project (on staging's environment when set), maybe redirecting to another.
+ * Already there on our side is fine (`created: false`); on the other side it's refused untouched.
+ */
+export async function addProjectDomain(cfg: VercelConfig, name: string, redirect?: string): Promise<ProjectDomain & { created: boolean }> {
+  try {
+    const d = await call<ProjectDomain>(cfg, "POST", `${project(cfg)}/domains`, {
       name,
       ...(redirect ? { redirect, redirectStatusCode: 308 } : {}),
       ...(cfg.environmentId ? { customEnvironmentId: cfg.environmentId } : {}),
     });
+    return { ...d, created: true };
   } catch (err) {
-    // On this project already: make sure it redirects the way it should, and carry on.
     if (err instanceof VercelError && err.status === 409 && /already.*(project|assigned)|domain_already_in_use_by_project|domain_already_exists/i.test(`${err.code} ${err.message}`)) {
       const existing = await getProjectDomain(cfg, name).catch(() => null);
+      if (existing && !onOurSide(cfg, existing)) throw new VercelError(409, "domain_in_other_environment", ELSEWHERE);
+      // On our side already: make sure it redirects the way it should, and carry on.
       if (existing) {
-        if ((existing.redirect ?? null) !== (redirect ?? null)) return setRedirect(cfg, name, redirect ?? null);
-        return existing;
+        if ((existing.redirect ?? null) !== (redirect ?? null)) return { ...(await setRedirect(cfg, name, redirect ?? null)), created: false };
+        return { ...existing, created: false };
       }
     }
     throw err;
@@ -86,8 +121,9 @@ export async function verifyProjectDomain(cfg: VercelConfig, name: string): Prom
   return call<ProjectDomain>(cfg, "POST", `${projectV9(cfg)}/domains/${encodeURIComponent(name)}/verify`);
 }
 
-/** Off the project. Not there is fine. */
+/** Off the project. Not there is fine; on the other side (live vs staging) it's left alone. */
 export async function removeProjectDomain(cfg: VercelConfig, name: string): Promise<void> {
+  if (!(await ourProjectDomain(cfg, name))) return;
   try {
     await call(cfg, "DELETE", `${projectV9(cfg)}/domains/${encodeURIComponent(name)}`);
   } catch (err) {

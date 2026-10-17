@@ -83,19 +83,40 @@ describe("the Vercel calls", () => {
     expect(calls[0]).toEqual({ url: "https://api.vercel.com/v10/projects/prj_1/domains?teamId=team_1", method: "POST", body: { name: "www.kini.com", redirect: "kini.com", redirectStatusCode: 308, customEnvironmentId: "env_staging" }, auth: "Bearer t0k3n" });
   });
 
-  test("already on this project: fine, and its redirect is put right", async () => {
-    stub((url, method) => (method === "POST" ? reply(409, { error: { code: "domain_already_in_use_by_project", message: "already assigned to this project" } }) : reply(200, { name: "www.kini.com", verified: true, redirect: null })));
+  test("already on this project, on our side: fine, and its redirect is put right", async () => {
+    stub((url, method) => (method === "POST" ? reply(409, { error: { code: "domain_already_in_use_by_project", message: "already assigned to this project" } }) : reply(200, { name: "www.kini.com", verified: true, redirect: null, customEnvironmentId: "env_staging" })));
     await addProjectDomain(cfg, "www.kini.com", "kini.com");
     expect(calls.map((c) => c.method)).toEqual(["POST", "GET", "PATCH"]);
     expect(calls[2].body).toEqual({ redirect: "kini.com", redirectStatusCode: 308 });
   });
 
-  test("someone else's: an error that says so; removing what isn't there is fine", async () => {
+  test("on this project but the other side (staging vs live): refused, and left exactly as it was", async () => {
+    stub((url, method) => (method === "POST" ? reply(409, { error: { code: "domain_already_in_use_by_project", message: "already assigned to this project" } }) : reply(200, { name: "kini.com", verified: true, redirect: null, customEnvironmentId: null })));
+    await expect(addProjectDomain(cfg, "www.kini.com", "kini.com")).rejects.toMatchObject({ status: 409, code: "domain_in_other_environment" });
+    expect(calls.map((c) => c.method)).toEqual(["POST", "GET"]);
+    // Production's view: one on staging's environment, or on a branch, isn't ours either.
+    const live = { ...cfg, environmentId: undefined };
+    calls.length = 0;
+    vi.unstubAllGlobals();
+    stub((url, method) => (method === "GET" ? reply(200, { name: "kini.com", verified: true, customEnvironmentId: "env_staging" }) : reply(200, {})));
+    await removeProjectDomain(live, "kini.com");
+    vi.unstubAllGlobals();
+    stub((url, method) => (method === "GET" ? reply(200, { name: "kini.com", verified: true, customEnvironmentId: null, gitBranch: "stage-35" }) : reply(200, {})));
+    await removeProjectDomain(live, "kini.com");
+    expect(calls.map((c) => c.method)).toEqual(["GET", "GET"]);
+  });
+
+  test("someone else's: an error that says so; removing what isn't there is fine; removing ours does", async () => {
     stub(() => reply(409, { error: { code: "domain_taken", message: "The domain is in use by another account" } }));
     await expect(addProjectDomain(cfg, "kini.com")).rejects.toBeInstanceOf(VercelError);
     vi.unstubAllGlobals();
     stub(() => reply(404, { error: { code: "not_found" } }));
     await expect(removeProjectDomain(cfg, "kini.com")).resolves.toBeUndefined();
+    vi.unstubAllGlobals();
+    calls.length = 0;
+    stub((url, method) => (method === "GET" ? reply(200, { name: "kini.com", verified: true, customEnvironmentId: "env_staging" }) : reply(200, {})));
+    await removeProjectDomain(cfg, "kini.com");
+    expect(calls.map((c) => c.method)).toEqual(["GET", "DELETE"]);
   });
 
   test("staging's environment on staging; never on production, even if the variable is set there too", async () => {

@@ -19,6 +19,9 @@ type Call = { method: string; url: string; body?: Record<string, unknown> };
 const calls: Call[] = [];
 let resendStatus = "not_started";
 let vercelTaken = false;
+/** On this Vercel project already, but on the other side (here: staging's environment, as seen from production). */
+const elsewhere = new Set<string>();
+const hostOf = (url: string) => decodeURIComponent(url.split("/domains/")[1]?.split(/[/?]/)[0] ?? "");
 vi.stubGlobal("fetch", async (input: URL | string, init: RequestInit = {}) => {
   const url = String(input);
   const method = init.method ?? "GET";
@@ -27,6 +30,8 @@ vi.stubGlobal("fetch", async (input: URL | string, init: RequestInit = {}) => {
   const json = (status: number, b: unknown) => new Response(JSON.stringify(b), { status, headers: { "content-type": "application/json" } });
   if (url.startsWith("https://api.vercel.com")) {
     if (method === "POST" && vercelTaken) return json(409, { error: { code: "domain_taken", message: "in use by another account" } });
+    if (method === "POST" && elsewhere.has(body?.name)) return json(409, { error: { code: "domain_already_in_use_by_project", message: "already assigned to this project" } });
+    if (method === "GET" && elsewhere.has(hostOf(url))) return json(200, { name: hostOf(url), verified: true, redirect: null, customEnvironmentId: "env_staging" });
     if (url.includes("/config")) return json(200, { misconfigured: false, recommendedIPv4: [{ rank: 1, value: ["76.76.21.21"] }], recommendedCNAME: [{ rank: 1, value: "cname.vercel-dns.com." }] });
     return json(200, { name: body?.name ?? "x", verified: true, redirect: null });
   }
@@ -110,6 +115,23 @@ describe("your own domain", () => {
     vercelTaken = false;
     expect(await siteFromHost("theirs.test")).toBeNull();
     expect((await domainStatus({ actorId: own, siteId: siteB })).domain).toBeNull();
+  });
+
+  test("on output/input's other side (live vs staging): refused, and Vercel's left exactly as it was", async () => {
+    elsewhere.add("shared.test");
+    elsewhere.add("www.shared.test");
+    await expect(connectDomain({ actorId: own, siteId: siteB, domain: "shared.test", lookup: nothing })).rejects.toMatchObject({ field: "domain", message: expect.stringMatching(/elsewhere on output\/input/) });
+    expect(calls.filter((c) => c.method === "DELETE" || c.method === "PATCH")).toEqual([]);
+    expect((await domainStatus({ actorId: own, siteId: siteB })).domain).toBeNull();
+
+    // A site already holding one (say, from before this check): www and disconnect never touch the other side's.
+    await owner.query(`update sites set domain = 'shared.test' where id = $1`, [siteB]);
+    calls.length = 0;
+    await expect(setDomainWww({ actorId: own, siteId: siteB, www: true, lookup: nothing })).rejects.toThrow(/elsewhere on output\/input/);
+    await disconnectDomain({ actorId: own, siteId: siteB });
+    expect(calls.filter((c) => c.method === "DELETE" || c.method === "PATCH")).toEqual([]);
+    expect((await domainStatus({ actorId: own, siteId: siteB })).domain).toBeNull();
+    elsewhere.clear();
   });
 
   test("records found and Vercel happy: connected, and from then on the address the public is given", async () => {
