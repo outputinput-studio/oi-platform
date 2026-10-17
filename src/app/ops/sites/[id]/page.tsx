@@ -26,13 +26,13 @@ export default async function OpsSitePage({ params }: { params: Promise<{ id: st
         title={site.name}
         back="/"
         actions={
-          <a href={`${admin}/sites`} className="inline-flex h-9 items-center rounded-button border border-accent px-3.5 text-[13.5px] font-medium text-text hover:bg-hover">
-            Open their admin
+          <a href={`${admin}/sites`} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center rounded-button border border-accent px-3.5 text-[13.5px] font-medium text-text hover:bg-hover">
+            Open their admin ↗
           </a>
         }
       />
       <p className="mt-4 text-[13px] text-muted">
-        <span className="font-mono">{site.domain ?? site.slug}</span> · {site.launchedAt ? "Live" : "Not live yet"} · Opening their admin signs you in as Output/Input · Support. It&apos;s logged, and they can see we were there.
+        <span className="font-mono">{site.domain ?? site.slug}</span> · {site.launchedAt ? "Live" : "Not live yet"} · Their admin opens in a new tab, so ops stays open here. It signs you in as Output/Input · Support. It&apos;s logged, and they can see we were there.
       </p>
       <div className="mt-7 grid gap-8 md:grid-cols-[1fr_360px]">
         <section>

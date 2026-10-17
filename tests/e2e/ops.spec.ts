@@ -50,6 +50,8 @@ test("support sets a site's plan in ops; the Owner sees it in Settings · Plan",
   await expect(sup.getByRole("heading", { name: "Sites" })).toBeVisible();
   await sup.getByTestId("ops-site-demo").click();
   await expect(sup.getByRole("heading", { name: "Demo site" })).toBeVisible();
+  // Their admin opens in its own tab, so ops stays open.
+  await expect(sup.getByRole("link", { name: /Open their admin/ })).toHaveAttribute("target", "_blank");
 
   // A mistake points at its box.
   await sup.getByLabel("Name").fill("");
