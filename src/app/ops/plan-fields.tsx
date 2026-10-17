@@ -1,18 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
-import { setPlanAction, type OpsFormState } from "@/modules/ops/actions";
 import type { Plan } from "@/modules/plans/plan";
 import { CURRENCIES } from "@/modules/sites/shop";
-import { Button, Field, Input, Notice, Select, Textarea } from "../../../admin/ui";
+import { Field, Input, Select, Textarea } from "../admin/ui";
 
-/** The plan, ours to set. A limit left empty is no limit. */
-export function PlanForm({ siteId, plan }: { siteId: string; plan: Plan | null }) {
-  const [state, act, pending] = useActionState(setPlanAction, {} as OpsFormState);
+/** A plan's boxes: a site's custom plan and our default plans use the same ones. A limit left empty is no limit. */
+export function PlanFields({ plan }: { plan: Plan | null }) {
   const lim = plan?.limits;
   return (
-    <form action={act} className="space-y-4 rounded-card border border-line bg-surface p-4">
-      <input type="hidden" name="siteId" value={siteId} />
+    <>
       <Field label="Name" htmlFor="plan-name" hint="What they see: Shop and journal, Site, Shop…">
         <Input id="plan-name" name="name" defaultValue={plan?.name ?? ""} maxLength={60} />
       </Field>
@@ -48,12 +44,6 @@ export function PlanForm({ siteId, plan }: { siteId: string; plan: Plan | null }
           <Input id="plan-visits" name="limits.visits" inputMode="numeric" className="font-mono" defaultValue={lim?.visits ?? ""} />
         </Field>
       </div>
-      <div className="flex items-center gap-3 pt-1">
-        <Button type="submit" disabled={pending}>
-          {pending ? "Saving…" : "Save plan"}
-        </Button>
-        <Notice {...state} />
-      </div>
-    </form>
+    </>
   );
 }

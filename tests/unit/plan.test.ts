@@ -41,3 +41,12 @@ describe("usage", () => {
     expect(formatBytes(12 * 1024 ** 3)).toBe("12 GB");
   });
 });
+
+describe("limits on one line", () => {
+  test("numbers, and no limit where there's none", async () => {
+    const { limitsLine } = await import("@/modules/plans/plan");
+    expect(limitsLine({ name: "x", description: "", price: 0, currency: "AUD", limits: { storageGb: 5, products: null, people: 1, visits: 10000 } })).toBe(
+      "5 GB · no limit on products · 1 person · 10,000 visits a month",
+    );
+  });
+});

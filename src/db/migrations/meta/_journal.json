@@ -253,6 +253,13 @@
       "when": 1792233976531,
       "tag": "0035_billing",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1792238814323,
+      "tag": "0036_plan_list",
+      "breakpoints": true
     }
   ]
 }

@@ -50,7 +50,9 @@ A refusal about one field throws `FieldError(field, message)`; a lone value is p
   app, count only once OI_SECRETS_KEY is set, show as "output/input" in Activity, and list sites via `all_site_ids()`.
 - Ops and plans (Carl, Oct 2026; `src/app/ops`, `modules/ops`, `modules/plans`): ops is O/I support's own surface —
   anyone else lands on "not ours" (`requireOps`). We set each site's plan there (`sites.plan`, `planSchema`; only
-  `setPlan` by support, checked in the module); Owners see it and their usage in Settings · Plan. Visits are counted
+  `setPlan` by support, checked in the module); Owners see it and their usage in Settings · Plan. Default plans (ops ·
+  Plans, `modules/plans/catalogue.ts`, the `plans` platform table): a site on one has `plan_id` and a copy in
+  `sites.plan`, and every edit is copied to every site on it; a custom plan has no `plan_id`. Visits are counted
   per site per day in `visits` (RLS) by `/api/visit`, launched sites only, bots skipped.
 - Billing (Carl, Oct 2026; `modules/billing`): clients pay O/I for the plan through O/I's own Stripe
   (OI_BILLING_STRIPE_KEY — never a client's keys). An Owner sets up payment on Settings · Plan (Stripe Checkout,

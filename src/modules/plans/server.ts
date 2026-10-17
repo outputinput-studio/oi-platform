@@ -25,13 +25,12 @@ const today = () => new Date().toISOString().slice(0, 10);
 /** What a site is using: photos and files, products, people who can sign in, visits this month. */
 export async function siteUsage(siteId: string): Promise<Usage> {
   const monthStart = today().slice(0, 8) + "01";
-  const [stored, made, seen] = await withSite(siteId, (tx) =>
-    Promise.all([
-      tx.select({ n: sum(media.sizeBytes) }).from(media),
-      tx.select({ n: count() }).from(products).where(sql`${products.deletedAt} is null`),
-      tx.select({ n: sum(visits.count) }).from(visits).where(gte(visits.day, monthStart)),
-    ]),
-  );
+  // One after another: a transaction is one connection, and pg won't take overlapping queries on it.
+  const [stored, made, seen] = await withSite(siteId, async (tx) => [
+    await tx.select({ n: sum(media.sizeBytes) }).from(media),
+    await tx.select({ n: count() }).from(products).where(sql`${products.deletedAt} is null`),
+    await tx.select({ n: sum(visits.count) }).from(visits).where(gte(visits.day, monthStart)),
+  ]);
   const [people] = await db.select({ n: count() }).from(memberships).where(eq(memberships.siteId, siteId));
   return { storageBytes: Number(stored[0]?.n ?? 0), products: Number(made[0]?.n ?? 0), people: Number(people?.n ?? 0), visits: Number(seen[0]?.n ?? 0) };
 }
@@ -43,21 +42,29 @@ export async function planView(p: { actorId: string; siteId: string }): Promise<
   return { plan: readPlan(site?.plan), usage: await siteUsage(p.siteId) };
 }
 
-/** Set a site's plan. output/input only, from ops — a site's own Owners can't. */
+/** Set a site's own custom plan. output/input only, from ops — a site's own Owners can't. */
 export async function setPlan(p: { actorId: string; siteId: string; plan: unknown }): Promise<Plan> {
   if (!(await isSupportUser(p.actorId))) throw new AccessError("Only output/input changes plans.");
   const plan = planSchema.parse(p.plan);
-  // Paying already? Their currency is fixed, and a new price applies from the next bill.
-  await checkPlanChange(p.siteId, plan);
-  await withSite(p.siteId, (tx) => tx.update(sites).set({ plan }).where(eq(sites.id, p.siteId)));
-  await logActivity(p.siteId, p.actorId, { action: "set the plan to {s}", subject: plan.name, href: "/settings/plan" });
+  await putPlan(p.siteId, plan, null, p.actorId, "set the plan to {s}");
+  return plan;
+}
+
+/**
+ * Put a plan on a site — a custom one (`planId` null) or a copy of one of
+ * our default plans. Paying already? Their currency is fixed, and a new
+ * price applies from the next bill. Callers check it's O/I support.
+ */
+export async function putPlan(siteId: string, plan: Plan, planId: string | null, actorId: string, action: string): Promise<void> {
+  await checkPlanChange(siteId, plan);
+  await withSite(siteId, (tx) => tx.update(sites).set({ plan, planId }).where(eq(sites.id, siteId)));
+  await logActivity(siteId, actorId, { action, subject: plan.name, href: "/settings/plan" });
   try {
-    await applyPlanPrice(p.siteId, plan);
+    await applyPlanPrice(siteId, plan);
   } catch (err) {
     if (err instanceof Stripe.errors.StripeError) throw new Error("The plan is saved, but Stripe didn't take the new price. Save it again in a minute.");
     throw err;
   }
-  return plan;
 }
 
 /**

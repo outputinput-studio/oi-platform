@@ -15,7 +15,8 @@ import { sites } from "@/db/schema";
  * client data, or holds the keys we need before a site is known.
  */
 // two_factors (Stage 38): a person's authenticator app, like their sessions — about the person, not any one site.
-const PLATFORM_TABLES = ["users", "sessions", "accounts", "verifications", "memberships", "two_factors"];
+// plans (Stage 39, Carl): output/input's own default plans — our price list, not a client's data.
+const PLATFORM_TABLES = ["users", "sessions", "accounts", "verifications", "memberships", "two_factors", "plans"];
 
 const owner = new Pool({ connectionString: process.env.MIGRATE_DATABASE_URL, max: 1 });
 let siteA = "";

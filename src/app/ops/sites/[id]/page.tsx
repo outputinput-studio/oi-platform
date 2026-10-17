@@ -8,7 +8,8 @@ import { formatPrice, type Currency } from "@/modules/sites/shop";
 import { Label, PageHeader, Rows } from "../../../admin/ui";
 import { UsageMeters } from "../../../admin/usage-meters";
 import { OpsShell } from "../../ops-shell";
-import { PlanForm } from "./plan-form";
+import { SitePlan } from "./site-plan";
+import { listDefaultPlans } from "@/modules/plans/catalogue";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export const dynamic = "force-dynamic";
 export default async function OpsSitePage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireOps();
   const { site, plan, usage, people, billing: b } = await opsSite({ actorId: user.id, siteId: (await params).id });
+  const choices = await listDefaultPlans({ actorId: user.id });
   const admin = adminOriginForOps((await headers()).get("x-oi-host") ?? "");
   return (
     <OpsShell email={user.email}>
@@ -37,7 +39,7 @@ export default async function OpsSitePage({ params }: { params: Promise<{ id: st
       <div className="mt-7 grid gap-8 md:grid-cols-[1fr_360px]">
         <section>
           <Label>Plan</Label>
-          <PlanForm siteId={site.id} plan={plan} />
+          <SitePlan siteId={site.id} plan={plan} planId={site.planId} choices={choices} />
         </section>
         <div className="space-y-8">
           <section>
