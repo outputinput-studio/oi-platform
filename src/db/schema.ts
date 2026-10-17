@@ -933,8 +933,8 @@ export type Invitation = typeof invitations.$inferSelect;
 
 /**
  * Visits to a storefront, counted per day (Settings · Plan, "Visits this
- * month"). One per browser tab session, from a beacon; no cookie, no
- * address, nothing about who — just how many.
+ * month"). Once per visitor per day (`visits_seen`), from a beacon; no
+ * cookie, no address kept, nothing about who — just how many.
  */
 export const visits = pgTable(
   "visits",
@@ -946,4 +946,23 @@ export const visits = pgTable(
     count: integer("count").notNull().default(0),
   },
   (t) => [uniqueIndex("visits_site_day_idx").on(t.siteId, t.day)],
+);
+
+/**
+ * Who has already been counted today, so a visit counts once per visitor
+ * per site per day (Carl, Oct 2026: a script can't push the number up).
+ * `visitor` is an HMAC of the connection's address and the day, under a
+ * server secret: it can't be turned back into an address, and it doesn't
+ * match from one day to the next. Earlier days are deleted as today's come in.
+ */
+export const visitsSeen = pgTable(
+  "visits_seen",
+  {
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    day: text("day").notNull(),
+    visitor: text("visitor").notNull(),
+  },
+  (t) => [uniqueIndex("visits_seen_site_day_visitor_idx").on(t.siteId, t.day, t.visitor)],
 );

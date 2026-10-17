@@ -12,7 +12,7 @@ vi.hoisted(() => {
 import { Pool } from "pg";
 import { AccessError } from "@/modules/auth/access";
 import { listActivity } from "@/modules/activity/server";
-import { countVisit, planView, setPlan } from "@/modules/plans/server";
+import { countVisit, planView, setPlan, visitorKey } from "@/modules/plans/server";
 import { opsSite, opsSites } from "@/modules/ops/server";
 
 const db = new Pool({ connectionString: process.env.MIGRATE_DATABASE_URL, max: 1 });
@@ -69,6 +69,30 @@ describe("Settings · Plan", () => {
     await countVisit(siteB);
     expect((await planView({ actorId: ids.bea, siteId: siteB })).usage.visits).toBe(1);
     expect((await planView({ actorId: ids.oli, siteId: siteA })).usage.visits).toBe(2);
+  });
+});
+
+describe("a visit counts once per visitor per day (Carl: a script can't push the number up)", () => {
+  test("the same connection a thousand times is one visit; another connection is another", async () => {
+    const before = (await planView({ actorId: ids.bea, siteId: siteB })).usage.visits;
+    const one = visitorKey("203.0.113.7");
+    expect(await countVisit(siteB, one)).toBe(true);
+    for (let i = 0; i < 20; i++) expect(await countVisit(siteB, one)).toBe(false);
+    expect(await countVisit(siteB, visitorKey("203.0.113.8"))).toBe(true);
+    // The same visitor on another site is that site's visit.
+    expect(await countVisit(siteA, one)).toBe(true);
+    expect((await planView({ actorId: ids.bea, siteId: siteB })).usage.visits).toBe(before + 2);
+  });
+
+  test("the key is a hash that changes daily, never the address; old days are cleared", async () => {
+    const k = visitorKey("203.0.113.7", "2026-10-17", "s".repeat(32));
+    expect(k).not.toContain("203");
+    expect(k).toBe(visitorKey(" 203.0.113.7 ", "2026-10-17", "s".repeat(32)));
+    expect(k).not.toBe(visitorKey("203.0.113.7", "2026-10-18", "s".repeat(32)));
+    await db.query(`insert into visits_seen (site_id, day, visitor) values ($1, '2000-01-01', 'old')`, [siteB]);
+    await countVisit(siteB, visitorKey("203.0.113.9"));
+    const old = await db.query(`select 1 from visits_seen where site_id = $1 and day < to_char(now() at time zone 'utc', 'YYYY-MM-DD')`, [siteB]);
+    expect(old.rowCount).toBe(0);
   });
 });
 

@@ -1,6 +1,8 @@
-import { count, eq, gte, sql, sum } from "drizzle-orm";
+import { createHmac } from "node:crypto";
+import { and, count, eq, gte, lt, sql, sum } from "drizzle-orm";
 import { db, withSite } from "@/db/client";
-import { media, memberships, products, sites, visits } from "@/db/schema";
+import { media, memberships, products, sites, visits, visitsSeen } from "@/db/schema";
+import { env } from "@/lib/env";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { isSupportUser } from "@/modules/auth/support";
 import { logActivity } from "@/modules/activity/server";
@@ -48,13 +50,39 @@ export async function setPlan(p: { actorId: string; siteId: string; plan: unknow
   return plan;
 }
 
-/** One visit to a storefront, today. Called by the visit beacon; no one is identified. */
-export async function countVisit(siteId: string): Promise<void> {
-  await withSite(siteId, (tx) =>
-    tx
+/**
+ * Who's visiting, as far as counting goes: an HMAC of the connection's
+ * address and the day, under the server's secret. It can't be turned back
+ * into an address and doesn't match from one day to the next. Everything
+ * arriving without an address shares one key, so it counts once a day too.
+ */
+export function visitorKey(address: string, day = today(), secret = env().BETTER_AUTH_SECRET): string {
+  return createHmac("sha256", secret).update(`visit:${day}:${address.trim().toLowerCase()}`).digest("base64url");
+}
+
+/**
+ * One visit to a storefront, today. Called by the visit beacon; no one is
+ * identified. With a `visitor` (from `visitorKey`), only their first visit
+ * of the day counts — so a script hammering the endpoint adds one, not
+ * thousands. Returns whether it counted. Yesterday's keys are deleted here.
+ */
+export async function countVisit(siteId: string, visitor?: string): Promise<boolean> {
+  const day = today();
+  return withSite(siteId, async (tx) => {
+    if (visitor) {
+      const fresh = await tx
+        .insert(visitsSeen)
+        .values({ siteId, day, visitor })
+        .onConflictDoNothing()
+        .returning({ day: visitsSeen.day });
+      if (!fresh.length) return false;
+      await tx.delete(visitsSeen).where(and(eq(visitsSeen.siteId, siteId), lt(visitsSeen.day, day)));
+    }
+    await tx
       .insert(visits)
-      .values({ siteId, day: today(), count: 1 })
-      .onConflictDoUpdate({ target: [visits.siteId, visits.day], set: { count: sql`${visits.count} + 1` } }),
-  );
+      .values({ siteId, day, count: 1 })
+      .onConflictDoUpdate({ target: [visits.siteId, visits.day], set: { count: sql`${visits.count} + 1` } });
+    return true;
+  });
 }
 

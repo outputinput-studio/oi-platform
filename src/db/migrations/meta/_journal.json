@@ -239,6 +239,13 @@
       "when": 1792224082409,
       "tag": "0033_plans_and_visits",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1792231472445,
+      "tag": "0034_visits_seen",
+      "breakpoints": true
     }
   ]
 }
