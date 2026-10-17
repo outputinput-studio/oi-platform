@@ -1,5 +1,6 @@
 import path from "node:path";
 import { test, expect, type Page } from "@playwright/test";
+import { SIGNED_OUT } from "./state";
 import { goTo } from "./nav";
 
 /**
@@ -16,12 +17,8 @@ const fixture = path.join(__dirname, "fixtures", "shop-front.png");
 test.use({ viewport: { width: 1200, height: 900 } });
 
 async function signInAsOwner(page: Page) {
-  await page.goto(admin + "/sign-in");
-  await page.getByLabel("Email").fill("owner@example.com");
-  await page.getByRole("button", { name: "Send code" }).click();
-  const code = await page.getByTestId("dev-code").textContent();
-  await page.getByLabel("Code").fill(code!);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  // Already signed in: the setup project did the emailed code and the app (auth.setup.ts).
+  await page.goto(admin + "/sites");
   await page.getByRole("button", { name: "Demo site" }).click();
   await expect(page).toHaveURL(admin + "/");
 }
@@ -686,7 +683,7 @@ test("customer accounts: turned on, an order, a code after paying, then their ac
   await expect(page.getByRole("switch", { name: /Let customers set a password/ })).toHaveAttribute("aria-checked", "false");
 
   // A shopper, no account: buys, and is offered a code to the email they gave.
-  const shopper = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  const shopper = await (await browser.newContext({ viewport: { width: 390, height: 844 }, storageState: SIGNED_OUT })).newPage();
   await shopper.goto(demo + "/shop/sauna-stones");
   await shopper.getByRole("button", { name: "Add to cart" }).click();
   await shopper.getByRole("link", { name: "Added — view your cart" }).click();
@@ -765,7 +762,7 @@ test("passwords, once the shop allows them: set one, then sign in with it", asyn
   await page.getByRole("switch", { name: /Let customers set a password/ }).click();
   await expect(page.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
 
-  const shopper = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+  const shopper = await (await browser.newContext({ viewport: { width: 390, height: 844 }, storageState: SIGNED_OUT })).newPage();
   await shopper.goto(demo + "/account");
   await shopper.getByLabel("Your email").fill("kim@example.com");
   await shopper.getByRole("button", { name: "Continue" }).click();

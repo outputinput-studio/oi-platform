@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { SIGNED_OUT } from "./state";
 
 /**
  * Settings · Domain and Going live, on the seeded "soon" site, which hasn't
@@ -12,11 +13,8 @@ const soon = base.replace("127.0.0.1", "soon.localhost");
 test.use({ viewport: { width: 1200, height: 900 } });
 
 async function signInToSoon(page: Page) {
-  await page.goto(admin + "/sign-in");
-  await page.getByLabel("Email").fill("owner@example.com");
-  await page.getByRole("button", { name: "Send code" }).click();
-  await page.getByLabel("Code").fill((await page.getByTestId("dev-code").textContent())!);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  // Already signed in: the setup project did the emailed code and the app (auth.setup.ts).
+  await page.goto(admin + "/sites");
   await page.getByRole("button", { name: "Opening soon" }).click();
   await expect(page).toHaveURL(admin + "/");
 }
@@ -44,7 +42,7 @@ test("the team's preview link opens the real site; a made-up pass doesn't", asyn
   const href = (await page.getByRole("link", { name: "Open the real site" }).getAttribute("href"))!;
   expect(href).toMatch(/^http:\/\/soon\.localhost:3000\/preview-pass\?t=\d+\./);
 
-  const visitor = await (await browser.newContext()).newPage();
+  const visitor = await (await browser.newContext({ storageState: SIGNED_OUT })).newPage();
   await visitor.goto(soon + "/preview-pass?t=123.made-up");
   await expect(visitor.getByTestId("holding")).toBeVisible();
   await visitor.goto(href);
@@ -88,7 +86,7 @@ test("launching: from then on everyone sees the site; hidden again, back to the 
   await page.goto(admin + "/settings/domain");
   await page.getByRole("button", { name: "Launch site" }).click();
   await expect(page.getByTestId("live-state")).toContainText("Live since");
-  const visitor = await (await browser.newContext()).newPage();
+  const visitor = await (await browser.newContext({ storageState: SIGNED_OUT })).newPage();
   await visitor.goto(soon + "/");
   await expect(visitor.getByTestId("holding")).toHaveCount(0);
 

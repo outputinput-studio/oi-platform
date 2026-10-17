@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import type { MembershipRole } from "@/db/schema";
 import { ROLE_ABOUT, ROLE_NAMES } from "@/modules/auth/roles";
 import type { Member } from "@/modules/team/server";
-import { addMemberAction, removeMemberAction, setRoleAction, type TeamFormState } from "@/modules/team/actions";
+import { addMemberAction, removeMemberAction, resetTwoFactorAction, setRoleAction, type TeamFormState } from "@/modules/team/actions";
 import { timeAgo } from "@/lib/time";
 import { Button, Field, Input, Notice, Pill, Sheet } from "../../ui";
 import { Avatar } from "../nav";
@@ -71,7 +71,7 @@ export function MemberRow({
   isLastOwner: boolean;
   siteName: string;
 }) {
-  const [sheet, setSheet] = useState<"role" | "remove" | null>(null);
+  const [sheet, setSheet] = useState<"role" | "remove" | "reset" | null>(null);
   const close = () => setSheet(null);
   const [roleState, setRole, rolePending] = useActionState(async (prev: TeamFormState, form: FormData) => {
     const r = await setRoleAction(prev, form);
@@ -80,6 +80,11 @@ export function MemberRow({
   }, {} as TeamFormState);
   const [removeState, remove, removePending] = useActionState(async (prev: TeamFormState, form: FormData) => {
     const r = await removeMemberAction(prev, form);
+    if (!r.error) close();
+    return r;
+  }, {} as TeamFormState);
+  const [resetState, reset, resetPending] = useActionState(async (prev: TeamFormState, form: FormData) => {
+    const r = await resetTwoFactorAction(prev, form);
     if (!r.error) close();
     return r;
   }, {} as TeamFormState);
@@ -95,23 +100,56 @@ export function MemberRow({
             {isYou && <span className="text-[12px] font-normal text-muted">You</span>}
           </p>
           <p className="truncate font-mono text-[12.5px] text-muted">{member.email}</p>
-          <p className="mt-0.5 text-[12.5px] text-muted">{member.lastSignedIn ? `Signed in ${timeAgo(new Date(member.lastSignedIn))}` : "Not signed in yet"}</p>
+          <p className="mt-0.5 text-[12.5px] text-muted">
+            {member.lastSignedIn ? `Signed in ${timeAgo(new Date(member.lastSignedIn))}` : "Not signed in yet"}
+            {member.twoFactor && <span data-testid="member-two-factor"> · app code on</span>}
+          </p>
           {canManage && isLastOwner && <p className="mt-1 text-[12.5px] text-muted">Every site needs an Owner. Make someone else an Owner first.</p>}
-          {!sheet && <Notice error={roleState.error ?? removeState.error} />}
+          {!sheet && <Notice error={roleState.error ?? removeState.error ?? resetState.error} ok={resetState.ok} />}
         </div>
         <Pill tone={member.role === "owner" ? "success" : "neutral"}>
           <span data-testid="member-role">{ROLE_NAMES[member.role]}</span>
         </Pill>
       </div>
-      {canManage && !isLastOwner && (
-        <div className="flex shrink-0 gap-2 pl-12 sm:pl-0">
-          <Button type="button" variant="quiet" size="sm" onClick={() => setSheet("role")}>
-            Change role
-          </Button>
-          <Button type="button" variant="danger" size="sm" onClick={() => setSheet("remove")}>
-            Remove
-          </Button>
+      {canManage && (!isLastOwner || (member.twoFactor && !isYou)) && (
+        <div className="flex shrink-0 flex-wrap gap-2 pl-12 sm:pl-0">
+          {!isLastOwner && (
+            <Button type="button" variant="quiet" size="sm" onClick={() => setSheet("role")}>
+              Change role
+            </Button>
+          )}
+          {member.twoFactor && !isYou && (
+            <Button type="button" variant="quiet" size="sm" onClick={() => setSheet("reset")}>
+              Reset two-factor
+            </Button>
+          )}
+          {!isLastOwner && (
+            <Button type="button" variant="danger" size="sm" onClick={() => setSheet("remove")}>
+              Remove
+            </Button>
+          )}
         </div>
+      )}
+
+      {sheet === "reset" && (
+        <Sheet title="Reset two-factor?" onClose={close}>
+          <form action={reset} className="space-y-4">
+            <p className="text-[14.5px] leading-relaxed">
+              For when <span className="font-medium">{who}</span> has lost their phone and their recovery codes. They&apos;re signed out everywhere, and set the app
+              up again the next time they sign in.
+            </p>
+            <input type="hidden" name="userId" value={member.userId} />
+            <Notice error={resetState.error} />
+            <div className="flex gap-2">
+              <Button type="submit" variant="danger" disabled={resetPending} className="flex-1">
+                {resetPending ? "Resetting…" : "Reset it"}
+              </Button>
+              <Button type="button" variant="quiet" onClick={close} className="flex-1">
+                Keep it
+              </Button>
+            </div>
+          </form>
+        </Sheet>
       )}
 
       {sheet === "role" && (

@@ -7,6 +7,7 @@ import { requireSiteAccess } from "@/modules/auth/access";
 import { MEMBERSHIP_ROLES } from "@/db/schema";
 import { addMember, removeMember, setRole } from "./server";
 import { formError } from "@/lib/form-error";
+import { resetTwoFactor } from "@/modules/auth/two-factor";
 
 /**
  * Form handlers for the team page. Thin: read the form, call the module,
@@ -51,6 +52,19 @@ export async function removeMemberAction(_prev: TeamFormState, form: FormData): 
     await removeMember({ actorId: user.id, siteId: site.id, userId });
     revalidatePath("/team");
     return {};
+  } catch (err) {
+    return formError(err);
+  }
+}
+
+/** An Owner resets someone's authenticator app (lost phone, no recovery codes). */
+export async function resetTwoFactorAction(_prev: TeamFormState, form: FormData): Promise<TeamFormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    const userId = z.string().min(1).parse(form.get("userId"));
+    await resetTwoFactor({ actorId: user.id, siteId: site.id, userId });
+    revalidatePath("/team");
+    return { ok: "Reset. They'll set it up again when they next sign in." };
   } catch (err) {
     return formError(err);
   }

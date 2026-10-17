@@ -14,7 +14,8 @@ import { sites } from "@/db/schema";
  * Adding a table here is a design decision: it means the table holds no
  * client data, or holds the keys we need before a site is known.
  */
-const PLATFORM_TABLES = ["users", "sessions", "accounts", "verifications", "memberships"];
+// two_factors (Stage 38): a person's authenticator app, like their sessions — about the person, not any one site.
+const PLATFORM_TABLES = ["users", "sessions", "accounts", "verifications", "memberships", "two_factors"];
 
 const owner = new Pool({ connectionString: process.env.MIGRATE_DATABASE_URL, max: 1 });
 let siteA = "";

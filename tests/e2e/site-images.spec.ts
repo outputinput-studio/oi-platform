@@ -15,12 +15,8 @@ const fixture = path.join(__dirname, "fixtures", "shop-front.png"); // 2400×160
 test.use({ viewport: { width: 390, height: 760 } });
 
 async function signInAsOwner(page: Page) {
-  await page.goto(admin + "/sign-in");
-  await page.getByLabel("Email").fill("owner@example.com");
-  await page.getByRole("button", { name: "Send code" }).click();
-  const code = await page.getByTestId("dev-code").textContent();
-  await page.getByLabel("Code").fill(code!);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  // Already signed in: the setup project did the emailed code and the app (auth.setup.ts).
+  await page.goto(admin + "/sites");
   await page.getByRole("button", { name: "Demo site" }).click();
   await expect(page).toHaveURL(admin + "/");
 }

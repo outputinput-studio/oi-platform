@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { goTo } from "./nav";
+import { SIGNED_OUT } from "./state";
 
 /**
  * The admin shell and the team page, in a real browser on a phone-sized
@@ -11,12 +12,8 @@ const admin = (process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000").replace("127
 test.use({ viewport: { width: 390, height: 760 } });
 
 async function signInAsOwner(page: Page) {
-  await page.goto(admin + "/sign-in");
-  await page.getByLabel("Email").fill("owner@example.com");
-  await page.getByRole("button", { name: "Send code" }).click();
-  const code = await page.getByTestId("dev-code").textContent();
-  await page.getByLabel("Code").fill(code!);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  // Already signed in: the setup project did the emailed code and the app (auth.setup.ts).
+  await page.goto(admin + "/sites");
   await page.getByRole("button", { name: "Demo site" }).click();
   await expect(page).toHaveURL(admin + "/");
 }
@@ -80,7 +77,7 @@ test("staff see orders, the inbox and contacts, and nothing else", async ({ page
   await page.getByRole("button", { name: "Add to team" }).click();
   await expect(page.getByTestId("member-counter@example.com")).toBeVisible();
 
-  const staff = await (await browser.newContext({ viewport: { width: 390, height: 760 } })).newPage();
+  const staff = await (await browser.newContext({ viewport: { width: 390, height: 760 }, storageState: SIGNED_OUT })).newPage();
   await staff.goto(admin + "/sign-in");
   await staff.getByLabel("Email").fill("counter@example.com");
   await staff.getByRole("button", { name: "Send code" }).click();

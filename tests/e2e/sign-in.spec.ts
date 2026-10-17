@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { goTo } from "./nav";
+import { appCode } from "./app-code";
+import { SIGNED_OUT } from "./state";
 
 /**
  * Sign-in with an emailed code, end to end, against the built app.
@@ -10,9 +12,14 @@ import { goTo } from "./nav";
  *
  * Chromium resolves *.localhost to 127.0.0.1, so admin.localhost:3000 goes
  * through the real hostname routing in proxy.ts.
+ *
+ * The demo owner uses an authenticator app (Owners must, Stage 38), so after
+ * the emailed code comes the app's; app-code.ts plays the phone.
  */
 const admin = (process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000").replace("127.0.0.1", "admin.localhost");
 const seededOwner = "owner@example.com"; // created by scripts/seed.ts, member of both demo sites
+
+test.use({ storageState: SIGNED_OUT });
 
 test("the admin asks you to sign in", async ({ page }) => {
   await page.goto(admin + "/");
@@ -40,7 +47,7 @@ test("a wrong code is refused", async ({ page }) => {
   await expect(page.getByText("That code didn't work")).toBeVisible();
 });
 
-test("email → code → pick a site → signed in → sign out", async ({ page }) => {
+test("email → code → the app's code → pick a site → signed in → sign out", async ({ page }) => {
   await page.goto(admin + "/sign-in");
   await page.getByLabel("Email").fill(seededOwner);
   await page.getByRole("button", { name: "Send code" }).click();
@@ -48,6 +55,18 @@ test("email → code → pick a site → signed in → sign out", async ({ page 
   const code = await page.getByTestId("dev-code").textContent();
   expect(code).toMatch(/^\d{6}$/);
   await page.getByLabel("Code").fill(code!);
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  // The emailed code isn't enough on its own: nothing opens until the app's code.
+  await expect(page).toHaveURL(/\/sign-in\/app$/);
+  await expect(page.getByRole("heading", { name: "One more code" })).toBeVisible();
+  await page.goto(admin + "/sites");
+  await expect(page).toHaveURL(/\/sign-in\/app$/);
+  await page.getByLabel("Code from your app").fill("000000");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByText("That code didn't work")).toBeVisible();
+  await expect(page.getByLabel("Code from your app")).toHaveAttribute("aria-invalid", "true");
+  await page.getByLabel("Code from your app").fill(await appCode(seededOwner));
   await page.getByRole("button", { name: "Sign in" }).click();
 
   // Two memberships, so the picker shows.
@@ -60,7 +79,7 @@ test("email → code → pick a site → signed in → sign out", async ({ page 
 
   await goTo(page, "Settings");
   await page.getByRole("link", { name: "Your account" }).click();
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
 
   // The session is gone: the home page bounces again.
