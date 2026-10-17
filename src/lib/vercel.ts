@@ -1,4 +1,4 @@
-import { env } from "@/lib/env";
+import { env, environmentName } from "@/lib/env";
 import { DEFAULT_A, DEFAULT_CNAME } from "@/lib/domains";
 
 /**
@@ -10,12 +10,17 @@ import { DEFAULT_A, DEFAULT_CNAME } from "@/lib/domains";
 
 export type VercelConfig = { token: string; projectId: string; teamId?: string; environmentId?: string };
 
-/** All set → domains go on Vercel automatically. Token without project (or the reverse) is a misconfiguration. */
+/**
+ * All set → domains go on Vercel automatically. Token without project (or the reverse) is a misconfiguration.
+ * Production never uses OI_VERCEL_ENVIRONMENT_ID, even if it's ticked there by mistake: that would put a
+ * client's real domain on staging's environment, serving staging's fake data.
+ */
 export function vercelConfig(): VercelConfig | null {
   const e = env();
   if (!e.OI_VERCEL_TOKEN && !e.OI_VERCEL_PROJECT_ID) return null;
   if (!e.OI_VERCEL_TOKEN || !e.OI_VERCEL_PROJECT_ID) throw new Error("Vercel domains are half configured: set both OI_VERCEL_TOKEN and OI_VERCEL_PROJECT_ID.");
-  return { token: e.OI_VERCEL_TOKEN, projectId: e.OI_VERCEL_PROJECT_ID, teamId: e.OI_VERCEL_TEAM_ID, environmentId: e.OI_VERCEL_ENVIRONMENT_ID };
+  const environmentId = environmentName() === "production" ? undefined : e.OI_VERCEL_ENVIRONMENT_ID;
+  return { token: e.OI_VERCEL_TOKEN, projectId: e.OI_VERCEL_PROJECT_ID, teamId: e.OI_VERCEL_TEAM_ID, environmentId };
 }
 
 export class VercelError extends Error {

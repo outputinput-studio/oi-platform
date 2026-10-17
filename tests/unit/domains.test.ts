@@ -98,6 +98,28 @@ describe("the Vercel calls", () => {
     await expect(removeProjectDomain(cfg, "kini.com")).resolves.toBeUndefined();
   });
 
+  test("staging's environment on staging; never on production, even if the variable is set there too", async () => {
+    const configIn = async (where: "staging" | "production") => {
+      vi.resetModules();
+      vi.stubEnv("DATABASE_URL", "postgresql://unit:unit@localhost:5432/unit");
+      vi.stubEnv("BETTER_AUTH_SECRET", "unit-test-secret-long-enough-to-pass-ok");
+      vi.stubEnv("OI_ENV", where);
+      vi.stubEnv("OI_VERCEL_TOKEN", "t0k3n-long-enough");
+      vi.stubEnv("OI_VERCEL_PROJECT_ID", "prj_1");
+      vi.stubEnv("OI_VERCEL_ENVIRONMENT_ID", "env_staging");
+      return (await import("@/lib/vercel")).vercelConfig();
+    };
+    try {
+      expect((await configIn("staging"))?.environmentId).toBe("env_staging");
+      const prod = await configIn("production");
+      expect(prod).toMatchObject({ token: "t0k3n-long-enough", projectId: "prj_1" });
+      expect(prod?.environmentId).toBeUndefined();
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+
   test("config: misconfigured or not, with Vercel's recommended records first", async () => {
     stub(() => reply(200, { misconfigured: false, recommendedIPv4: [{ rank: 1, value: ["216.198.79.1"] }], recommendedCNAME: [{ rank: 1, value: "abc.vercel-dns-017.com." }] }));
     expect(await domainConfig(cfg, "kini.com")).toEqual({ misconfigured: false, a: ["216.198.79.1", "76.76.21.21"], cname: ["abc.vercel-dns-017.com", "cname.vercel-dns.com"] });
