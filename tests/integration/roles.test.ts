@@ -22,6 +22,7 @@ import { createPage, listPages } from "@/modules/pages/server";
 import { planView } from "@/modules/plans/server";
 import { billingView, startPaying } from "@/modules/billing/server";
 import { addAddon, askAboutAddon, removeAddon, siteAddonsView } from "@/modules/addons/server";
+import { exportContacts, openExport, requestExport } from "@/modules/export/server";
 import { removeStripeKeys, saveStripeKeys } from "@/modules/payments/server";
 import { listProducts } from "@/modules/products/server";
 import { saveCustomCode } from "@/modules/sites/custom-code";
@@ -84,6 +85,7 @@ const rows: Array<[string, MembershipRole, Call]> = [
   ["set customer accounts", "manager", (actorId, siteId) => updateAccountSettings({ actorId, siteId, settings: {} })],
   ["send a test email", "manager", (actorId, siteId) => sendTemplateTest({ actorId, siteId, to: "x@roles.invalid", key: "nope", template: {} })],
   ["see the domain", "manager", (actorId, siteId) => domainStatus({ actorId, siteId })],
+  ["export contacts", "manager", (actorId, siteId) => exportContacts({ actorId, siteId })],
   // Owners only.
   ["add to the team", "owner", (actorId, siteId) => addMember({ actorId, siteId, email: "new@roles.invalid" })],
   ["change a role", "owner", (actorId, siteId) => setRole({ actorId, siteId, userId: people.staff, role: "staff" })],
@@ -101,6 +103,8 @@ const rows: Array<[string, MembershipRole, Call]> = [
   ["add an add-on", "owner", (actorId, siteId) => addAddon({ actorId, siteId, addonId: noOrder })],
   ["take an add-on off", "owner", (actorId, siteId) => removeAddon({ actorId, siteId, addonId: noOrder })],
   ["ask us about an add-on", "owner", (actorId, siteId) => askAboutAddon({ actorId, siteId, addonId: null })],
+  ["ask for a download of everything", "owner", (actorId, siteId) => requestExport({ actorId, siteId, adminOrigin: "https://admin.example.test" })],
+  ["open a download link", "owner", (actorId, siteId) => openExport({ actorId, siteId, token: "nope" })],
 ];
 
 /** True unless the access check said no. */

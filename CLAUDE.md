@@ -64,6 +64,11 @@ A refusal about one field throws `FieldError(field, message)`; a lone value is p
   list. Capacity add-ons (storage GB, visits, people) raise the limits usage is measured against (`withAddons`);
   feature add-ons are "Ask us" until their module exists. Owners add self-serve ones on Settings · Plan, on straight
   away; when paying through Stripe each is its own subscription item, the part month pro-rated onto the next bill.
+- Export everything (Carl, Oct 2026; `modules/export`, `export_links` RLS): an Owner asks on Settings · Export
+  everything and we email a link — 7 days, SHA-256 hash kept, and it opens only for an Owner of that site, signed in
+  (`/export/[siteId]/[token]`). The zip (`zip.ts`, node:zlib, no library, no Zip64 so 4 GB at most) is written as it
+  downloads; nothing is stored. CSVs (`csv.ts`) carry a BOM and put ' before = + - @ so a spreadsheet won't run what a
+  customer typed. Contacts · Export this list / this contact: Managers and Owners. Integrations come later.
 - Forms that can come back with a mistake submit with `onSubmit={keepValues(act)}` (`src/app/admin/keep-values.ts`),
   so React 19 doesn't clear what was typed.
 - Invitations (`modules/team/invitations.ts`, RLS table): the only way onto a team from the admin. 14 days; the

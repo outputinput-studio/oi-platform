@@ -83,6 +83,7 @@ export default async function SettingsPage() {
             <Label>With us</Label>
             <Rows>
               <Row title="Plan" detail={planLine(site.plan)} href="/settings/plan" />
+              <Row title="Export everything" detail="Download the lot as files" href="/settings/export" />
             </Rows>
           </section>
         )}

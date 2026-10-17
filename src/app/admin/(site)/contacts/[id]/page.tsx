@@ -4,7 +4,8 @@ import { timeAgo } from "@/lib/time";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { getContact, resolveContactId } from "@/modules/contacts/server";
 import { deleteContactAction } from "@/modules/contacts/actions";
-import { Button, Card, Chevron, Label, PageHeader, Pill } from "../../../ui";
+import { atLeast } from "@/modules/auth/roles";
+import { Button, Card, Chevron, DownloadIcon, Label, PageHeader, Pill } from "../../../ui";
 import { Avatar } from "../../nav";
 import { ContactDetailsForm, Notes } from "./contact-forms";
 
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 /** One person: who they are (editable), what they've sent, and the team's notes. */
 export default async function ContactPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { user, site } = await requireSiteAccess();
+  const { user, site, role } = await requireSiteAccess();
   // Merged into someone else: their page now.
   const now = await resolveContactId({ actorId: user.id, siteId: site.id, contactId: id });
   if (now && now !== id) redirect(`/contacts/${now}`);
@@ -79,6 +80,16 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
           <span className="flex-1">Merge with someone else</span>
           <Chevron />
         </Link>
+        {atLeast(role, "manager") && (
+          <a
+            href={`/contacts/export?id=${c.id}`}
+            download
+            className="mt-3 flex items-center gap-3 rounded-card border border-line bg-surface px-4 py-3.5 text-[14.5px] text-text hover:bg-hover"
+          >
+            <DownloadIcon />
+            <span className="flex-1">Export this contact</span>
+          </a>
+        )}
 
         <form action={deleteContactAction} className="mt-3 rounded-card border border-line bg-surface p-4">
           <input type="hidden" name="contactId" value={c.id} />

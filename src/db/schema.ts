@@ -1068,3 +1068,25 @@ export const siteAddons = pgTable(
   (t) => [uniqueIndex("site_addons_site_addon_idx").on(t.siteId, t.addonId)],
 );
 export type SiteAddon = typeof siteAddons.$inferSelect;
+
+/**
+ * Export everything (Stage 40): the links we email an Owner. The link holds
+ * a random token; we keep only its SHA-256, so the table alone can't open
+ * an export. A link works for 7 days, and only for an Owner of the site,
+ * signed in. Client-owned (RLS).
+ */
+export const exportLinks = pgTable(
+  "export_links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    requestedBy: text("requested_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    downloadedAt: timestamp("downloaded_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("export_links_token_idx").on(t.tokenHash)],
+);

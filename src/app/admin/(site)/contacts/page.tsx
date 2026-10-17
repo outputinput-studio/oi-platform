@@ -2,7 +2,8 @@ import Link from "next/link";
 import { timeAgo } from "@/lib/time";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { findDuplicates, listContacts } from "@/modules/contacts/server";
-import { Card, Chevron, PageHeader } from "../../ui";
+import { atLeast } from "@/modules/auth/roles";
+import { Card, Chevron, DownloadIcon, PageHeader } from "../../ui";
 import { AddContact } from "./add-contact";
 import { SearchBox } from "./search-box";
 import { Avatar } from "../nav";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function ContactsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q = "" } = await searchParams;
-  const { user, site } = await requireSiteAccess();
+  const { user, site, role } = await requireSiteAccess();
   const [rows, dups] = await Promise.all([listContacts({ actorId: user.id, siteId: site.id, q }), q ? Promise.resolve([]) : findDuplicates({ actorId: user.id, siteId: site.id })]);
 
   return (
@@ -75,7 +76,23 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
             </Card>
           )}
         </div>
+        {rows.length > 0 && atLeast(role, "manager") && (
+          <div className="mt-4">
+            <a
+              href={`/contacts/export${q ? `?q=${encodeURIComponent(q)}` : ""}`}
+              download
+              className="flex items-center gap-3 rounded-card border border-line bg-surface px-4 py-3.5 text-[14.5px] text-text hover:bg-hover"
+            >
+              <DownloadIcon />
+              <span className="flex-1">Export this list as CSV</span>
+            </a>
+            <p className="mt-2.5 text-[12px] leading-[1.45] text-muted">
+              Export gives you what you are looking at now — name, email, phone, notes, orders, total spent and when they came in.
+            </p>
+          </div>
+        )}
       </div>
     </>
   );
 }
+
