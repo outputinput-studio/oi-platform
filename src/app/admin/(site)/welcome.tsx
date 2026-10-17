@@ -15,12 +15,15 @@ type Thing = { title: string; body: string };
 export function Welcome({ name, live, staff }: { name: string; live: boolean; staff: boolean }) {
   const [open, setOpen] = useState(false);
   const [gone, setGone] = useState(false);
-  const [, start] = useTransition();
+  const [saving, start] = useTransition();
   const first = name.split(/[\s@]/)[0] || name;
+  // Gone once it's saved, so leaving the page straight away can't lose it.
   const finish = () => {
     setOpen(false);
-    setGone(true);
-    start(() => finishWelcomeAction());
+    start(async () => {
+      await finishWelcomeAction();
+      setGone(true);
+    });
   };
   if (gone) return null;
 
@@ -45,10 +48,10 @@ export function Welcome({ name, live, staff }: { name: string; live: boolean; st
           {staff ? "Your orders arrive here. Your enquiries are in the Inbox." : "Your orders arrive here. Your enquiries are in the Inbox. Everything on your website is under Content."}
         </p>
         <div className="mt-4 flex gap-2">
-          <Button type="button" size="sm" onClick={() => setOpen(true)}>
+          <Button type="button" size="sm" onClick={() => setOpen(true)} disabled={saving}>
             Show me around
           </Button>
-          <Button type="button" size="sm" variant="secondary" onClick={finish}>
+          <Button type="button" size="sm" variant="secondary" onClick={finish} disabled={saving}>
             Dismiss
           </Button>
         </div>
@@ -89,7 +92,7 @@ export function Welcome({ name, live, staff }: { name: string; live: boolean; st
 /** After the welcome, for anyone without the authenticator app: "Make your sign-in harder to copy". */
 export function SecureNudge() {
   const [gone, setGone] = useState(false);
-  const [, start] = useTransition();
+  const [saving, start] = useTransition();
   if (gone) return null;
   return (
     <Card variant="static" className="mt-5 p-5" data-testid="secure-nudge">
@@ -106,10 +109,13 @@ export function SecureNudge() {
           type="button"
           size="sm"
           variant="secondary"
-          onClick={() => {
-            setGone(true);
-            start(() => skipSecureNudgeAction());
-          }}
+          disabled={saving}
+          onClick={() =>
+            start(async () => {
+              await skipSecureNudgeAction();
+              setGone(true);
+            })
+          }
         >
           Not yet
         </Button>
