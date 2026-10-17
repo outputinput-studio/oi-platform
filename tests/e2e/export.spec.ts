@@ -5,7 +5,8 @@ import { readZip } from "../zip-reader";
 /**
  * Export everything (Stage 40): the Owner asks on Settings, the link comes
  * by email (shown on screen here, with no email provider), and it downloads
- * one zip of the whole site. Contacts · Export this list gives a CSV.
+ * one zip of the whole site. Contacts · Export this list gives a CSV (the
+ * contact it adds to do so is removed again, as other specs count them).
  */
 const base = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000";
 const admin = base.replace("127.0.0.1", "admin.localhost");
@@ -56,6 +57,7 @@ test("the Owner downloads everything as one zip, and a contact list as CSV", asy
   await page.getByRole("button", { name: "Add contact" }).click();
   await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/);
   await expect(page.getByRole("link", { name: "Export this contact" })).toBeVisible();
+  const person = page.url();
   await page.goto(admin + "/contacts");
   const csvLink = page.getByRole("link", { name: "Export this list as CSV" });
   const csv = await grab(page, (await csvLink.getAttribute("href"))!);
@@ -65,4 +67,9 @@ test("the Owner downloads everything as one zip, and a contact list as CSV", asy
   await csvLink.click();
   expect((await download).suggestedFilename()).toMatch(/^demo-contacts-\d{4}-\d{2}-\d{2}\.csv$/);
   expect(readFileSync((await (await download).path())!, "utf8")).toContain("Name,Email");
+
+  // Leave the demo site's contacts as they were: other specs count them.
+  await page.goto(person);
+  await page.getByRole("button", { name: "Remove this contact" }).click();
+  await expect(page).toHaveURL(admin + "/contacts");
 });
