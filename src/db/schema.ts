@@ -966,3 +966,32 @@ export const visitsSeen = pgTable(
   },
   (t) => [uniqueIndex("visits_seen_site_day_visitor_idx").on(t.siteId, t.day, t.visitor)],
 );
+
+/**
+ * How a site pays output/input for its plan (Stage 39b, Carl: Stripe
+ * subscriptions through O/I's own Stripe account). One row per site, made
+ * when an Owner sets up payment; Stripe's webhooks keep it in step. Only
+ * what Settings · Plan and ops show: no card number, just its brand and last
+ * four. `provider` "test" is staging and CI without O/I's Stripe keys.
+ */
+export const billing = pgTable("billing", {
+  siteId: uuid("site_id")
+    .primaryKey()
+    .references(() => sites.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  customerId: text("customer_id"),
+  subscriptionId: text("subscription_id"),
+  /** active · past_due · incomplete · canceled */
+  status: text("status").notNull(),
+  /** What each monthly bill is, in cents, as Stripe has it. */
+  price: integer("price").notNull(),
+  currency: text("currency").notNull(),
+  renewsAt: timestamp("renews_at", { withTimezone: true }),
+  cardBrand: text("card_brand"),
+  cardLast4: text("card_last4"),
+  /** "09/28" */
+  cardExpires: text("card_expires"),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type Billing = typeof billing.$inferSelect;

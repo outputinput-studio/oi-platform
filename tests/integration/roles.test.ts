@@ -20,6 +20,7 @@ import { listMedia } from "@/modules/media/server";
 import { listOrders, moveOrder, refundOrder, sendTemplateTest } from "@/modules/orders/admin";
 import { createPage, listPages } from "@/modules/pages/server";
 import { planView } from "@/modules/plans/server";
+import { billingView, startPaying } from "@/modules/billing/server";
 import { removeStripeKeys, saveStripeKeys } from "@/modules/payments/server";
 import { listProducts } from "@/modules/products/server";
 import { saveCustomCode } from "@/modules/sites/custom-code";
@@ -93,6 +94,8 @@ const rows: Array<[string, MembershipRole, Call]> = [
   ["launch the site", "owner", (actorId, siteId) => launchSite({ actorId, siteId })],
   ["hide the site", "owner", (actorId, siteId) => hideSite({ actorId, siteId })],
   ["see the plan and usage", "owner", (actorId, siteId) => planView({ actorId, siteId })],
+  ["see how the plan is paid", "owner", (actorId, siteId) => billingView({ actorId, siteId })],
+  ["set up payment for the plan", "owner", (actorId, siteId) => startPaying({ actorId, siteId, returnTo: "https://admin.example.test/settings/plan" })],
 ];
 
 /** True unless the access check said no. */
