@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { checkDomainAction, connectDomainAction, disconnectDomainAction, launchSiteAction, setDomainWwwAction, type DomainFormState } from "@/modules/sites/domain-actions";
+import { checkDomainAction, connectDomainAction, disconnectDomainAction, hideSiteAction, launchSiteAction, setDomainWwwAction, type DomainFormState } from "@/modules/sites/domain-actions";
 import type { DomainView } from "@/modules/sites/domain";
 import { Button, Card, Field, Input, Label, Notice, Pill } from "../../../ui";
 
@@ -198,16 +198,51 @@ const slugHostNote = "Your other address keeps working, and you can connect it a
 function GoingLive({ launchedAt, address, previewUrl, canEdit }: { launchedAt: string | null; address: string; previewUrl: string; canEdit: boolean }) {
   const [state, setState] = useState<DomainFormState>({});
   const [busy, start] = useTransition();
+  const [confirmHide, setConfirmHide] = useState(false);
   return (
     <section>
       <Label>Going live</Label>
       {launchedAt ? (
-        <Card variant="static" className="px-4 py-3.5">
-          <p data-testid="live-state" className="text-[14px] text-text">
-            Live since {new Date(launchedAt).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })}
-          </p>
-          <p className="mt-0.5 text-[12.5px] text-muted">Anyone can reach your site at {address}.</p>
-        </Card>
+        <div className="space-y-3">
+          <Card variant="static" className="px-4 py-3.5">
+            <p data-testid="live-state" className="text-[14px] text-text">
+              Live since {new Date(launchedAt).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })}
+            </p>
+            <p className="mt-0.5 text-[12.5px] text-muted">Anyone can reach your site at {address}.</p>
+          </Card>
+          {canEdit &&
+            (confirmHide ? (
+              <Card className="space-y-3 p-4">
+                <p className="text-[14px] text-text">Hide the site again?</p>
+                <p className="text-[12.5px] leading-[1.5] text-muted">Visitors see the holding page until you launch it again, and search engines are asked to stay away. You, and anyone with the preview link, still see the real site.</p>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() =>
+                      start(async () => {
+                        const r = await hideSiteAction();
+                        setState(r);
+                        if (!r.error) setConfirmHide(false);
+                      })
+                    }
+                  >
+                    {busy ? "Hiding…" : "Hide it"}
+                  </Button>
+                  <Button type="button" variant="quiet" size="sm" onClick={() => setConfirmHide(false)}>
+                    Keep it live
+                  </Button>
+                </div>
+                <Notice error={state.error} />
+              </Card>
+            ) : (
+              <Button type="button" variant="quiet" size="sm" onClick={() => setConfirmHide(true)}>
+                Hide it again
+              </Button>
+            ))}
+        </div>
       ) : (
         <Card className="space-y-3 px-4 py-3.5">
           <div>

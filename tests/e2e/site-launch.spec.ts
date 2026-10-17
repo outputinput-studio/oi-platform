@@ -83,7 +83,7 @@ test("your own domain: refused when it isn't one, then the records it needs; dis
   await expect(page.getByLabel("Domain")).toBeVisible();
 });
 
-test("launching: from then on everyone sees the site", async ({ page, browser }) => {
+test("launching: from then on everyone sees the site; hidden again, back to the holding page", async ({ page, browser }) => {
   await signInToSoon(page);
   await page.goto(admin + "/settings/domain");
   await page.getByRole("button", { name: "Launch site" }).click();
@@ -91,4 +91,16 @@ test("launching: from then on everyone sees the site", async ({ page, browser })
   const visitor = await (await browser.newContext()).newPage();
   await visitor.goto(soon + "/");
   await expect(visitor.getByTestId("holding")).toHaveCount(0);
+
+  // Changed your mind: asked first, then hidden.
+  await page.getByRole("button", { name: "Hide it again" }).click();
+  await page.getByRole("button", { name: "Keep it live" }).click();
+  await expect(page.getByTestId("live-state")).toContainText("Live since");
+  await page.getByRole("button", { name: "Hide it again" }).click();
+  await page.getByRole("button", { name: "Hide it", exact: true }).click();
+  await expect(page.getByTestId("live-state")).toHaveText("Not live yet");
+  await visitor.goto(soon + "/");
+  await expect(visitor.getByTestId("holding")).toBeVisible();
+  const robots = await (await visitor.request.get(base + "/robots.txt", { headers: { host: "soon.localhost" } })).text();
+  expect(robots).toContain("Disallow: /");
 });

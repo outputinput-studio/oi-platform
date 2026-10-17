@@ -42,7 +42,13 @@ export function siteVisible(site: Pick<Site, "id" | "launchedAt">, pass: string 
   return !!site.launchedAt || passValid(site.id, pass, now);
 }
 
-/** Owners launch the site: from now on everyone sees it. Launching twice keeps the first date. */
+/** Owners hide a live site again: visitors get the holding page, search engines are kept out, previews still work. */
+export async function hideSite(p: { actorId: string; siteId: string }): Promise<void> {
+  await assertAccess(p.actorId, p.siteId, "owner");
+  await withSite(p.siteId, (tx) => tx.update(sites).set({ launchedAt: null }).where(eq(sites.id, p.siteId)));
+}
+
+/** Owners launch the site: from now on everyone sees it. Launching twice keeps the first date; after hiding, it starts afresh. */
 export async function launchSite(p: { actorId: string; siteId: string }): Promise<Date> {
   await assertAccess(p.actorId, p.siteId, "owner");
   return withSite(p.siteId, async (tx) => {

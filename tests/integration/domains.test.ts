@@ -46,7 +46,7 @@ vi.stubGlobal("fetch", async (input: URL | string, init: RequestInit = {}) => {
 const { AccessError } = await import("@/modules/auth/access");
 const { siteFromHost } = await import("@/modules/sites/server");
 const { connectDomain, disconnectDomain, domainStatus, setDomainWww } = await import("@/modules/sites/domain");
-const { launchSite, passValid, previewPass, siteVisible, teamPreviewPass } = await import("@/modules/sites/launch");
+const { hideSite, launchSite, passValid, previewPass, siteVisible, teamPreviewPass } = await import("@/modules/sites/launch");
 const { checkSendingDomain, removeSendingDomain, sendingDomainStatus, setUpSendingDomain } = await import("@/modules/sites/sending-domain");
 const { senderFor } = await import("@/modules/sites/business");
 
@@ -178,6 +178,20 @@ describe("going live", () => {
     await expect(launchSite({ actorId: staff, siteId: siteA })).rejects.toBeInstanceOf(AccessError);
     const first = await launchSite({ actorId: own, siteId: siteA });
     expect(await launchSite({ actorId: own, siteId: siteA })).toEqual(first);
+    expect(siteVisible((await siteFromHost("dom-a.localhost"))!, undefined)).toBe(true);
+  });
+
+  test("an owner hides it again: back behind the holding page; launching again starts a new date", async () => {
+    const first = (await siteFromHost("dom-a.localhost"))!.launchedAt!;
+    await expect(hideSite({ actorId: staff, siteId: siteA })).rejects.toBeInstanceOf(AccessError);
+    await hideSite({ actorId: own, siteId: siteA });
+    const hidden = (await siteFromHost("dom-a.localhost"))!;
+    expect(hidden.launchedAt).toBeNull();
+    expect(siteVisible(hidden, undefined)).toBe(false);
+    expect(siteVisible(hidden, await teamPreviewPass({ actorId: staff, siteId: siteA }))).toBe(true);
+    await hideSite({ actorId: own, siteId: siteA });
+    const again = await launchSite({ actorId: own, siteId: siteA });
+    expect(again.getTime()).toBeGreaterThanOrEqual(first.getTime());
     expect(siteVisible((await siteFromHost("dom-a.localhost"))!, undefined)).toBe(true);
   });
 });

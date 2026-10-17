@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { formError } from "@/lib/form-error";
 import { connectDomain, disconnectDomain, setDomainWww } from "./domain";
-import { launchSite } from "./launch";
+import { hideSite, launchSite } from "./launch";
 import { checkSendingDomain, removeSendingDomain, setUpSendingDomain } from "./sending-domain";
 
 /** Settings · Domain and the sending-domain part of Settings · Sending, as thin actions. */
@@ -61,6 +61,17 @@ export async function launchSiteAction(): Promise<DomainFormState> {
   }
   revalidatePath("/", "layout");
   return { ok: "Live" };
+}
+
+export async function hideSiteAction(): Promise<DomainFormState> {
+  const { user, site } = await requireSiteAccess();
+  try {
+    await hideSite({ actorId: user.id, siteId: site.id });
+  } catch (err) {
+    return formError(err, { fallback: "Couldn't hide it. Try again." });
+  }
+  revalidatePath("/", "layout");
+  return { ok: "Hidden" };
 }
 
 export async function setUpSendingDomainAction(_prev: DomainFormState, form: FormData): Promise<DomainFormState> {
