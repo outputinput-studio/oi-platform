@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { saveAnalyticsAction, type SettingsFormState } from "@/modules/sites/actions";
 import { analyticsSchema, type Analytics } from "@/modules/sites/tracking";
 import { Card, Field, Input, Label, Notice, SaveBar } from "../../../ui";
+import { keepValues } from "../../../../keep-values";
 
 /**
  * Settings · Analytics: the IDs, never code. Someone who pastes Google's or
@@ -25,7 +26,7 @@ export function AnalyticsForm({ initial, noticeOn, live, canEdit }: { initial: A
   const dirty = JSON.stringify(v) !== JSON.stringify(saved);
 
   return (
-    <form action={act} className="space-y-6">
+    <form onSubmit={keepValues(act)} className="space-y-6">
       {!canEdit && <Notice error="Only an owner can change these. You can still read them." />}
       <section className="space-y-5">
         <Label>Where visits are counted</Label>

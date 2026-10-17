@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { updateShopSettingsAction, type SettingsFormState } from "@/modules/sites/actions";
 import { CURRENCIES, type ShopSettings } from "@/modules/sites/shop";
 import { Field, Input, SaveBar, Select, Switch } from "../../../ui";
+import { keepValues } from "../../../../keep-values";
 
 const NAMES: Record<string, string> = {
   AUD: "Australian dollar",
@@ -26,7 +27,7 @@ export function ShopForm({ initial, canEdit }: { initial: ShopSettings; canEdit:
   const dirty = JSON.stringify(v) !== JSON.stringify(saved);
 
   return (
-    <form action={act} className="space-y-5">
+    <form onSubmit={keepValues(act)} className="space-y-5">
       <Field label="Currency" htmlFor="shop-currency" hint="Every price on your site is in this. Changing it doesn't convert prices you've already set.">
         <Select id="shop-currency" name="currency" value={v.currency} disabled={!canEdit} onChange={(e) => setV({ ...v, currency: e.target.value as ShopSettings["currency"] })}>
           {CURRENCIES.map((c) => (

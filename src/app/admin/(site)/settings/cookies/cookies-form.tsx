@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { saveCookieNoticeAction, type SettingsFormState } from "@/modules/sites/actions";
 import type { CookieNotice } from "@/modules/sites/tracking";
 import { Card, Field, Label, Notice, SaveBar, Select, Switch, Textarea } from "../../../ui";
+import { keepValues } from "../../../../keep-values";
 
 /**
  * Settings · Cookie notice. With it on, analytics wait for Accept (Carl,
@@ -22,7 +23,7 @@ export function CookiesForm({ initial, pages, hasAnalytics, canEdit }: { initial
   const missing = v.policyPath && !pages.some((p) => p.path === v.policyPath);
 
   return (
-    <form action={act} className="space-y-6">
+    <form onSubmit={keepValues(act)} className="space-y-6">
       {!canEdit && <Notice error="Only an owner can change this. You can still read it." />}
       <Card className="p-4">
         <input type="hidden" name="enabled" value={v.enabled ? "on" : ""} />

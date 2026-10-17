@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { keepValues } from "../keep-values";
 import { checkoutAction, clearCartAction, previewCodeAction, quoteAction, type CartState } from "@/modules/orders/actions";
 import { taxOn } from "@/modules/orders/cart";
 import { quoteFor, ratePriceLabel, ratesFor, whyNoRates, type Shipping, formatWeight, type Parcel } from "@/modules/sites/shipping";
@@ -102,7 +103,7 @@ export function CheckoutForm({
     );
 
   return (
-    <form action={quote ? askQuote : act} className="space-y-5">
+    <form onSubmit={keepValues(quote ? askQuote : act)} className="space-y-5">
       <fieldset className="space-y-4">
         <legend className="mb-1 text-[18px] font-medium">Your details</legend>
         {offerSignIn && (

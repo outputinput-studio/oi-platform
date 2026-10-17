@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { createMenuAction, type MenuFormState } from "@/modules/menus/actions";
 import { Button, Field, Input, Notice, Sheet } from "../../ui";
+import { keepValues } from "../../../keep-values";
 
 /** The dashed "Add menu" under the list: a name, then straight into the editor. */
 export function AddMenu() {
@@ -22,7 +23,7 @@ export function AddMenu() {
       </button>
       {open && (
         <Sheet title="Add a menu" onClose={() => setOpen(false)}>
-          <form action={act} className="space-y-4">
+          <form onSubmit={keepValues(act)} className="space-y-4">
             <Field label="Menu name" htmlFor="new-menu-name" hint="Shows as the heading of its footer column: Help, Shop, Follow along.">
               <Input id="new-menu-name" name="name" required maxLength={60} autoFocus />
             </Field>

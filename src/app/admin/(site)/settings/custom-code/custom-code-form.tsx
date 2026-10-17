@@ -6,6 +6,7 @@ import { revertCustomCodeAction, saveCustomCodeAction, type SettingsFormState } 
 import { MAX_CODE, type CustomCode } from "@/modules/sites/custom-code-rules";
 import { Button, Card, Field, Label, Notice, SaveBar, Textarea } from "../../../ui";
 import { LocalTime } from "../../local-time";
+import { keepValues } from "../../../../keep-values";
 
 /**
  * Settings · Custom code: what goes at the start and the end of every page,
@@ -28,7 +29,7 @@ export function CustomCodeForm({ code, canEdit }: { code: CustomCode; canEdit: b
   const dirty = v.head !== saved.head || v.body !== saved.body;
 
   return (
-    <form action={act} className="space-y-6">
+    <form onSubmit={keepValues(act)} className="space-y-6">
       {!canEdit && <Notice error="Only an owner can change this. You can still read it." />}
       <Card variant="static" data-testid="code-warning" className="px-4 py-3.5 text-[13.5px] leading-[1.5] text-body">
         Code here runs on every page of your site, for every visitor. Only paste code from someone you trust, and check the site after saving. It isn&apos;t held back by the cookie notice, so Google Analytics and the Meta pixel belong under Analytics instead.

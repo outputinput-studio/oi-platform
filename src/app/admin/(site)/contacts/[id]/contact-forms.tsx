@@ -5,6 +5,7 @@ import { addNoteAction, saveContactAction, type FormState } from "@/modules/cont
 import type { ContactDetails } from "@/modules/contacts/server";
 import { Button, Card, Field, Input, Label, Notice, Textarea } from "../../../ui";
 import { FieldErrors } from "@/lib/field-errors";
+import { keepValues } from "../../../../keep-values";
 
 /** Name, email, phone: changes save as you type. */
 export function ContactDetailsForm({ contactId, initial }: { contactId: string; initial: ContactDetails }) {
@@ -73,7 +74,7 @@ export function Notes({ contactId, notes }: { contactId: string; notes: { at: st
         Notes
       </Label>
       {open && (
-        <form action={act} className="mb-3 space-y-3 rounded-card border border-line bg-surface p-4">
+        <form onSubmit={keepValues(act)} className="mb-3 space-y-3 rounded-card border border-line bg-surface p-4">
           <input type="hidden" name="contactId" value={contactId} />
           <Textarea name="text" aria-label="Note" rows={3} maxLength={2000} required autoFocus placeholder="Only you and your team see this." />
           <Notice error={state.error} fields={state.fields} />

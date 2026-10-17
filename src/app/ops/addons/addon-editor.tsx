@@ -1,6 +1,6 @@
 "use client";
 
-import { keepValues } from "../../admin/keep-values";
+import { keepValues } from "../../keep-values";
 import { useActionState, useState } from "react";
 import { deleteAddonAction, saveAddonAction, type AddonFormState } from "@/modules/addons/actions";
 import type { Addon, AddonKind } from "@/modules/addons/addon";

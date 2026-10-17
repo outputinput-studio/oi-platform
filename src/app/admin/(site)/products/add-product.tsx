@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { createProductAction, type ProductFormState } from "@/modules/products/actions";
 import { Button, Field, Input, Notice, Select, Sheet } from "../../ui";
+import { keepValues } from "../../../keep-values";
 
 /** "Add product": a name (and a category, if there are any), then straight into the editor. */
 export function AddProduct({ categories, defaultCategory }: { categories: { id: string; name: string }[]; defaultCategory?: string }) {
@@ -15,7 +16,7 @@ export function AddProduct({ categories, defaultCategory }: { categories: { id: 
       </Button>
       {open && (
         <Sheet title="Add a product" onClose={() => setOpen(false)}>
-          <form action={act} className="space-y-4">
+          <form onSubmit={keepValues(act)} className="space-y-4">
             <Field label="Product name" htmlFor="new-product-name" hint="What it's called on your site. You can change it later.">
               <Input id="new-product-name" name="name" required maxLength={160} autoFocus />
             </Field>

@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { createContactAction, type FormState } from "@/modules/contacts/actions";
 import { Button, Field, Input, Notice, Sheet } from "../../ui";
+import { keepValues } from "../../../keep-values";
 
 /** "Add someone" opens a sheet: name, email, phone — any one will do. */
 export function AddContact() {
@@ -15,7 +16,7 @@ export function AddContact() {
       </Button>
       {open && (
         <Sheet title="Add someone" onClose={() => setOpen(false)}>
-          <form action={act} className="space-y-4">
+          <form onSubmit={keepValues(act)} className="space-y-4">
             <Field label="Name" htmlFor="new-contact-name">
               <Input id="new-contact-name" name="name" maxLength={120} autoFocus />
             </Field>

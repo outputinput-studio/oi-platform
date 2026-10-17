@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { updateSendingAction, type SettingsFormState } from "@/modules/sites/actions";
 import type { Sending } from "@/modules/sites/business";
 import { Field, Input, Label, SaveBar } from "../../../ui";
+import { keepValues } from "../../../../keep-values";
 
 /** Where your email comes from, as in design/admin.html. */
 export function SendingForm({
@@ -36,7 +37,7 @@ export function SendingForm({
   const replyNow = v.replyTo || fallbackReply;
 
   return (
-    <form action={act} className="space-y-5">
+    <form onSubmit={keepValues(act)} className="space-y-5">
       <Label>Where your email comes from</Label>
       <Field label="Shown as from" htmlFor="s-from" hint={`What customers see in their inbox. Empty uses "${fallbackName}".`}>
         <Input id="s-from" name="fromName" value={v.fromName} maxLength={80} placeholder={fallbackName} readOnly={!canEdit} onChange={(e) => setV({ ...v, fromName: e.target.value })} />

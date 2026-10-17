@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { confirmTwoFactorAction, type AccountState } from "@/modules/auth/account-actions";
 import { Button, Input, Notice } from "../ui";
 import { RecoveryCodes } from "../recovery-codes";
+import { keepValues } from "../../keep-values";
 
 /** The first code from the app turns it on; then the recovery codes, then on to wherever they were going. */
 export function SetupForm({ next }: { next: string }) {
@@ -22,7 +23,7 @@ export function SetupForm({ next }: { next: string }) {
     );
   }
   return (
-    <form action={act} className="mt-3 space-y-4">
+    <form onSubmit={keepValues(act)} className="mt-3 space-y-4">
       <label htmlFor="field-setup-code" className="sr-only">
         Code from your app
       </label>

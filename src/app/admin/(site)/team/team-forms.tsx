@@ -20,6 +20,7 @@ import { LocalTime } from "../local-time";
 import { timeAgo } from "@/lib/time";
 import { Button, Field, Input, Notice, Pill, Sheet } from "../../ui";
 import { Avatar } from "../nav";
+import { keepValues } from "../../../keep-values";
 
 /** The three roles as choices, each with what it can do. */
 export function RoleChoice({ current }: { current: MembershipRole }) {
@@ -54,7 +55,7 @@ export function InviteSomeone() {
       </Button>
       {open && (
         <Sheet title="Invite someone" onClose={() => setOpen(false)}>
-          <form action={act} className="space-y-4">
+          <form onSubmit={keepValues(act)} className="space-y-4">
             <Field label="Email" htmlFor="invite-email" hint="We email them a link to join. It works for 14 days.">
               <Input id="invite-email" name="email" type="email" inputMode="email" autoComplete="off" required autoFocus />
             </Field>
@@ -145,7 +146,7 @@ export function InviteRowView({ inv, canManage }: { inv: InviteRow; canManage: b
           <Button type="button" variant="quiet" size="sm" onClick={() => setSheet("role")}>
             Change role
           </Button>
-          <form action={resend}>
+          <form onSubmit={keepValues(resend)}>
             <input type="hidden" name="inviteId" value={inv.id} />
             <Button type="submit" variant="quiet" size="sm" disabled={resendPending}>
               {resendPending ? "Sending…" : "Resend"}
@@ -159,7 +160,7 @@ export function InviteRowView({ inv, canManage }: { inv: InviteRow; canManage: b
 
       {sheet === "role" && (
         <Sheet title="Change role" onClose={close}>
-          <form action={setRole} className="space-y-4">
+          <form onSubmit={keepValues(setRole)} className="space-y-4">
             <p className="text-[14.5px]">
               What <span className="font-mono">{inv.email}</span> can do once they join.
             </p>
@@ -174,7 +175,7 @@ export function InviteRowView({ inv, canManage }: { inv: InviteRow; canManage: b
       )}
       {sheet === "cancel" && (
         <Sheet title="Cancel the invitation?" onClose={close}>
-          <form action={cancel} className="space-y-4">
+          <form onSubmit={keepValues(cancel)} className="space-y-4">
             <p className="text-[14.5px] leading-relaxed">
               The link stops working. <span className="font-mono">{inv.email}</span> can&apos;t join unless you invite them again.
             </p>
@@ -270,7 +271,7 @@ export function MemberRow({
 
       {sheet === "reset" && (
         <Sheet title="Reset two-factor?" onClose={close}>
-          <form action={reset} className="space-y-4">
+          <form onSubmit={keepValues(reset)} className="space-y-4">
             <p className="text-[14.5px] leading-relaxed">
               For when <span className="font-medium">{who}</span> has lost their phone and their recovery codes. They&apos;re signed out everywhere, and set the app
               up again the next time they sign in.
@@ -291,7 +292,7 @@ export function MemberRow({
 
       {sheet === "role" && (
         <Sheet title="Change role" onClose={close}>
-          <form action={setRole} className="space-y-4">
+          <form onSubmit={keepValues(setRole)} className="space-y-4">
             <p className="text-[14.5px]">
               What <span className="font-medium">{who}</span> can do on {siteName}.
             </p>
@@ -307,7 +308,7 @@ export function MemberRow({
 
       {sheet === "remove" && (
         <Sheet title="Take them off the team?" onClose={close}>
-          <form action={remove} className="space-y-4">
+          <form onSubmit={keepValues(remove)} className="space-y-4">
             <p className="text-[14.5px] leading-relaxed">
               <span className="font-medium">{who}</span> won&apos;t be able to sign in to {siteName} any more. What they did stays, and Activity still shows it.
             </p>

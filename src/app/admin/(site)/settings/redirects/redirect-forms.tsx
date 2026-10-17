@@ -5,6 +5,7 @@ import { addRedirectAction, type FormState } from "@/modules/redirects/actions";
 import { saveSearchSettingsAction } from "@/modules/sites/actions";
 import type { SearchSettings } from "@/modules/sites/search";
 import { Button, Field, Input, Notice, Sheet, Switch } from "../../../ui";
+import { keepValues } from "../../../../keep-values";
 
 /** "Add a rule" (or "Redirect this", with the address filled in) opens a sheet: from → to. */
 export function AddRule({ from = "", label = "Add a rule" }: { from?: string; label?: string }) {
@@ -21,7 +22,7 @@ export function AddRule({ from = "", label = "Add a rule" }: { from?: string; la
       </Button>
       {open && (
         <Sheet title={from ? "Redirect this address" : "Add a rule"} onClose={() => setOpen(false)}>
-          <form action={act} className="space-y-4">
+          <form onSubmit={keepValues(act)} className="space-y-4">
             <Field label="From" htmlFor="r-from" hint="The old address, as people have it: /old-page or /shop/thing.html">
               <Input id="r-from" name="from" defaultValue={from} required maxLength={300} className="font-mono" autoFocus={!from} />
             </Field>
