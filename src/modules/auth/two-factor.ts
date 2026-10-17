@@ -7,6 +7,7 @@ import { waitText } from "@/lib/time";
 import { lockMinutes } from "@/modules/customers/secrets";
 import { logActivity } from "@/modules/activity/server";
 import { AccessError, assertAccess } from "./access";
+import { isSupportUser } from "./support";
 import { checkTotp, newRecoveryCodes, newSecret, normaliseRecovery, otpauthUri, recoveryHash, wasUsed } from "./totp";
 
 /**
@@ -31,8 +32,9 @@ async function load(userId: string): Promise<TwoFactor | undefined> {
   return r;
 }
 
-/** Owners must have it on (Carl: "Required for Owners"). Owner of any site counts: it's one sign-in. */
+/** Owners must have it on (Carl: "Required for Owners"), and so must O/I support. Owner of any site counts: it's one sign-in. */
 export async function requiredFor(userId: string): Promise<boolean> {
+  if (await isSupportUser(userId)) return true;
   const [r] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(memberships)

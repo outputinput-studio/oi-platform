@@ -45,6 +45,9 @@ A refusal about one field throws `FieldError(field, message)`; a lone value is p
   table); `sessions.two_factor_at` marks a session that got past the app, and `requireSignIn` checks it on every
   request. Better Auth's HTTP endpoints are closed but for get-session and sign-out (`api/auth/[...all]`).
   E2E: the "setup" project signs the owner in once (app code included) and the rest reuse that session.
+- O/I support (Carl, Oct 2026; `modules/auth/support.ts`): the addresses in OI_SUPPORT_EMAILS (Vercel only, never the
+  database) are an Owner on every site with no membership — always on, a client can't remove it. They always need the
+  app, count only once OI_SECRETS_KEY is set, show as "output/input" in Activity, and list sites via `all_site_ids()`.
 - `src/app/admin/(site)` — the signed-in admin: its layout calls `requireSiteAccess`; pages under it are for one site.
   Pages link with public paths (`/team`, never `/admin/team`). `src/app/admin/ui.tsx` holds the few primitives.
 - `src/modules/pages/registry.ts` — the section registry: every block a page can hold, with its Zod schema. A new
