@@ -60,7 +60,7 @@ export default async function SettingsPage() {
           <Label>Your site</Label>
           <Rows>
             <Row title="Site name" detail={site.name} href="/settings/site" />
-            <Row title="Address" detail={`${site.slug} · your own domain arrives in a later stage`} />
+            <Row title="Domain" detail={domainLine(site)} href="/settings/domain" />
             <Row title="Search engines" detail={siteSearch(site).hideFromSearch ? "Hidden from Google" : "Sitemap, title pattern, sharing image"} href="/settings/search" />
             <Row title="Redirects" detail="Old addresses, pointed somewhere useful" href="/settings/redirects" />
           </Rows>
@@ -98,4 +98,9 @@ function brandingLine(t: Theme): string {
 function accountsLine(a: ReturnType<typeof readAccountSettings>): string {
   if (!a.enabled) return "Off · order tracking is always on";
   return a.passwords ? "On · a code, or a password if they set one" : "On · sign in with a code";
+}
+
+function domainLine(site: { slug: string; domain: string | null; domainOkAt: Date | null; launchedAt: Date | null }): string {
+  const where = site.domain ? `${site.domain}${site.domainOkAt ? "" : " · waiting for DNS"}` : `${site.slug} · connect your own domain`;
+  return site.launchedAt ? where : `${where} · not live yet`;
 }

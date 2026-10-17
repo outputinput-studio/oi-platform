@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { siteAddress } from "@/lib/hosts";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { siteSearch } from "@/modules/sites/server";
 import { mediaAvailable, mediaUrl } from "@/modules/media/server";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function SearchSettingsPage() {
   const { site, role } = await requireSiteAccess();
   const adminHost = (await headers()).get("x-oi-host") ?? "";
-  const siteHost = adminHost.replace(/^admin\./, `${site.slug}.`);
+  const siteHost = siteAddress(site, adminHost);
   const s = siteSearch(site);
   return (
     <>

@@ -159,7 +159,7 @@ export function recipientsFor(r: Recipients, owners: string[]): { to: string[]; 
 }
 
 /** How an email to a customer goes out: the business's name, its reply address, and a copy for the business when it keeps one. */
-export function customerMail(site: { name: string; business: unknown; messages: unknown; search?: unknown }): { fromName: string; replyTo?: string; bcc?: string[] } {
+export function customerMail(site: { name: string; business: unknown; messages: unknown; search?: unknown }): { fromName: string; replyTo?: string; fromAddress?: string; bcc?: string[] } {
   const s = senderFor(site);
   const keep = readMessages(site.messages).keepCopy;
   return keep && s.replyTo ? { ...s, bcc: [s.replyTo] } : s;

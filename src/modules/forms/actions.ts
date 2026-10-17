@@ -5,7 +5,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSiteAccess } from "@/modules/auth/access";
-import { siteFromHost } from "@/modules/sites/server";
+import { visibleSiteFromHost } from "@/modules/sites/storefront";
+import { adminOriginFor } from "@/lib/hosts";
 import { SUBMISSION_STATUSES } from "@/db/schema";
 import { createForm, deleteForm, reorderForms, setSubmissionStatus, submitForm, updateForm, uploadSubmissionFile } from "./server";
 import type { UploadedFile } from "./fields";
@@ -81,7 +82,7 @@ export async function setSubmissionStatusAction(form: FormData): Promise<void> {
 export async function submitFormAction(formId: string, _prev: FormState, form: FormData): Promise<FormState> {
   const h = await headers();
   const host = h.get("x-oi-host") ?? h.get("host") ?? "";
-  const site = await siteFromHost(host);
+  const site = await visibleSiteFromHost(host);
   if (!site) return { error: "This form isn't available." };
   const answers: Record<string, string> = {};
   for (const [k, v] of form.entries()) if (k.startsWith("f_") && typeof v === "string") answers[k.slice(2)] = v;
@@ -93,7 +94,7 @@ export async function submitFormAction(formId: string, _prev: FormState, form: F
       about: String(form.get("about") ?? "") || undefined,
       trap: String(form.get("website") ?? ""),
       siteName: site.name,
-      inboxUrl: `https://${host.replace(/^[^.]+\./, "admin.")}/inbox`,
+      inboxUrl: `${adminOriginFor(host)}/inbox`,
     });
     return { ok: r.message };
   } catch (err) {
@@ -106,7 +107,7 @@ export async function submitFormAction(formId: string, _prev: FormState, form: F
 /** A visitor's file, ahead of the form. Public like submitFormAction; the site comes from the host. */
 export async function uploadFormFileAction(formId: string, fieldId: string, form: FormData): Promise<{ ok: true; file: UploadedFile } | { ok: false; error: string }> {
   const h = await headers();
-  const site = await siteFromHost(h.get("x-oi-host") ?? h.get("host") ?? "");
+  const site = await visibleSiteFromHost(h.get("x-oi-host") ?? h.get("host") ?? "");
   if (!site) return { ok: false, error: "This form isn't available." };
   const file = form.get("file");
   if (!(file instanceof File)) return { ok: false, error: "No file came through." };

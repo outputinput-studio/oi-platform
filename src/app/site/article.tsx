@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { siteFromHost } from "@/modules/sites/server";
+import { storefrontSite } from "@/modules/sites/storefront";
 import { articlePath, publishedArticle, publishedArticles, type ArticleRow } from "@/modules/articles/server";
 import { publishedCategories, publishedCategory } from "@/modules/articles/categories";
 import { permanentRedirect } from "next/navigation";
@@ -163,8 +163,7 @@ function dateOf(a: ArticleRow): string {
 }
 
 async function currentSite() {
-  const h = await headers();
-  return siteFromHost(h.get("x-oi-host") ?? h.get("host") ?? "");
+  return (await storefrontSite()).site;
 }
 
 export async function journalMetadata(): Promise<Metadata> {

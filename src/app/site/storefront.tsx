@@ -2,7 +2,9 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound, permanentRedirect } from "next/navigation";
 import { recordNotFound, redirectFor } from "@/modules/redirects/server";
-import { siteFromHost, siteSearch, siteTheme } from "@/modules/sites/server";
+import { siteSearch, siteTheme } from "@/modules/sites/server";
+import { storefrontSite } from "@/modules/sites/storefront";
+import { publicHost } from "@/lib/hosts";
 import { businessOf, tradingName } from "@/modules/sites/business";
 import { publicForm } from "@/modules/forms/server";
 import { StorefrontForm } from "./storefront-form";
@@ -29,9 +31,8 @@ import { fallbacksFromSections, hostAndSite, storefrontMetadata } from "./metada
  */
 export async function Storefront({ slug, requestPath }: { slug: string | null; requestPath?: string }) {
   const h = await headers();
-  const host = h.get("x-oi-host") ?? h.get("host") ?? "";
-  const site = await siteFromHost(host);
-  if (!site) return <Placeholder surface="site" />; // no such site: keep the stage-1 placeholder
+  const { host, site } = await storefrontSite();
+  if (!site) return <Placeholder surface="site" />; // no such site (or not live: the layout shows the holding page)
 
   const [page, menus] = await Promise.all([slug ? publishedPage({ siteId: site.id, slug }) : null, siteMenus({ siteId: site.id })]);
   if (!page) {
@@ -56,7 +57,7 @@ function OrganizationSchema({ site, host }: { site: Site; host: string }) {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: profile.tradingName || site.name,
-    url: `https://${host}/`,
+    url: `https://${publicHost(site, host)}/`,
   };
   if (b.description) data.description = b.description;
   const logo = siteTheme(site).logo ?? b.logo;

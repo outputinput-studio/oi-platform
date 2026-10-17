@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { siteAddress } from "@/lib/hosts";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { getProduct } from "@/modules/products/server";
 import { listProductCategories } from "@/modules/products/categories";
@@ -23,7 +24,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
     listProductCategories({ actorId: user.id, siteId: site.id }),
     listWaiting({ actorId: user.id, siteId: site.id, productId: id }),
   ]);
-  const siteHost = ((await headers()).get("x-oi-host") ?? "").replace(/^admin\./, `${site.slug}.`);
+  const siteHost = siteAddress(site, (await headers()).get("x-oi-host") ?? "");
   const shop = siteShop(site);
   const hasEnquiryForm = shop.enquiryFormId ? !!(await publicForm({ siteId: site.id, formId: shop.enquiryFormId })) : false;
   const seo = readSeo(p.seo);

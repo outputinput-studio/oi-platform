@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { siteAddress } from "@/lib/hosts";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { listCategories } from "@/modules/articles/categories";
 import { Card, PageHeader } from "../../../ui";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function CategoriesPage() {
   const { user, site } = await requireSiteAccess();
   const cats = await listCategories({ actorId: user.id, siteId: site.id });
-  const siteHost = ((await headers()).get("x-oi-host") ?? "").replace(/^admin\./, `${site.slug}.`);
+  const siteHost = siteAddress(site, (await headers()).get("x-oi-host") ?? "");
   return (
     <>
       <PageHeader title="Categories" back="/articles" actions={<AddCategory />} />

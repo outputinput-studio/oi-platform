@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import type { Metadata } from "next";
 import type { Customer, CustomerAddress, Order, Site } from "@/db/schema";
 import { COUNTRIES, countryName } from "@/lib/countries";
 import { Placeholder } from "@/lib/placeholder";
 import { siteMenus, type SiteMenus } from "@/modules/menus/server";
-import { siteFromHost, siteSearch, siteTheme } from "@/modules/sites/server";
+import { siteSearch, siteTheme } from "@/modules/sites/server";
+import { storefrontSite } from "@/modules/sites/storefront";
 import { pageTitle } from "@/modules/sites/search";
 import { formatPrice, homeCountry, readShopSettings, type Currency } from "@/modules/sites/shop";
 import { mediaUrl } from "@/modules/media/server";
@@ -32,8 +33,7 @@ import { AddressList } from "./address-list";
 type Ctx = { site: Site; menus: SiteMenus; customer: Customer | null; accounts: ReturnType<typeof readAccountSettings> };
 
 async function context(): Promise<Ctx | null> {
-  const h = await headers();
-  const site = await siteFromHost(h.get("x-oi-host") ?? h.get("host") ?? "");
+  const { site } = await storefrontSite();
   if (!site) return null;
   const accounts = readAccountSettings(site.accounts);
   const [menus, customer] = await Promise.all([siteMenus({ siteId: site.id }), currentCustomer({ site, token: (await cookies()).get(CUSTOMER_COOKIE)?.value })]);
@@ -384,8 +384,7 @@ export async function TrackPage() {
 
 /** Account pages and tracking are for the person looking, not for Google. */
 export async function accountMetadata(title: string): Promise<Metadata> {
-  const h = await headers();
-  const site = await siteFromHost(h.get("x-oi-host") ?? h.get("host") ?? "");
+  const { site } = await storefrontSite();
   if (!site) return { title, robots: { index: false, follow: false } };
   const favicon = siteTheme(site).favicon;
   return {

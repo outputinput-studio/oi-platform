@@ -4,7 +4,8 @@ import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { siteFromHost } from "@/modules/sites/server";
+import { visibleSiteFromHost } from "@/modules/sites/storefront";
+import { adminOriginFor, siteAddress } from "@/lib/hosts";
 import { paymentsStatus } from "@/modules/payments/server";
 import { randomUUID } from "node:crypto";
 import { CART_COOKIE, CART_REF_COOKIE, MAX_CART_CHARS, addLine, lineKey, readCart, setLine, writeCart, type CartLine } from "./cart";
@@ -30,7 +31,7 @@ export type CartState = { ok?: string; error?: string; fields?: string[]; count?
 async function here() {
   const h = await headers();
   const host = h.get("x-oi-host") ?? h.get("host") ?? "";
-  const site = await siteFromHost(host);
+  const site = await visibleSiteFromHost(host);
   if (!site) throw new Error("This shop isn't available.");
   return { host, site };
 }
@@ -126,7 +127,7 @@ export async function quoteAction(_prev: CartState, form: FormData): Promise<Car
   try {
     const { site, host } = await here();
     const cart = readCart((await cookies()).get(CART_COOKIE)?.value);
-    return await requestQuote({ site, cart, cartRef: await cartRef(), details: detailsFrom(form), inboxUrl: `https://${host.replace(/^[^.]+\./, "admin.")}/inbox` });
+    return await requestQuote({ site, cart, cartRef: await cartRef(), details: detailsFrom(form), inboxUrl: `${adminOriginFor(host)}/inbox` });
   } catch (err) {
     return checkoutError(err);
   }
@@ -139,7 +140,7 @@ export async function productQuoteAction(productId: string, _prev: CartState, fo
     if (String(form.get("website") ?? "")) return { ok: "Thanks. We'll be in touch." };
     const s = (k: string) => String(form.get(k) ?? "");
     const details = { name: s("name"), email: s("email"), phone: s("phone"), country: s("country"), city: s("city"), postcode: s("postcode"), qty: s("qty") || "1", note: s("note"), choice: s("choice") };
-    return await requestProductQuote({ site, productId, details, inboxUrl: `https://${host.replace(/^[^.]+\./, "admin.")}/inbox` });
+    return await requestProductQuote({ site, productId, details, inboxUrl: `${adminOriginFor(host)}/inbox` });
   } catch (err) {
     return formError(err, { fallback: "Check the details and try again." });
   }
@@ -152,7 +153,7 @@ export async function testPayAction(form: FormData): Promise<void> {
   const orderId = z.string().uuid().parse(form.get("orderId"));
   const order = await orderForCustomer({ siteId: site.id, orderId });
   if (!order || order.provider !== "test") throw new Error("That order doesn't exist.");
-  await markOrderPaid({ siteId: site.id, orderId, adminUrl: `https://${host.replace(/^[^.]+\./, "admin.")}` });
+  await markOrderPaid({ siteId: site.id, orderId, adminUrl: adminOriginFor(host) });
   (await cookies()).delete(CART_COOKIE);
   redirect(`/shop/checkout/done?order=${orderId}`);
 }
@@ -197,7 +198,7 @@ export async function refundOrderAction(orderId: string, refund: unknown): Promi
     revalidatePath("/orders", "layout");
     // Stock put back can make something buyable again: whoever was waiting hears about it.
     if ((refund as { restock?: unknown } | null)?.restock === true) {
-      const host = ((await headers()).get("x-oi-host") ?? "").replace(/^admin\./, `${site.slug}.`);
+      const host = siteAddress(site, (await headers()).get("x-oi-host") ?? "");
       for (const productId of new Set((o.items as { productId: string }[]).map((it) => it.productId)))
         await notifyBackInStock({ siteId: site.id, productId, shopOrigin: `https://${host}` }).catch((err) => console.error("back in stock check failed", err));
     }

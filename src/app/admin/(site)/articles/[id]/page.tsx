@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { siteAddress } from "@/lib/hosts";
 import { requireSiteAccess } from "@/modules/auth/access";
 import { articlePath, getArticle } from "@/modules/articles/server";
 import { listCategories } from "@/modules/articles/categories";
@@ -14,7 +15,7 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
   const { user, site } = await requireSiteAccess();
   const [a, cats] = await Promise.all([getArticle({ actorId: user.id, siteId: site.id, articleId: id }), listCategories({ actorId: user.id, siteId: site.id })]);
   const adminHost = (await headers()).get("x-oi-host") ?? "";
-  const siteHost = adminHost.replace(/^admin\./, `${site.slug}.`);
+  const siteHost = siteAddress(site, adminHost);
   const seo = readSeo(a.seo);
   return (
     <ArticleEditor

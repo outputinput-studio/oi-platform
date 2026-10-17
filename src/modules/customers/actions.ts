@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { environmentName } from "@/lib/env";
 import { formError } from "@/lib/form-error";
-import { siteFromHost } from "@/modules/sites/server";
+import { visibleSiteFromHost } from "@/modules/sites/storefront";
 import { CART_COOKIE, CART_REF_COOKIE, MAX_CART_CHARS, addLine, readCart, writeCart } from "@/modules/orders/cart";
 import { cartCookieOptions } from "@/modules/orders/cookies";
 import { orderForCustomer, priceCart } from "@/modules/orders/server";
@@ -44,7 +44,7 @@ import { trackOrder, type Tracked } from "./track";
 
 async function here() {
   const h = await headers();
-  const site = await siteFromHost(h.get("x-oi-host") ?? h.get("host") ?? "");
+  const site = await visibleSiteFromHost(h.get("x-oi-host") ?? h.get("host") ?? "");
   if (!site) throw new Error("This shop isn't available.");
   // Who's asking, for the limit on codes from one connection. Vercel sets this; the first address is the visitor's.
   const requester = (h.get("x-forwarded-for") ?? h.get("x-real-ip") ?? "").split(",")[0].trim();
