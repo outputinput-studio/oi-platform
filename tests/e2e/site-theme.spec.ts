@@ -52,6 +52,42 @@ test("light with a brand colour, seen on the storefront with its menu", async ({
   await expect(menu.getByRole("link", { name: "Home" })).toHaveCount(0);
 });
 
+test("the browser tab: O/I's icon until the site has its own favicon, then only the site's", async ({ page }) => {
+  const icons = () => page.locator('link[rel="icon"]').evaluateAll((ls) => ls.map((l) => l.getAttribute("href")));
+  await page.goto(admin + "/sign-in");
+  expect(await icons()).toEqual(["/favicon.ico", "/brand/icon.svg"]);
+  await page.goto(demo + "/about-us");
+  expect(await icons()).toEqual(["/favicon.ico", "/brand/icon.svg"]);
+
+  await signInAsOwner(page);
+  await page.goto(admin + "/media");
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+  await page.getByLabel("Choose images to upload").setInputFiles({ name: "tab-icon.png", mimeType: "image/png", buffer: png });
+  await page.getByTestId("image-grid").getByRole("button").first().click();
+  await page.getByRole("dialog").getByLabel("Describe this photo").fill("Tab icon");
+  await page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("dialog").getByText("Saved")).toBeVisible();
+
+  await page.goto(admin + "/settings/branding");
+  const favicon = page.locator('[data-field="favicon"]');
+  await favicon.getByRole("button", { name: "Choose an image" }).click();
+  await page.getByRole("dialog", { name: "Choose an image" }).getByRole("button", { name: "Tab icon" }).click();
+  await page.getByRole("button", { name: "Save branding" }).click();
+  await expect(page.getByRole("button", { name: "Saved" })).toBeDisabled();
+  const src = await favicon.locator("img").getAttribute("src");
+
+  await page.goto(demo + "/about-us");
+  expect(await icons()).toEqual([src]);
+
+  // Taken off again: back to O/I's.
+  await page.goto(admin + "/settings/branding");
+  await favicon.getByRole("button", { name: "Remove image" }).click();
+  await page.getByRole("button", { name: "Save branding" }).click();
+  await expect(page.getByRole("button", { name: "Saved" })).toBeDisabled();
+  await page.goto(demo + "/about-us");
+  expect(await icons()).toEqual(["/favicon.ico", "/brand/icon.svg"]);
+});
+
 test("hard-to-read colours are flagged before they're saved", async ({ page }) => {
   await signInAsOwner(page);
   await page.goto(admin + "/settings/branding");
