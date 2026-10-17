@@ -71,6 +71,17 @@ const schema = z.object({
    * once OI_SECRETS_KEY is set. Unset → no support access anywhere.
    */
   OI_SUPPORT_EMAILS: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
+
+  /**
+   * Billing (Stage 39b): clients pay output/input for their plan through
+   * O/I's own Stripe account — not theirs. A restricted key (Customers,
+   * Checkout Sessions, Subscriptions, Customer portal: write; Invoices,
+   * Payment methods, Products, Prices: read… see the PR) and the signing
+   * secret of the webhook pointed at /api/billing/stripe. Not set → outside
+   * production, "Set up payment" uses test billing; in production it waits.
+   */
+  OI_BILLING_STRIPE_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().regex(/^(sk|rk)_(test|live)_/, "should start sk_ or rk_").optional()),
+  OI_BILLING_WEBHOOK_SECRET: z.preprocess((v) => (v === "" ? undefined : v), z.string().startsWith("whsec_", "should start whsec_").optional()),
 });
 
 export type Env = z.infer<typeof schema>;

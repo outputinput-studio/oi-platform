@@ -52,6 +52,12 @@ A refusal about one field throws `FieldError(field, message)`; a lone value is p
   anyone else lands on "not ours" (`requireOps`). We set each site's plan there (`sites.plan`, `planSchema`; only
   `setPlan` by support, checked in the module); Owners see it and their usage in Settings · Plan. Visits are counted
   per site per day in `visits` (RLS) by `/api/visit`, launched sites only, bots skipped.
+- Billing (Carl, Oct 2026; `modules/billing`): clients pay O/I for the plan through O/I's own Stripe
+  (OI_BILLING_STRIPE_KEY — never a client's keys). An Owner sets up payment on Settings · Plan (Stripe Checkout,
+  monthly subscription, `metadata.siteId`); `/api/billing/stripe` (OI_BILLING_WEBHOOK_SECRET) re-reads the
+  subscription whole on every event (`syncSubscription`) into `billing` (RLS, one row per site). A price changed in
+  ops applies from the next bill (no proration); the currency is fixed while they pay; a failed payment stops
+  nothing. No key outside production → test billing (pretend card, nothing charged).
 - Invitations (`modules/team/invitations.ts`, RLS table): the only way onto a team from the admin. 14 days; the
   link (`/join/[token]`, found through `resolve_invitation()`) adds the invited address as its role, then hands on
   to the emailed code. An expired link asks for a new one itself, sent to the invited address.

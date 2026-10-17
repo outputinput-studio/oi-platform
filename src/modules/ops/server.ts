@@ -6,6 +6,8 @@ import { sortByRole } from "@/modules/auth/roles";
 import { isSupportUser } from "@/modules/auth/support";
 import { readPlan, type Plan } from "@/modules/plans/plan";
 import { siteUsage, type Usage } from "@/modules/plans/server";
+import { billingForOps, type BillingView } from "@/modules/billing/server";
+import type { BillingStatus } from "@/modules/billing/billing";
 
 /**
  * Operations (design/operations.html): output/input's own surface, every
@@ -21,7 +23,7 @@ async function allSiteIds(): Promise<string[]> {
   return (await db.execute<{ id: string }>(sql`select all_site_ids() as id`)).rows.map((r) => r.id);
 }
 
-export type OpsSiteRow = { id: string; name: string; slug: string; domain: string | null; launchedAt: Date | null; planName: string | null; storageBytes: number };
+export type OpsSiteRow = { id: string; name: string; slug: string; domain: string | null; launchedAt: Date | null; planName: string | null; storageBytes: number; billing: BillingStatus | null };
 
 /** Sites, A–Z, with their plan and how much they store. */
 export async function opsSites(p: { actorId: string }): Promise<OpsSiteRow[]> {
@@ -30,8 +32,8 @@ export async function opsSites(p: { actorId: string }): Promise<OpsSiteRow[]> {
   for (const id of await allSiteIds()) {
     const [s] = await withSite(id, (tx) => tx.select().from(sites).limit(1));
     if (!s) continue;
-    const usage = await siteUsage(id);
-    out.push({ id, name: s.name, slug: s.slug, domain: s.domain, launchedAt: s.launchedAt, planName: readPlan(s.plan)?.name ?? null, storageBytes: usage.storageBytes });
+    const [usage, b] = await Promise.all([siteUsage(id), billingForOps(id)]);
+    out.push({ id, name: s.name, slug: s.slug, domain: s.domain, launchedAt: s.launchedAt, planName: readPlan(s.plan)?.name ?? null, storageBytes: usage.storageBytes, billing: (b?.status as BillingStatus) ?? null });
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -39,7 +41,7 @@ export async function opsSites(p: { actorId: string }): Promise<OpsSiteRow[]> {
 export type OpsPerson = { name: string; email: string; role: MembershipRole };
 
 /** One site: its plan, its usage, and who can sign in (read-only — it mirrors their own Team). */
-export async function opsSite(p: { actorId: string; siteId: string }): Promise<{ site: Site; plan: Plan | null; usage: Usage; people: OpsPerson[] }> {
+export async function opsSite(p: { actorId: string; siteId: string }): Promise<{ site: Site; plan: Plan | null; usage: Usage; people: OpsPerson[]; billing: BillingView["billing"] }> {
   await assertOps(p.actorId);
   const [site] = /^[0-9a-f-]{36}$/.test(p.siteId) ? await withSite(p.siteId, (tx) => tx.select().from(sites).limit(1)) : [];
   if (!site) throw new AccessError("That site doesn't exist.");
@@ -48,5 +50,5 @@ export async function opsSite(p: { actorId: string; siteId: string }): Promise<{
     .from(memberships)
     .innerJoin(users, eq(users.id, memberships.userId))
     .where(eq(memberships.siteId, site.id));
-  return { site, plan: readPlan(site.plan), usage: await siteUsage(site.id), people: sortByRole(people) };
+  return { site, plan: readPlan(site.plan), usage: await siteUsage(site.id), people: sortByRole(people), billing: await billingForOps(site.id) };
 }

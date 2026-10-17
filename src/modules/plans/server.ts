@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import Stripe from "stripe";
 import { and, count, eq, gte, lt, sql, sum } from "drizzle-orm";
 import { db, withSite } from "@/db/client";
 import { media, memberships, products, sites, visits, visitsSeen } from "@/db/schema";
@@ -7,6 +8,7 @@ import { AccessError, assertAccess } from "@/modules/auth/access";
 import { isSupportUser } from "@/modules/auth/support";
 import { logActivity } from "@/modules/activity/server";
 import { planSchema, readPlan, type Plan } from "./plan";
+import { applyPlanPrice, checkPlanChange } from "@/modules/billing/server";
 
 /**
  * Plans and what a site uses against them. output/input sets a plan (ops);
@@ -45,8 +47,16 @@ export async function planView(p: { actorId: string; siteId: string }): Promise<
 export async function setPlan(p: { actorId: string; siteId: string; plan: unknown }): Promise<Plan> {
   if (!(await isSupportUser(p.actorId))) throw new AccessError("Only output/input changes plans.");
   const plan = planSchema.parse(p.plan);
+  // Paying already? Their currency is fixed, and a new price applies from the next bill.
+  await checkPlanChange(p.siteId, plan);
   await withSite(p.siteId, (tx) => tx.update(sites).set({ plan }).where(eq(sites.id, p.siteId)));
   await logActivity(p.siteId, p.actorId, { action: "set the plan to {s}", subject: plan.name, href: "/settings/plan" });
+  try {
+    await applyPlanPrice(p.siteId, plan);
+  } catch (err) {
+    if (err instanceof Stripe.errors.StripeError) throw new Error("The plan is saved, but Stripe didn't take the new price. Save it again in a minute.");
+    throw err;
+  }
   return plan;
 }
 

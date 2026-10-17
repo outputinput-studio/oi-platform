@@ -90,6 +90,30 @@ test("support sets a site's plan in ops; the Owner sees it in Settings · Plan",
     await page.reload();
     return (await rows.filter({ hasText: "Visits this month" }).textContent()) ?? "";
   }).toMatch(/[1-9][\d,]* of 10,000/);
+
+  // Stage 39b: the Owner sets up payment. Without O/I's Stripe key (CI) it's test billing: no card, nothing charged.
+  await expect(page.getByTestId("paying")).toContainText("Test billing here");
+  await page.getByRole("button", { name: "Set up payment" }).click();
+  await expect(page.getByTestId("paid-notice")).toBeVisible();
+  await expect(page.getByTestId("paying")).toContainText("Visa ending 4242");
+  await expect(page.getByTestId("renews")).toContainText("Next renews");
+  await expect(page.getByRole("button", { name: "Set up payment" })).toHaveCount(0);
+
+  // Ops sees they're paying; a new price applies from the next bill, and the currency stays.
+  await sup.reload();
+  await expect(sup.getByTestId("ops-site-demo").getByTestId("ops-billing")).toHaveText("Paying by card");
+  await sup.getByTestId("ops-site-demo").click();
+  await expect(sup.getByTestId("ops-paying")).toContainText("$180 a month");
+  await sup.getByLabel("Currency").selectOption("NZD");
+  await sup.getByRole("button", { name: "Save plan" }).click();
+  await expect(sup.getByText("Stripe can't change that while they're paying")).toBeVisible();
+  await expect(sup.getByLabel("Currency")).toHaveAttribute("aria-invalid", "true");
+  await sup.getByLabel("Currency").selectOption("AUD");
+  await sup.getByLabel("Price a month").fill("200");
+  await sup.getByRole("button", { name: "Save plan" }).click();
+  await expect(sup.getByText("Saved")).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId("plan-card")).toContainText("$200 a month");
 });
 
 test("ops is ours: a client's Owner signing in there is told so", async ({ browser }) => {
