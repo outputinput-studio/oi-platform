@@ -7,6 +7,8 @@ import { statusNames } from "@/modules/sites/shop";
 import { siteColours, type Theme } from "@/modules/sites/theme";
 import { readMessages, splitList, type Messages } from "@/modules/sites/messages";
 import { readAccountSettings } from "@/modules/customers/settings";
+import { readAnalytics, readCookieNotice } from "@/modules/sites/tracking";
+import { readCustomCode } from "@/modules/sites/custom-code-rules";
 import { Label, PageHeader, Row, Rows } from "../../ui";
 
 export const dynamic = "force-dynamic";
@@ -63,6 +65,8 @@ export default async function SettingsPage() {
             <Row title="Domain" detail={domainLine(site)} href="/settings/domain" />
             <Row title="Search engines" detail={siteSearch(site).hideFromSearch ? "Hidden from Google" : "Sitemap, title pattern, sharing image"} href="/settings/search" />
             <Row title="Redirects" detail="Old addresses, pointed somewhere useful" href="/settings/redirects" />
+            <Row title="Analytics" detail={analyticsLine(site)} href="/settings/analytics" />
+            <Row title="Cookie notice" detail={readCookieNotice(site.cookies).enabled ? "On · analytics wait for Accept" : "Off"} href="/settings/cookies" />
           </Rows>
         </section>
         <section>
@@ -70,6 +74,12 @@ export default async function SettingsPage() {
           <Rows>
             <Row title="Team" detail={role === "owner" ? "Who can sign in, and as what" : "Who can sign in"} href="/team" />
             <Row title="Your account" detail={user.email} href="/account" />
+          </Rows>
+        </section>
+        <section>
+          <Label>Advanced</Label>
+          <Rows>
+            <Row title="Custom code" detail={codeLine(site)} href="/settings/custom-code" />
           </Rows>
         </section>
       </div>
@@ -103,4 +113,14 @@ function accountsLine(a: ReturnType<typeof readAccountSettings>): string {
 function domainLine(site: { slug: string; domain: string | null; domainOkAt: Date | null; launchedAt: Date | null }): string {
   const where = site.domain ? `${site.domain}${site.domainOkAt ? "" : " · waiting for DNS"}` : `${site.slug} · connect your own domain`;
   return site.launchedAt ? where : `${where} · not live yet`;
+}
+
+function analyticsLine(site: { analytics: unknown }): string {
+  const a = readAnalytics(site.analytics);
+  return [a.gaId && "Google Analytics", a.metaPixelId && "Meta pixel"].filter(Boolean).join(" · ") || "Not set up";
+}
+
+function codeLine(site: { customCode: unknown }): string {
+  const c = readCustomCode(site.customCode);
+  return c.head || c.body ? `Added to every page${c.by ? ` · last changed by ${c.by}` : ""}` : "Nothing added";
 }
