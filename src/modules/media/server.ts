@@ -5,6 +5,7 @@ import { media, type Media } from "@/db/schema";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { storage } from "@/lib/storage";
 import { checkSvg } from "@/lib/svg";
+import { recordActivity } from "@/modules/activity/server";
 
 /**
  * The media library: a site's images. Bytes go to storage (src/lib/storage),
@@ -89,8 +90,8 @@ export async function uploadMedia(p: {
   const key = `${p.siteId}/${id}.${ext}`;
   await s.put(key, p.bytes, p.contentType);
 
-  const [row] = await withSite(p.siteId, (tx) =>
-    tx
+  const [row] = await withSite(p.siteId, async (tx) => {
+    const rows = await tx
       .insert(media)
       .values({
         id,
@@ -104,8 +105,11 @@ export async function uploadMedia(p: {
         alt,
         createdBy: p.actorId,
       })
-      .returning(),
-  );
+      .returning();
+    // A batch of uploads is one line that counts up: "added 3 photos".
+    await recordActivity(tx, p.siteId, p.actorId, { action: "added {n} photos", href: "/media", key: "media:upload" });
+    return rows;
+  });
   return withUrl(row);
 }
 
@@ -130,13 +134,15 @@ export async function describeMedia(p: { actorId: string; siteId: string; mediaI
  */
 export async function deleteMedia(p: { actorId: string; siteId: string; mediaId: string }): Promise<void> {
   await assertAccess(p.actorId, p.siteId);
-  const [row] = await withSite(p.siteId, (tx) =>
-    tx
+  const [row] = await withSite(p.siteId, async (tx) => {
+    const rows = await tx
       .update(media)
       .set({ deletedAt: new Date() })
       .where(and(eq(media.id, p.mediaId), isNull(media.deletedAt)))
-      .returning(),
-  );
+      .returning();
+    if (rows[0]) await recordActivity(tx, p.siteId, p.actorId, { action: "removed {n} photos", href: "/media", key: "media:remove" });
+    return rows;
+  });
   if (!row) throw new AccessError("That image doesn't exist.");
   await storage()?.remove(row.key);
 }

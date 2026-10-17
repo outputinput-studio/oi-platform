@@ -6,11 +6,12 @@ import { sendEmail } from "@/lib/email";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { adjustStock, type OrderItem } from "./server";
 import { siteStripe } from "@/modules/payments/server";
-import { formatPrice, type Currency } from "@/modules/sites/shop";
+import { formatPrice, readShopSettings, statusNames, type Currency } from "@/modules/sites/shop";
 import { senderFor, tradingName } from "@/modules/sites/business";
 import { DEFAULT_TEMPLATES, TEMPLATE_KEYS, customerMail, readMessages, templateFor } from "@/modules/sites/messages";
 import { draftFrom, orderVars, trackingText, trackingUrl } from "./emails";
 import { FieldError } from "@/lib/form-error";
+import { recordActivity } from "@/modules/activity/server";
 
 /**
  * Orders for the team: the queue (New → In progress → Sent → Done), one
@@ -98,8 +99,8 @@ export async function moveOrder(p: { actorId: string; siteId: string; orderId: s
   await assertAccess(p.actorId, p.siteId);
   const c = moveSchema.parse(p.change);
   const cur = await getOrder(p);
-  const [updated] = await withSite(p.siteId, (tx) =>
-    tx
+  const [updated] = await withSite(p.siteId, async (tx) => {
+    const rows = await tx
       .update(orders)
       .set({
         status: c.status,
@@ -109,8 +110,14 @@ export async function moveOrder(p: { actorId: string; siteId: string; orderId: s
         updatedAt: new Date(),
       })
       .where(eq(orders.id, cur.id))
-      .returning(),
-  );
+      .returning();
+    if (c.status !== cur.status) {
+      const [s] = await tx.select({ shop: sites.shop }).from(sites).limit(1);
+      const named = statusNames(readShopSettings(s?.shop))[c.status];
+      await recordActivity(tx, p.siteId, p.actorId, { action: `moved order ${cur.number} to {s}`, subject: named, href: `/orders/${cur.id}` });
+    }
+    return rows;
+  });
   if (c.email) await sendEmail({ to: updated.email, subject: c.email.subject, text: c.email.message, ...customerMail(await siteFor(p.siteId)) });
   return updated;
 }
@@ -206,6 +213,7 @@ export async function refundOrder(p: { actorId: string; siteId: string; orderId:
       .set({ refunded, paymentStatus: refunded >= o.total ? "refunded" : "paid", updatedAt: new Date() })
       .where(eq(orders.id, o.id))
       .returning();
+    await recordActivity(tx, p.siteId, p.actorId, { action: `refunded {s} on order ${o.number}`, subject: formatPrice(amount, o.currency as Currency), href: `/orders/${o.id}` });
     return row;
   });
   if (r.email) await sendEmail({ to: o.email, subject: r.email.subject, text: r.email.message, ...customerMail(await siteFor(p.siteId)) }).catch((err) => console.error("refund email failed", err));

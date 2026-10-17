@@ -12,6 +12,7 @@ import { articleIsLive, isLive } from "@/modules/pages/live";
 import { scheduleTime } from "@/modules/pages/server";
 import { FieldError, named } from "@/lib/form-error";
 import { likePattern } from "@/lib/search";
+import { recordActivity } from "@/modules/activity/server";
 
 /**
  * Articles: the site's journal. Same shape as pages — soft delete,
@@ -92,6 +93,7 @@ export async function createArticle(p: { actorId: string; siteId: string; title:
   return withSite(p.siteId, async (tx) => {
     const slug = await freeSlug(tx, slugFromTitle(title));
     const [a] = await tx.insert(articles).values({ siteId: p.siteId, title, slug }).returning();
+    await recordActivity(tx, p.siteId, p.actorId, { action: "added the article {s}", subject: title, href: `/articles/${a.id}` });
     return row({ a, c: null });
   });
 }
@@ -128,6 +130,7 @@ export async function updateArticle(p: { actorId: string; siteId: string; articl
       const [site] = await tx.select({ search: sites.search }).from(sites).limit(1);
       if (!site || readSearchSettings(site.search).autoRedirect) await autoRedirect(tx, { siteId: p.siteId, from: was, to: now });
     }
+    await recordActivity(tx, p.siteId, p.actorId, { action: "edited the article {s}", subject: patch.title ?? a.title, href: `/articles/${a.id}`, key: `article:${a.id}` });
     return row(after);
   });
 }
@@ -141,6 +144,10 @@ export async function setArticleStatus(p: { actorId: string; siteId: string; art
       .update(articles)
       .set({ status: p.status, publishedAt: p.status === "scheduled" ? at : p.status === "published" ? (a.publishedAt ?? new Date()) : a.publishedAt, updatedAt: new Date() })
       .where(eq(articles.id, a.id));
+    if (p.status !== a.status) {
+      const action = p.status === "published" ? "published the article {s}" : p.status === "scheduled" ? "scheduled the article {s}" : "took the article {s} offline";
+      await recordActivity(tx, p.siteId, p.actorId, { action, subject: a.title, href: `/articles/${a.id}` });
+    }
     const [j] = await joined(tx).where(eq(articles.id, a.id)).limit(1);
     return row(j);
   });
@@ -151,6 +158,7 @@ export async function deleteArticle(p: { actorId: string; siteId: string; articl
   await withSite(p.siteId, async (tx) => {
     const a = await load(tx, p.articleId);
     await tx.update(articles).set({ deletedAt: new Date() }).where(eq(articles.id, a.id));
+    await recordActivity(tx, p.siteId, p.actorId, { action: "removed the article {s}", subject: a.title });
   });
 }
 

@@ -14,6 +14,7 @@ import { assertShopSlugFree, freeShopSlug } from "./slugs";
 import { FieldError, named } from "@/lib/form-error";
 import { likePattern } from "@/lib/search";
 import { readOptions, readVariants, upsertVariant, variantKey, variantsFor } from "./options";
+import { recordActivity } from "@/modules/activity/server";
 
 /**
  * Products: the pieces a site sells. The team side authorises first;
@@ -63,6 +64,7 @@ export async function createProduct(p: { actorId: string; siteId: string; name: 
     const slug = await freeShopSlug(tx, slugFromTitle(name));
     const categoryId = p.categoryId ? (await liveCategory(tx, p.categoryId)).id : null;
     const [created] = await tx.insert(products).values({ siteId: p.siteId, name, slug, categoryId }).returning();
+    await recordActivity(tx, p.siteId, p.actorId, { action: "added the product {s}", subject: name, href: `/products/${created.id}` });
     const [j] = await joined(tx).where(eq(products.id, created.id)).limit(1);
     return row(j);
   });
@@ -96,6 +98,11 @@ export async function updateProduct(p: { actorId: string; siteId: string; produc
     const sale = patch.salePrice !== undefined ? patch.salePrice : cur.salePrice;
     if (sale !== null && (price === null || sale >= price)) throw new FieldError("salePrice", "A sale price is lower than the price. Clear it to stop the sale.");
     await tx.update(products).set(patch).where(eq(products.id, cur.id));
+    const name = patch.name ?? cur.name;
+    const href = `/products/${cur.id}`;
+    if (patch.stock === 0 && cur.stock !== 0) await recordActivity(tx, p.siteId, p.actorId, { action: "set {s} to sold out", subject: name, href });
+    else if (patch.visible !== undefined && patch.visible !== cur.visible) await recordActivity(tx, p.siteId, p.actorId, { action: patch.visible ? "put {s} in the shop" : "took {s} out of the shop", subject: name, href });
+    else await recordActivity(tx, p.siteId, p.actorId, { action: "edited the product {s}", subject: name, href, key: `product:${cur.id}` });
     // A visible product whose address changed keeps its old link working.
     if (patch.slug && patch.slug !== cur.slug && cur.visible) {
       const [site] = await tx.select({ search: sites.search }).from(sites).limit(1);
@@ -111,6 +118,7 @@ export async function deleteProduct(p: { actorId: string; siteId: string; produc
   await withSite(p.siteId, async (tx) => {
     const cur = await load(tx, p.productId);
     await tx.update(products).set({ deletedAt: new Date() }).where(eq(products.id, cur.id));
+    await recordActivity(tx, p.siteId, p.actorId, { action: "removed the product {s}", subject: cur.name });
   });
 }
 

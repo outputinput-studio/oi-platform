@@ -26,3 +26,17 @@ export function waitText(seconds: number): string {
   if (m >= 60) return "an hour";
   return `${m} minute${m === 1 ? "" : "s"}`;
 }
+
+/**
+ * "Today, 9:41am", "Yesterday, 11:20pm", "30 Aug, 10:15am" — how Activity
+ * says when. In the reader's own time zone unless one is given (tests).
+ */
+export function dayAndTime(then: Date, now: Date = new Date(), timeZone?: string): string {
+  const ymd = (d: Date) => d.toLocaleDateString("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" });
+  const time = then.toLocaleTimeString("en-AU", { timeZone, hour: "numeric", minute: "2-digit", hour12: true }).replace(/\s/g, "").toLowerCase();
+  const day = ymd(then);
+  if (day === ymd(now)) return `Today, ${time}`;
+  if (day === ymd(new Date(now.getTime() - 86_400_000))) return `Yesterday, ${time}`;
+  const sameYear = day.slice(0, 4) === ymd(now).slice(0, 4);
+  return `${then.toLocaleDateString("en-AU", { timeZone, day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }) })}, ${time}`;
+}

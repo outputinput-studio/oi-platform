@@ -8,6 +8,7 @@ import { isLive } from "@/modules/pages/live";
 import { articlePath } from "@/modules/articles/server";
 import { menuSettingsSchema, menuSummary, navTree, newItemId, readItems, type LinkTargets, type MenuItem, type NavLink } from "./items";
 import { named } from "@/lib/form-error";
+import { recordActivity } from "@/modules/activity/server";
 
 /**
  * Menus. Every site has a header and a footer ("always here"); the team
@@ -74,6 +75,7 @@ export async function saveMenu(p: { actorId: string; siteId: string; key: string
         .from(menus)
         .where(and(eq(menus.kind, key), isNull(menus.deletedAt)))
         .limit(1);
+      await recordActivity(tx, p.siteId, p.actorId, { action: "changed the {s} menu", subject: FIXED_NAMES[key], href: `/menus/${key}`, key: `menu:${key}` });
       if (existing) {
         const [row] = await tx.update(menus).set({ items: s.items, updatedAt: new Date() }).where(eq(menus.id, existing.id)).returning();
         return view(row);
@@ -87,6 +89,7 @@ export async function saveMenu(p: { actorId: string; siteId: string; key: string
       .where(and(eq(menus.id, key), eq(menus.kind, "custom"), isNull(menus.deletedAt)))
       .returning();
     if (!row) throw new AccessError("That menu doesn't exist.");
+    await recordActivity(tx, p.siteId, p.actorId, { action: "changed the {s} menu", subject: row.name, href: `/menus/${row.id}`, key: `menu:${row.id}` });
     return view(row);
   });
 }
@@ -94,7 +97,11 @@ export async function saveMenu(p: { actorId: string; siteId: string; key: string
 export async function createMenu(p: { actorId: string; siteId: string; name: string }): Promise<MenuView> {
   await assertAccess(p.actorId, p.siteId);
   const name = named("name", z.string().trim().min(1, "Give the menu a name.").max(60), p.name);
-  const [row] = await withSite(p.siteId, (tx) => tx.insert(menus).values({ siteId: p.siteId, kind: "custom", name }).returning());
+  const [row] = await withSite(p.siteId, async (tx) => {
+    const rows = await tx.insert(menus).values({ siteId: p.siteId, kind: "custom", name }).returning();
+    await recordActivity(tx, p.siteId, p.actorId, { action: "added the {s} menu", subject: name, href: `/menus/${rows[0].id}` });
+    return rows;
+  });
   return view(row);
 }
 
@@ -103,20 +110,25 @@ export async function deleteMenu(p: { actorId: string; siteId: string; key: stri
   await assertAccess(p.actorId, p.siteId);
   const key = parseKey(p.key);
   if (key === "header" || key === "footer") throw new AccessError("The header and footer are always there. Empty it instead.");
-  const [row] = await withSite(p.siteId, (tx) =>
-    tx
+  const [row] = await withSite(p.siteId, async (tx) => {
+    const rows = await tx
       .update(menus)
       .set({ deletedAt: new Date() })
       .where(and(eq(menus.id, key), eq(menus.kind, "custom"), isNull(menus.deletedAt)))
-      .returning({ id: menus.id }),
-  );
+      .returning({ id: menus.id, name: menus.name });
+    if (rows[0]) await recordActivity(tx, p.siteId, p.actorId, { action: "removed the {s} menu", subject: rows[0].name });
+    return rows;
+  });
   if (!row) throw new AccessError("That menu doesn't exist.");
 }
 
 /** The header goes back to every live page, then Journal — and follows new pages again. */
 export async function resetHeader(p: { actorId: string; siteId: string }): Promise<void> {
   await assertAccess(p.actorId, p.siteId);
-  await withSite(p.siteId, (tx) => tx.update(menus).set({ deletedAt: new Date() }).where(and(eq(menus.kind, "header"), isNull(menus.deletedAt))));
+  await withSite(p.siteId, async (tx) => {
+    await tx.update(menus).set({ deletedAt: new Date() }).where(and(eq(menus.kind, "header"), isNull(menus.deletedAt)));
+    await recordActivity(tx, p.siteId, p.actorId, { action: "set the {s} menu back to every page", subject: "Header", href: "/menus/header" });
+  });
 }
 
 // ───────────────────────── storefront ─────────────────────────

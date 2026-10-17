@@ -8,6 +8,7 @@ import { canManageSendingDomains, createSendingDomain, deleteSendingDomain, getS
 import { FieldError, named } from "@/lib/form-error";
 import { AccessError, assertAccess } from "@/modules/auth/access";
 import { readSendDomain, type SendDomain } from "./business";
+import { logActivity } from "@/modules/activity/server";
 
 /**
  * Settings · Sending, your own domain: emails to customers come from
@@ -83,6 +84,7 @@ export async function setUpSendingDomain(p: { actorId: string; siteId: string; d
   }
   const value = fromResend(d, { name: clean.domain, local });
   await store(p.siteId, value);
+  await logActivity(p.siteId, p.actorId, { action: "started sending from {s}", subject: `${local}@${clean.domain}`, href: "/settings/sending" });
   return { setUp: value, available: true };
 }
 
@@ -102,4 +104,5 @@ export async function removeSendingDomain(p: { actorId: string; siteId: string }
   if (!own) return;
   if (canManageSendingDomains()) await deleteSendingDomain(own.resendId);
   await store(p.siteId, null);
+  await logActivity(p.siteId, p.actorId, { action: "stopped sending from {s}", subject: own.name, href: "/settings/sending" });
 }

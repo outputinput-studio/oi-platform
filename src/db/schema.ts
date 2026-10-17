@@ -345,6 +345,10 @@ export const contacts = pgTable(
     email: text("email").notNull().default(""),
     phone: text("phone").notNull().default(""),
     notes: jsonb("notes").notNull().$type<{ at: string; text: string }[]>().default([]),
+    /** Contacts the team said are different people, so they're never suggested as duplicates again. */
+    notSame: jsonb("not_same").notNull().$type<string[]>().default([]),
+    /** Set on the one merged away (it's soft deleted): old links to it land on the one it became. */
+    mergedInto: uuid("merged_into"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
@@ -829,3 +833,33 @@ export const throttles = pgTable(
   },
   (t) => [uniqueIndex("throttles_site_key_idx").on(t.siteId, t.key)],
 );
+
+/**
+ * Activity: everything the team changed, and who changed it. One row per
+ * change, in words ("moved order 1041 to {s}", subject "In progress").
+ * Repeated edits to the same thing by the same person within half an
+ * hour fold into one row (`key`), and uploads count up ("added {n} photos").
+ * No actor means output/input itself.
+ */
+export const activity = pgTable(
+  "activity",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    actorId: text("actor_id"),
+    /** What happened, after the person's name. "{s}" is where the subject goes, "{n}" the count. */
+    action: text("action").notNull(),
+    subject: text("subject").notNull().default(""),
+    /** Where in the admin it happened, when there's somewhere to go. */
+    href: text("href").notNull().default(""),
+    /** Same person, same key, within half an hour: one row. Empty never folds. */
+    key: text("key").notNull().default(""),
+    count: integer("count").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("activity_site_updated_idx").on(t.siteId, t.updatedAt)],
+);
+export type Activity = typeof activity.$inferSelect;

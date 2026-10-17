@@ -9,6 +9,7 @@ import { customerMail, recipientsFor } from "@/modules/sites/messages";
 import { storage } from "@/lib/storage";
 import { answersSchema, fieldsSchema, filesIn, fillIn, formSettingsSchema, headlineAnswer, senderOf, uploadedFileSchema, type Field, type FormSettings, type UploadedFile } from "./fields";
 import { named } from "@/lib/form-error";
+import { recordActivity } from "@/modules/activity/server";
 
 /**
  * Forms and what comes through them.
@@ -69,6 +70,7 @@ export async function createForm(p: { actorId: string; siteId: string; name: str
     // New forms go last.
     const [last] = await tx.select({ n: count() }).from(forms).where(isNull(forms.deletedAt));
     const [r] = await tx.insert(forms).values({ siteId: p.siteId, name, fields, position: Number(last?.n ?? 0) }).returning();
+    await recordActivity(tx, p.siteId, p.actorId, { action: "added the form {s}", subject: name, href: `/forms/${r.id}` });
     return r;
   });
   return parsed(row);
@@ -92,13 +94,15 @@ export async function reorderForms(p: { actorId: string; siteId: string; order: 
 export async function updateForm(p: { actorId: string; siteId: string; formId: string; settings: unknown }): Promise<FormWithFields> {
   await assertAccess(p.actorId, p.siteId);
   const s: FormSettings = formSettingsSchema.parse(p.settings);
-  const [row] = await withSite(p.siteId, (tx) =>
-    tx
+  const [row] = await withSite(p.siteId, async (tx) => {
+    const rows = await tx
       .update(forms)
       .set({ ...s, updatedAt: new Date() })
       .where(and(eq(forms.id, p.formId), isNull(forms.deletedAt)))
-      .returning(),
-  );
+      .returning();
+    if (rows[0]) await recordActivity(tx, p.siteId, p.actorId, { action: "edited the form {s}", subject: rows[0].name, href: `/forms/${p.formId}`, key: `form:${p.formId}` });
+    return rows;
+  });
   if (!row) throw new AccessError("That form doesn't exist.");
   return parsed(row);
 }
@@ -106,9 +110,11 @@ export async function updateForm(p: { actorId: string; siteId: string; formId: s
 /** Soft delete. Submissions stay in the inbox under the form's name. */
 export async function deleteForm(p: { actorId: string; siteId: string; formId: string }): Promise<void> {
   await assertAccess(p.actorId, p.siteId);
-  const [row] = await withSite(p.siteId, (tx) =>
-    tx.update(forms).set({ deletedAt: new Date() }).where(and(eq(forms.id, p.formId), isNull(forms.deletedAt))).returning(),
-  );
+  const [row] = await withSite(p.siteId, async (tx) => {
+    const rows = await tx.update(forms).set({ deletedAt: new Date() }).where(and(eq(forms.id, p.formId), isNull(forms.deletedAt))).returning();
+    if (rows[0]) await recordActivity(tx, p.siteId, p.actorId, { action: "removed the form {s}", subject: rows[0].name });
+    return rows;
+  });
   if (!row) throw new AccessError("That form doesn't exist.");
 }
 
