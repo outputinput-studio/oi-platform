@@ -167,6 +167,10 @@ export const memberships = pgTable(
       .references(() => sites.id, { onDelete: "cascade" }),
     role: text("role", { enum: MEMBERSHIP_ROLES }).notNull().default("staff"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /** First-run (Stage 41): when they dismissed the welcome card on Home, or finished "Show me around". */
+    welcomedAt: timestamp("welcomed_at", { withTimezone: true }),
+    /** When they said "Not yet" to adding the authenticator app, so Home stops asking. */
+    secureNudgedAt: timestamp("secure_nudged_at", { withTimezone: true }),
   },
   (table) => [
     uniqueIndex("memberships_user_site_idx").on(table.userId, table.siteId),

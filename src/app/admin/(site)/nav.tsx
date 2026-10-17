@@ -53,6 +53,7 @@ const SECONDARY: Item[] = [
   { href: "/contacts", label: "Contacts", icon: ContactsIcon },
   { href: "/team", label: "Team", icon: PeopleIcon },
   { href: "/activity", label: "Activity", icon: ClockIcon },
+  { href: "/help", label: "Get help", icon: HelpIcon },
   { href: "/settings", label: "Settings", icon: CogIcon },
 ];
 
@@ -83,6 +84,8 @@ export function Nav({
   const count = (href: string) => (href === "/inbox" ? inboxCount : href === "/orders" ? ordersCount : 0);
   const active = (href: string) =>
     pathname === href || (href !== "/" && pathname.startsWith(href + "/")) || (href === "/pages" && ["/forms", "/articles", "/menus"].some((p) => pathname.startsWith(p)));
+  // Get help is told which screen they were on (design: "We can see which screen you were on").
+  const linkFor = (href: string) => (href === "/help" && pathname !== "/help" ? `/help?from=${encodeURIComponent(pathname)}` : href);
   const moreActive = secondary.some((i) => active(i.href)) || active("/account");
 
   return (
@@ -112,7 +115,7 @@ export function Nav({
           {[...primary, ...secondary].map((it) => (
             <li key={it.href}>
               <Link
-                href={it.href}
+                href={linkFor(it.href)}
                 aria-current={active(it.href) ? "page" : undefined}
                 title={folded ? it.label : undefined}
                 className={`flex h-11 items-center rounded-[6px] text-[14.5px] ${folded ? "justify-center px-0" : "gap-[11px] px-3"} ${
@@ -179,7 +182,7 @@ export function Nav({
           <ul className="divide-y divide-line-soft">
             {secondary.map((it) => (
               <li key={it.href}>
-                <Link href={it.href} onClick={() => setMore(false)} className="flex h-[66px] items-center gap-4 text-[16.5px]">
+                <Link href={linkFor(it.href)} onClick={() => setMore(false)} className="flex h-[66px] items-center gap-4 text-[16.5px]">
                   <it.icon size={21} />
                   <span className="flex-1">{it.label}</span>
                 </Link>
@@ -288,6 +291,16 @@ function Badge({ n, name }: { n: number; name: string }) {
     >
       {n > 99 ? "99+" : n}
     </span>
+  );
+}
+
+function HelpIcon({ size }: IconProps) {
+  return (
+    <svg {...svg(size)}>
+      <circle cx="12" cy="12" r="9.5" />
+      <path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.3" />
+      <path d="M12 17h.01" />
+    </svg>
   );
 }
 
