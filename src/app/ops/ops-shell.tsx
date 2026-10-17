@@ -11,7 +11,7 @@ export function OpsShell({ email, children }: { email: string; children: React.R
       <header className="border-b border-line">
         <div className="mx-auto flex h-16 max-w-[1120px] items-center gap-5 px-4 md:px-6">
           <Link href="/" className="flex items-center gap-3">
-            <Wordmark />
+            <Wordmark className="h-[18px]" />
             <span className="label">Ops</span>
             {envName !== "production" && <span className="label !text-faint">{envName}</span>}
           </Link>
