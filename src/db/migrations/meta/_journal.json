@@ -225,6 +225,13 @@
       "when": 1792219601111,
       "tag": "0031_support_sites",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792220015627,
+      "tag": "0032_invitations",
+      "breakpoints": true
     }
   ]
 }

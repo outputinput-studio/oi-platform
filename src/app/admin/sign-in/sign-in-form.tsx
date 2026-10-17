@@ -13,7 +13,7 @@ const EMAIL = ["email"];
  * the server action's return value, so a refresh never loses the step and
  * there is nothing to hydrate but the form itself.
  */
-export function SignInForm() {
+export function SignInForm({ email = "" }: { email?: string }) {
   const [state, act, pending] = useActionState(
     (prev: SignInState, form: FormData) => (prev.step === "code" ? verifyCode(prev, form) : sendCode(prev, form)),
     { step: "email" } as SignInState,
@@ -60,7 +60,7 @@ export function SignInForm() {
         <label htmlFor="field-email" className="label mb-2 block">
           Email
         </label>
-        <Input id="field-email" name="email" type="email" inputMode="email" autoComplete="email" required autoFocus />
+        <Input id="field-email" name="email" type="email" inputMode="email" autoComplete="email" required autoFocus defaultValue={email} />
       </div>
       {state.error && <Notice error={state.error} fields={EMAIL} />}
       <Button type="submit" disabled={pending} className="h-12 w-full text-[16px]">
