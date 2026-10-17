@@ -154,6 +154,37 @@ test("our default plans: add one, put a site on it, change it and the site follo
   await expect(page.getByTestId("plan-card")).toContainText("$160 a month");
 });
 
+test("add-ons: ops lists one, the Owner adds it on Settings · Plan, and the limit goes up", async ({ page, browser }) => {
+  const sup = await opsSignIn(browser, SUPPORT);
+  await sup.getByRole("link", { name: "Add-ons", exact: true }).click();
+  await sup.getByRole("link", { name: "New add-on" }).click();
+  await sup.getByLabel("Name").fill("Another 10 GB for photos");
+  await sup.getByLabel("Price a month").fill("12");
+  await sup.getByLabel("It adds").selectOption("storage");
+  await sup.getByLabel("How many (GB)").fill("");
+  await sup.getByRole("button", { name: "Add add-on" }).click();
+  await expect(sup.getByText("How much does it add?")).toBeVisible();
+  await expect(sup.getByLabel("How many (GB)")).toHaveAttribute("aria-invalid", "true");
+  await sup.getByLabel("How many (GB)").fill("10");
+  await sup.getByRole("button", { name: "Add add-on" }).click();
+  await expect(sup.getByText("Added. Sites see it on Settings · Plan.")).toBeVisible();
+
+  await page.goto(admin + "/sites");
+  await page.getByRole("button", { name: "Demo site" }).click();
+  await page.goto(admin + "/settings/plan");
+  const row = page.getByTestId("addon").filter({ hasText: "Another 10 GB for photos" });
+  await expect(row).toContainText("$12/mo");
+  await expect(row).toContainText(/Takes you to \d+ GB\./);
+  const photos = page.getByTestId("usage-row").filter({ hasText: "Photos and files" });
+  const before = Number((await photos.textContent())!.match(/of (\d+) GB/)![1]);
+  await row.getByRole("button", { name: /^Add/ }).click();
+  await expect(row).toContainText("On your plan");
+  await expect(photos).toContainText(`of ${before + 10} GB`);
+  await expect(page.getByTestId("addons-total")).toContainText("+ $12 a month in add-ons");
+  await row.getByRole("button", { name: /^Take off/ }).click();
+  await expect(photos).toContainText(`of ${before} GB`);
+});
+
 test("ops is ours: a client's Owner signing in there is told so", async ({ browser }) => {
   test.skip(!hasKey("owner@example.com"), "needs the owner's app key from the setup project");
   const p = await opsSignIn(browser, "owner@example.com");

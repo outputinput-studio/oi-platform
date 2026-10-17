@@ -5,6 +5,8 @@ import { AccessError } from "@/modules/auth/access";
 import { sortByRole } from "@/modules/auth/roles";
 import { isSupportUser } from "@/modules/auth/support";
 import { readPlan, type Plan } from "@/modules/plans/plan";
+import { withAddons } from "@/modules/addons/addon";
+import { addonsForLimits } from "@/modules/addons/server";
 import { siteUsage, type Usage } from "@/modules/plans/server";
 import { billingForOps, type BillingView } from "@/modules/billing/server";
 import type { BillingStatus } from "@/modules/billing/billing";
@@ -41,7 +43,7 @@ export async function opsSites(p: { actorId: string }): Promise<OpsSiteRow[]> {
 export type OpsPerson = { name: string; email: string; role: MembershipRole };
 
 /** One site: its plan, its usage, and who can sign in (read-only — it mirrors their own Team). */
-export async function opsSite(p: { actorId: string; siteId: string }): Promise<{ site: Site; plan: Plan | null; usage: Usage; people: OpsPerson[]; billing: BillingView["billing"] }> {
+export async function opsSite(p: { actorId: string; siteId: string }): Promise<{ site: Site; plan: Plan | null; withExtras: Plan | null; usage: Usage; people: OpsPerson[]; billing: BillingView["billing"] }> {
   await assertOps(p.actorId);
   const [site] = /^[0-9a-f-]{36}$/.test(p.siteId) ? await withSite(p.siteId, (tx) => tx.select().from(sites).limit(1)) : [];
   if (!site) throw new AccessError("That site doesn't exist.");
@@ -50,5 +52,6 @@ export async function opsSite(p: { actorId: string; siteId: string }): Promise<{
     .from(memberships)
     .innerJoin(users, eq(users.id, memberships.userId))
     .where(eq(memberships.siteId, site.id));
-  return { site, plan: readPlan(site.plan), usage: await siteUsage(site.id), people: sortByRole(people), billing: await billingForOps(site.id) };
+  const plan = readPlan(site.plan);
+  return { site, plan, withExtras: withAddons(plan, await addonsForLimits(site.id)), usage: await siteUsage(site.id), people: sortByRole(people), billing: await billingForOps(site.id) };
 }

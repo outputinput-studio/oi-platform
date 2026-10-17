@@ -1,5 +1,6 @@
 "use client";
 
+import { keepValues } from "../../admin/keep-values";
 import { useActionState } from "react";
 import { deleteDefaultPlanAction, saveDefaultPlanAction, type OpsFormState } from "@/modules/ops/actions";
 import type { Plan } from "@/modules/plans/plan";
@@ -12,7 +13,7 @@ export function PlanEditor({ id, plan, sites }: { id?: string; plan: Plan | null
   const [gone, remove, removing] = useActionState(deleteDefaultPlanAction, {} as OpsFormState);
   return (
     <div className="space-y-4">
-      <form action={save} className="space-y-4 rounded-card border border-line bg-surface p-4">
+      <form onSubmit={keepValues(save)} className="space-y-4 rounded-card border border-line bg-surface p-4">
         {id && <input type="hidden" name="id" value={id} />}
         <PlanFields plan={plan} />
         <div className="flex flex-wrap items-center gap-3 pt-1">

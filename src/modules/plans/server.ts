@@ -9,6 +9,8 @@ import { isSupportUser } from "@/modules/auth/support";
 import { logActivity } from "@/modules/activity/server";
 import { planSchema, readPlan, type Plan } from "./plan";
 import { applyPlanPrice, checkPlanChange } from "@/modules/billing/server";
+import { withAddons } from "@/modules/addons/addon";
+import { addonsForLimits } from "@/modules/addons/server";
 
 /**
  * Plans and what a site uses against them. output/input sets a plan (ops);
@@ -36,10 +38,12 @@ export async function siteUsage(siteId: string): Promise<Usage> {
 }
 
 /** Settings · Plan: Owners only (Carl: the Owner looks after "the team and the plan"). */
-export async function planView(p: { actorId: string; siteId: string }): Promise<{ plan: Plan | null; usage: Usage }> {
+export async function planView(p: { actorId: string; siteId: string }): Promise<{ plan: Plan | null; withExtras: Plan | null; usage: Usage }> {
   await assertAccess(p.actorId, p.siteId, "owner");
   const [site] = await withSite(p.siteId, (tx) => tx.select({ plan: sites.plan }).from(sites).limit(1));
-  return { plan: readPlan(site?.plan), usage: await siteUsage(p.siteId) };
+  const plan = readPlan(site?.plan);
+  // What usage is measured against: the plan, with any add-ons (more GB, visits, people) on top.
+  return { plan, withExtras: withAddons(plan, await addonsForLimits(p.siteId)), usage: await siteUsage(p.siteId) };
 }
 
 /** Set a site's own custom plan. output/input only, from ops — a site's own Owners can't. */

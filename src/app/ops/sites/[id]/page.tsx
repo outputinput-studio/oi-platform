@@ -9,6 +9,8 @@ import { Label, PageHeader, Rows } from "../../../admin/ui";
 import { UsageMeters } from "../../../admin/usage-meters";
 import { OpsShell } from "../../ops-shell";
 import { SitePlan } from "./site-plan";
+import { SiteAddons } from "./site-addons";
+import { siteAddonsView } from "@/modules/addons/server";
 import { listDefaultPlans } from "@/modules/plans/catalogue";
 
 export const dynamic = "force-dynamic";
@@ -19,8 +21,9 @@ export const dynamic = "force-dynamic";
  */
 export default async function OpsSitePage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireOps();
-  const { site, plan, usage, people, billing: b } = await opsSite({ actorId: user.id, siteId: (await params).id });
+  const { site, plan, withExtras, usage, people, billing: b } = await opsSite({ actorId: user.id, siteId: (await params).id });
   const choices = await listDefaultPlans({ actorId: user.id });
+  const extras = await siteAddonsView({ actorId: user.id, siteId: site.id });
   const admin = adminOriginForOps((await headers()).get("x-oi-host") ?? "");
   return (
     <OpsShell email={user.email}>
@@ -40,6 +43,12 @@ export default async function OpsSitePage({ params }: { params: Promise<{ id: st
         <section>
           <Label>Plan</Label>
           <SitePlan siteId={site.id} plan={plan} planId={site.planId} choices={choices} />
+          {extras.addons.length > 0 && (
+            <div className="mt-6">
+              <Label>Add-ons</Label>
+              <SiteAddons siteId={site.id} addons={extras.addons} />
+            </div>
+          )}
         </section>
         <div className="space-y-8">
           <section>
@@ -61,7 +70,7 @@ export default async function OpsSitePage({ params }: { params: Promise<{ id: st
           </section>
           <section>
             <Label>Usage</Label>
-            <UsageMeters plan={plan} usage={usage} />
+            <UsageMeters plan={withExtras} usage={usage} />
           </section>
           <section>
             <Label right={`${people.length}`}>People</Label>

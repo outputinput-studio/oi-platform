@@ -1,5 +1,6 @@
 "use client";
 
+import { keepValues } from "../../../admin/keep-values";
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { assignPlanAction, setPlanAction, type OpsFormState } from "@/modules/ops/actions";
@@ -64,7 +65,7 @@ export function SitePlan({ siteId, plan, planId, choices }: { siteId: string; pl
       )}
 
       {pick === CUSTOM && (
-        <form action={save} className="space-y-4">
+        <form onSubmit={keepValues(save)} className="space-y-4">
           <input type="hidden" name="siteId" value={siteId} />
           {/* Starts from what they're on now, a default plan's numbers included. */}
           <PlanFields plan={plan} />

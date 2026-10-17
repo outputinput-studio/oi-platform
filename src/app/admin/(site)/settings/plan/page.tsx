@@ -6,6 +6,9 @@ import { formatPrice, type Currency } from "@/modules/sites/shop";
 import { Label, PageHeader } from "../../../ui";
 import { UsageMeters } from "../../../usage-meters";
 import { ManageBilling, StartPaying } from "./billing-forms";
+import { AddonButton, TellUs } from "./addon-forms";
+import { siteAddonsView } from "@/modules/addons/server";
+import { addonEffect, perMonth } from "@/modules/addons/addon";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +24,11 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
   const q = await searchParams;
   // Back from Stripe's page: ask Stripe now rather than waiting for its webhook.
   if (q.session) await confirmPaying({ actorId: user.id, siteId: site.id, sessionId: q.session });
-  const [{ plan, usage }, { provider, billing: b }] = await Promise.all([planView({ actorId: user.id, siteId: site.id }), billingView({ actorId: user.id, siteId: site.id })]);
+  const [{ plan, withExtras, usage }, { provider, billing: b }, extras] = await Promise.all([
+    planView({ actorId: user.id, siteId: site.id }),
+    billingView({ actorId: user.id, siteId: site.id }),
+    siteAddonsView({ actorId: user.id, siteId: site.id }),
+  ]);
   const paying = b && (b.status === "active" || b.status === "past_due");
   // What they're billed is Stripe's number; a price changed in ops shows from the next bill.
   const nextBill = paying && plan && b.price !== plan.price ? plan.price : null;
@@ -56,6 +63,11 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
                   </p>
                 </div>
                 {plan.description && <p className="mt-2 text-[14px] leading-relaxed text-body">{plan.description}</p>}
+                {extras.extra > 0 && (
+                  <p data-testid="addons-total" className="mt-2 font-mono text-[13px] text-body">
+                    + {formatPrice(extras.extra, plan.currency)} a month in add-ons
+                  </p>
+                )}
                 {paying && b.renewsAt && (
                   <p data-testid="renews" className="mt-3 text-[13px] text-muted">
                     Next renews {day(b.renewsAt)}
@@ -71,8 +83,35 @@ export default async function PlanPage({ searchParams }: { searchParams: Promise
 
         <section>
           <Label>What you are using</Label>
-          <UsageMeters plan={plan} usage={usage} />
+          <UsageMeters plan={withExtras} usage={usage} />
         </section>
+
+        {plan && extras.addons.length > 0 && (
+          <section>
+            <Label>Add to your plan</Label>
+            <p className="mb-3 text-[13.5px] text-muted">All of this is built and sitting there. Add it and it works within the minute.</p>
+            <div className="divide-y divide-line rounded-card border border-line bg-surface">
+              {extras.addons.map((a) => (
+                <div key={a.id} data-testid="addon" className="flex items-start gap-3 px-4 py-3.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[15px] font-medium">
+                      {a.name}
+                      {a.has && <span className="ml-2 text-[12.5px] font-normal text-success">✓ On your plan</span>}
+                    </p>
+                    {a.description && <p className="mt-0.5 text-[13px] leading-relaxed text-muted">{a.description}</p>}
+                    {!a.has && addonEffect(a, plan) && <p className="mt-0.5 text-[13px] text-muted">{addonEffect(a, plan)}</p>}
+                  </div>
+                  <p className="shrink-0 pt-0.5 font-mono text-[13.5px]">{perMonth(a)}</p>
+                  <AddonButton addonId={a.id} name={a.name} has={a.has} selfServe={a.selfServe} />
+                </div>
+              ))}
+              <div className="px-4 py-3.5">
+                <TellUs />
+              </div>
+            </div>
+            {b?.provider === "stripe" && <p className="mt-2 text-[12.5px] text-muted">Added today, the part month goes on your next bill. Taken off, the unused part comes off it.</p>}
+          </section>
+        )}
 
         {plan && plan.price > 0 && (
           <section>
