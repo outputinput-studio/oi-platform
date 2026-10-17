@@ -1022,3 +1022,49 @@ export const plans = pgTable("plans", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 export type PlanRow = typeof plans.$inferSelect;
+
+/**
+ * output/input's add-ons (Stage 39c, Carl): extras a site adds to its plan —
+ * more room for photos, more visits, one more person — or a feature that's
+ * "Ask us" until its module is built. Our price list, like `plans`: a
+ * platform table (no client data, no RLS), changed only by O/I support.
+ * `kind` says what it adds: storage (GB), visits (a month), people, or a
+ * feature (no number). `selfServe`: an Owner adds it with one tap; otherwise
+ * "Ask us". `stripeProductId`: made the first time someone pays for it.
+ */
+export const addons = pgTable("addons", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  /** Cents a month. */
+  price: integer("price").notNull(),
+  currency: text("currency").notNull(),
+  kind: text("kind").notNull(),
+  amount: integer("amount"),
+  selfServe: boolean("self_serve").notNull().default(true),
+  position: integer("position").notNull().default(0),
+  stripeProductId: text("stripe_product_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type AddonRow = typeof addons.$inferSelect;
+
+/**
+ * The add-ons a site has (Stage 39c). Client-owned (RLS). On straight away;
+ * charged pro rata on the next bill when the site pays through Stripe
+ * (`stripeItemId` is its line on the subscription).
+ */
+export const siteAddons = pgTable(
+  "site_addons",
+  {
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    addonId: uuid("addon_id").notNull(),
+    addedBy: text("added_by"),
+    stripeItemId: text("stripe_item_id"),
+    addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("site_addons_site_addon_idx").on(t.siteId, t.addonId)],
+);
+export type SiteAddon = typeof siteAddons.$inferSelect;

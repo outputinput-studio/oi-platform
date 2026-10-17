@@ -1,7 +1,7 @@
 import Stripe from "stripe";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db, withSite } from "@/db/client";
-import { billing, sites, users, type Billing } from "@/db/schema";
+import { addons, billing, siteAddons, sites, users, type AddonRow, type Billing } from "@/db/schema";
 import { assertAccess } from "@/modules/auth/access";
 import { logActivity } from "@/modules/activity/server";
 import { readPlan, type Plan } from "@/modules/plans/plan";
@@ -111,6 +111,12 @@ export async function startPaying(p: { actorId: string; siteId: string; returnTo
   const [actor] = await db.select({ email: users.email }).from(users).where(eq(users.id, p.actorId)).limit(1);
   const stripe = billingStripe()!;
   try {
+    // Their add-ons ride along, each its own line on the same monthly bill.
+    const extras = [];
+    for (const a of await addonsOf(p.siteId)) {
+      if (a.currency !== plan.currency || a.price <= 0) continue;
+      extras.push({ quantity: 1, price_data: { currency: a.currency.toLowerCase(), unit_amount: a.price, recurring: { interval: "month" as const }, product: await addonProduct(a) } });
+    }
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       line_items: [
@@ -118,6 +124,7 @@ export async function startPaying(p: { actorId: string; siteId: string; returnTo
           quantity: 1,
           price_data: { currency: plan.currency.toLowerCase(), unit_amount: plan.price, recurring: { interval: "month" }, product_data: { name: `output/input · ${plan.name}`.slice(0, 250) } },
         },
+        ...extras,
       ],
       ...(current?.customerId ? { customer: current.customerId } : actor ? { customer_email: actor.email } : {}),
       client_reference_id: p.siteId,
@@ -185,7 +192,15 @@ export async function syncSubscription(subscriptionId: string): Promise<string |
   const [site] = await withSite(siteId, (tx) => tx.select({ id: sites.id }).from(sites).limit(1));
   if (!site) return null;
 
-  const item = sub.items.data[0];
+  // The plan is the line that isn't one of their add-ons; each add-on line is remembered against it.
+  const extras = await addonsOf(siteId);
+  const productOf = (i: Stripe.SubscriptionItem) => (typeof i.price.product === "string" ? i.price.product : i.price.product.id);
+  const addonFor = (i: Stripe.SubscriptionItem) => extras.find((a) => a.stripeProductId && a.stripeProductId === productOf(i));
+  const item = sub.items.data.find((i) => !addonFor(i)) ?? sub.items.data[0];
+  for (const i of sub.items.data) {
+    const a = addonFor(i);
+    if (a) await withSite(siteId, (tx) => tx.update(siteAddons).set({ stripeItemId: i.id }).where(eq(siteAddons.addonId, a.id)));
+  }
   const pm = sub.default_payment_method && typeof sub.default_payment_method !== "string" ? sub.default_payment_method : null;
   const status = statusFromStripe(sub.status);
   const row = {
@@ -256,7 +271,8 @@ export async function applyPlanPrice(siteId: string, plan: Plan): Promise<void> 
     const stripe = billingStripe();
     if (!stripe) throw new Error("O/I's Stripe key isn't set, so their bill can't change. The plan is saved; their bill stays as it was.");
     const sub = await stripe.subscriptions.retrieve(b.subscriptionId);
-    const item = sub.items.data[0];
+    const theirs = new Set((await addonsOf(siteId)).map((a) => a.stripeProductId).filter(Boolean));
+    const item = sub.items.data.find((i) => !theirs.has(typeof i.price.product === "string" ? i.price.product : i.price.product.id));
     if (!item) return;
     const product = typeof item.price.product === "string" ? item.price.product : item.price.product.id;
     await stripe.subscriptions.update(b.subscriptionId, {
@@ -265,4 +281,76 @@ export async function applyPlanPrice(siteId: string, plan: Plan): Promise<void> 
     });
   }
   await withSite(siteId, (tx) => tx.update(billing).set({ price: plan.price, updatedAt: new Date() }).where(eq(billing.siteId, siteId)));
+}
+
+/** A site's add-ons, as our list has them. */
+async function addonsOf(siteId: string): Promise<AddonRow[]> {
+  const ids = (await withSite(siteId, (tx) => tx.select({ id: siteAddons.addonId }).from(siteAddons))).map((r) => r.id);
+  return ids.length ? db.select().from(addons).where(inArray(addons.id, ids)) : [];
+}
+
+/** The add-on's product in O/I's Stripe, made the first time someone pays for it. */
+async function addonProduct(a: AddonRow): Promise<string> {
+  if (a.stripeProductId) return a.stripeProductId;
+  const product = await billingStripe()!.products.create({ name: `output/input · ${a.name}`.slice(0, 250), metadata: { addonId: a.id } });
+  await db.update(addons).set({ stripeProductId: product.id }).where(eq(addons.id, a.id));
+  a.stripeProductId = product.id;
+  return product.id;
+}
+
+/**
+ * An add-on joins a site that's paying (Carl: on straight away, the part
+ * month on the next bill). Its currency has to be the bill's. Returns the
+ * new line's id on their subscription, or null when nothing's billed yet
+ * (not paying, or test billing) — it joins the bill when they set up payment.
+ */
+export async function billAddon(siteId: string, a: AddonRow): Promise<string | null> {
+  const b = await billingRow(siteId);
+  if (!live(b)) return null;
+  if (b.currency !== a.currency) throw new Error(`This add-on is priced in ${a.currency} and your plan is billed in ${b.currency}. Ask us and we'll sort it.`);
+  if (b.provider !== "stripe" || !b.subscriptionId || a.price <= 0) return null;
+  const stripe = billingStripe();
+  if (!stripe) throw new Error(NOT_YET);
+  try {
+    const item = await stripe.subscriptionItems.create({
+      subscription: b.subscriptionId,
+      quantity: 1,
+      price_data: { currency: a.currency.toLowerCase(), product: await addonProduct(a), unit_amount: a.price, recurring: { interval: "month" } },
+      proration_behavior: "create_prorations",
+      metadata: { siteId, addonId: a.id },
+    });
+    return item.id;
+  } catch (err) {
+    if (err instanceof Stripe.errors.StripeError) throw new Error(STRIPE_DOWN);
+    throw err;
+  }
+}
+
+/** An add-on taken off: its line leaves the bill, the unused part credited on the next one. */
+export async function unbillAddon(itemId: string | null): Promise<void> {
+  const stripe = billingStripe();
+  if (!itemId || !stripe) return;
+  try {
+    await stripe.subscriptionItems.del(itemId, { proration_behavior: "create_prorations" });
+  } catch (err) {
+    if (err instanceof Stripe.errors.StripeError) throw new Error(STRIPE_DOWN);
+    throw err;
+  }
+}
+
+/** We changed an add-on's price: from each paying site's next bill, like a plan. */
+export async function repriceAddon(siteId: string, itemId: string | null, a: AddonRow): Promise<void> {
+  const stripe = billingStripe();
+  const b = await billingRow(siteId);
+  if (!itemId || !stripe || !live(b) || b.provider !== "stripe") return;
+  await stripe.subscriptionItems.update(itemId, {
+    price_data: { currency: a.currency.toLowerCase(), product: await addonProduct(a), unit_amount: a.price, recurring: { interval: "month" } },
+    proration_behavior: "none",
+  });
+}
+
+/** Whether the site's bill is live, and in what currency — for add-ons to check before they're added. */
+export async function billedIn(siteId: string): Promise<string | null> {
+  const b = await billingRow(siteId);
+  return live(b) ? b.currency : null;
 }

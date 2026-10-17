@@ -60,6 +60,12 @@ A refusal about one field throws `FieldError(field, message)`; a lone value is p
   subscription whole on every event (`syncSubscription`) into `billing` (RLS, one row per site). A price changed in
   ops applies from the next bill (no proration); the currency is fixed while they pay; a failed payment stops
   nothing. No key outside production → test billing (pretend card, nothing charged).
+- Add-ons (Carl, Oct 2026; `modules/addons`, `addons` platform table + `site_addons` RLS): ops · Add-ons keeps the
+  list. Capacity add-ons (storage GB, visits, people) raise the limits usage is measured against (`withAddons`);
+  feature add-ons are "Ask us" until their module exists. Owners add self-serve ones on Settings · Plan, on straight
+  away; when paying through Stripe each is its own subscription item, the part month pro-rated onto the next bill.
+- Forms that can come back with a mistake submit with `onSubmit={keepValues(act)}` (`src/app/admin/keep-values.ts`),
+  so React 19 doesn't clear what was typed.
 - Invitations (`modules/team/invitations.ts`, RLS table): the only way onto a team from the admin. 14 days; the
   link (`/join/[token]`, found through `resolve_invitation()`) adds the invited address as its role, then hands on
   to the emailed code. An expired link asks for a new one itself, sent to the invited address.

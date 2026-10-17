@@ -21,6 +21,7 @@ import { listOrders, moveOrder, refundOrder, sendTemplateTest } from "@/modules/
 import { createPage, listPages } from "@/modules/pages/server";
 import { planView } from "@/modules/plans/server";
 import { billingView, startPaying } from "@/modules/billing/server";
+import { addAddon, askAboutAddon, removeAddon, siteAddonsView } from "@/modules/addons/server";
 import { removeStripeKeys, saveStripeKeys } from "@/modules/payments/server";
 import { listProducts } from "@/modules/products/server";
 import { saveCustomCode } from "@/modules/sites/custom-code";
@@ -96,6 +97,10 @@ const rows: Array<[string, MembershipRole, Call]> = [
   ["see the plan and usage", "owner", (actorId, siteId) => planView({ actorId, siteId })],
   ["see how the plan is paid", "owner", (actorId, siteId) => billingView({ actorId, siteId })],
   ["set up payment for the plan", "owner", (actorId, siteId) => startPaying({ actorId, siteId, returnTo: "https://admin.example.test/settings/plan" })],
+  ["see add-ons", "owner", (actorId, siteId) => siteAddonsView({ actorId, siteId })],
+  ["add an add-on", "owner", (actorId, siteId) => addAddon({ actorId, siteId, addonId: noOrder })],
+  ["take an add-on off", "owner", (actorId, siteId) => removeAddon({ actorId, siteId, addonId: noOrder })],
+  ["ask us about an add-on", "owner", (actorId, siteId) => askAboutAddon({ actorId, siteId, addonId: null })],
 ];
 
 /** True unless the access check said no. */
